@@ -189,6 +189,8 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
       mathToMarkdown(),
       frontmatterToMarkdown(['yaml']),
       {
+        // Custom handlers for emphasis markers and wiki links
+        // Cast to allow custom wikiLink handler (not in base Handlers type)
         handlers: {
           emphasis: (node: any, _parent: any, state: any) => {
             const marker = node?.data?._emphasisMarker === '_' ? '_' : '*';
@@ -210,7 +212,7 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
             const aliasPart = hasAlias ? `${wikiLinkOptions.aliasDivider}${alias}` : emptyAlias ? `${wikiLinkOptions.aliasDivider}` : '';
             return `[[${value}${aliasPart}]]`;
           },
-        },
+        } as Record<string, unknown>,
       },
     ],
     bullet: options.bulletStyle || '-',
