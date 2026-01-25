@@ -463,12 +463,12 @@ export function TableActionsPlugin() {
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      const cellElement = target.closest('td, th') as HTMLElement | null;
+      const cellElement = target.closest('td, th');
 
       if (!cellElement) return;
 
       // Find the table element
-      const tableElement = cellElement.closest('table') as HTMLTableElement | null;
+      const tableElement = cellElement.closest('table');
       if (!tableElement) return;
 
       e.preventDefault();

@@ -39,7 +39,7 @@ export function TogglePlugin(): null {
       event.stopPropagation();
 
       // Find the toggle container DOM element
-      const container = toggleTitle.closest('.toggle-container') as HTMLElement;
+      const container = toggleTitle.closest('.toggle-container')!;
       if (!container) return;
 
       // Find the corresponding Lexical node by traversing editor state

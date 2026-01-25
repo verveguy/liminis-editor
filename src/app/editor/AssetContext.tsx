@@ -28,7 +28,7 @@ export function useAssetContext() {
  */
 function normalizePath(path: string): string {
   // Remove leading ./ (current directory reference)
-  let normalized = path.replace(/^\.\//, '');
+  const normalized = path.replace(/^\.\//, '');
 
   // Split into segments and resolve . and ..
   const segments = normalized.split('/');

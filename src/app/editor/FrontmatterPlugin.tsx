@@ -44,7 +44,7 @@ function parseMdcFrontmatter(content: string): MdcFrontmatter {
     const trimmed = line.trim();
     
     // Check for description
-    const descMatch = line.match(/^description:\s*(.*)$/);
+    const descMatch = /^description:\s*(.*)$/.exec(line);
     if (descMatch) {
       result.description = descMatch[1].trim().replace(/^["']|["']$/g, '');
       inGlobs = false;
@@ -52,7 +52,7 @@ function parseMdcFrontmatter(content: string): MdcFrontmatter {
     }
 
     // Check for alwaysApply
-    const alwaysApplyMatch = line.match(/^alwaysApply:\s*(.*)$/);
+    const alwaysApplyMatch = /^alwaysApply:\s*(.*)$/.exec(line);
     if (alwaysApplyMatch) {
       const value = alwaysApplyMatch[1].trim().toLowerCase();
       result.alwaysApply = value === 'true';
@@ -61,13 +61,13 @@ function parseMdcFrontmatter(content: string): MdcFrontmatter {
     }
 
     // Check for globs array start
-    if (line.match(/^globs:\s*$/)) {
+    if (/^globs:\s*$/.exec(line)) {
       inGlobs = true;
       continue;
     }
 
     // Check for globs inline array: globs: ["*.ts", "*.tsx"]
-    const inlineGlobsMatch = line.match(/^globs:\s*\[(.*)\]$/);
+    const inlineGlobsMatch = /^globs:\s*\[(.*)\]$/.exec(line);
     if (inlineGlobsMatch) {
       const items = inlineGlobsMatch[1].split(',').map(s => 
         s.trim().replace(/^["']|["']$/g, '')
@@ -106,7 +106,7 @@ function serializeMdcFrontmatter(fm: MdcFrontmatter): string {
   // Description first if set
   if (fm.description) {
     // Quote the description if it contains special characters
-    const needsQuotes = /[:#\[\]{}|>&*!?,]/.test(fm.description);
+    const needsQuotes = /[:#[\]{}|>&*!?,]/.test(fm.description);
     lines.push(`description: ${needsQuotes ? `"${fm.description}"` : fm.description}`);
   }
 

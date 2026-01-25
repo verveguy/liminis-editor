@@ -87,7 +87,7 @@ export function WikiLinkExistencePlugin() {
       if (checkTimeoutRef.current) {
         clearTimeout(checkTimeoutRef.current);
       }
-      checkTimeoutRef.current = setTimeout(checkWikiLinks, 300);
+      checkTimeoutRef.current = setTimeout(() => { void checkWikiLinks() }, 300);
     };
 
     // Initial check

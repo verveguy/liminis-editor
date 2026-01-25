@@ -134,7 +134,7 @@ export function Toolbar() {
       if (!state.isVisible) return;
 
       // If click is inside the toolbar, don't dismiss
-      if (toolbarRef.current && toolbarRef.current.contains(e.target as Node)) {
+      if (toolbarRef.current?.contains(e.target as Node)) {
         return;
       }
 

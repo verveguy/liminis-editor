@@ -26,7 +26,6 @@ import {
   ImageNode,
   CalloutNode,
   ToggleContainerNode,
-  ToggleContentNode,
   EquationNode,
   MermaidNode,
   FrontmatterNode,
@@ -211,9 +210,9 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean): ListItem {
     // avoid setting `checked` to prevent duplicate markers on stringify.
     let hasExplicitMarker = false;
     const firstInline = inlineChildren[0];
-    if (firstInline && firstInline.type === 'text') {
-      const textNode = firstInline as Text;
-      const match = textNode.value.match(/^\[( |x|X)\]\s+/);
+    if (firstInline?.type === 'text') {
+      const textNode = firstInline;
+      const match = /^\[( |x|X)\]\s+/.exec(textNode.value);
       if (match) {
         hasExplicitMarker = true;
       }
@@ -468,7 +467,7 @@ function convertToggleContainerNode(node: ToggleContainerNode): Content[] {
       summaryText = child.getTextContent();
     } else if ($isToggleContentNode(child)) {
       // Convert content children to mdast
-      const contentNode = child as ToggleContentNode;
+      const contentNode = child;
       for (const contentChild of contentNode.getChildren()) {
         const converted = convertLexicalNode(contentChild);
         contentNodes.push(...converted);
@@ -509,7 +508,7 @@ function convertInlineChildren(node: ElementNode): PhrasingContentLike[] {
     } else if ($isImageNode(child)) {
       // Handle ImageNode that ended up inside a paragraph (from markdown shortcut)
       // Convert to inline mdast image
-      const imageNode = child as ImageNode;
+      const imageNode = child;
       const image: Image = {
         type: 'image',
         url: imageNode.getSrc(),
@@ -520,7 +519,7 @@ function convertInlineChildren(node: ElementNode): PhrasingContentLike[] {
     } else if ($isEquationNode(child)) {
       // Handle EquationNode that ended up inside a paragraph (from markdown shortcut)
       // Convert to inlineMath mdast node
-      const equationNode = child as EquationNode;
+      const equationNode = child;
       const equation = equationNode.getEquation();
       children.push({ type: 'inlineMath', value: equation } as InlineMath as unknown as PhrasingContent);
     }
@@ -635,7 +634,7 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
     
     // Extract alias from children if different from target
     const displayText = children.length > 0 && children[0].type === 'text' 
-      ? (children[0] as Text).value 
+      ? (children[0]).value 
       : '';
     
     const hasAlias = displayText && displayText !== target;

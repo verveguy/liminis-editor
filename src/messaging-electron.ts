@@ -49,7 +49,7 @@ export function openLink(url: string): void {
 // Listen for messages from main process
 export type MessageHandler = (message: HostToUIMessage) => void;
 
-const messageHandlers: Set<MessageHandler> = new Set();
+const messageHandlers = new Set<MessageHandler>();
 const MAX_HANDLERS = 10;
 
 export function addMessageHandler(handler: MessageHandler): () => void {

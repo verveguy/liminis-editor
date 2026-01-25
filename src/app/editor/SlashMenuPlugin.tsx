@@ -34,7 +34,11 @@ export function SlashMenuPlugin() {
   });
   // Use refs to access state without causing effect re-registration
   const menuStateRef = useRef(menuState);
-  menuStateRef.current = menuState;
+  
+  // Sync state to ref in effect, not during render
+  useEffect(() => {
+    menuStateRef.current = menuState;
+  }, [menuState]);
 
   const closeMenu = useCallback(() => {
     setMenuState({ isOpen: false, position: null, query: '' });
