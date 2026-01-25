@@ -34,7 +34,7 @@ export class ToggleContainerNode extends ElementNode {
     return new ToggleContainerNode(node.__open, node.__key);
   }
 
-  constructor(open: boolean = false, key?: NodeKey) {
+  constructor(open = false, key?: NodeKey) {
     super(key);
     this.__open = open;
   }
@@ -120,7 +120,7 @@ function convertDetailsElement(domNode: HTMLElement): DOMConversionOutput | null
   return { node };
 }
 
-export function $createToggleContainerNode(open: boolean = false): ToggleContainerNode {
+export function $createToggleContainerNode(open = false): ToggleContainerNode {
   return new ToggleContainerNode(open);
 }
 
@@ -301,9 +301,9 @@ export function $isToggleContentNode(
 // ==================== Helper Functions ====================
 
 export function $createToggleNode(
-  summaryText: string = 'Toggle',
-  contentText: string = '',
-  open: boolean = false
+  summaryText = 'Toggle',
+  contentText = '',
+  open = false
 ): ToggleContainerNode {
   const container = $createToggleContainerNode(open);
 

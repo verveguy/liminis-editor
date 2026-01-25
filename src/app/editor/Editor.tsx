@@ -65,7 +65,8 @@ import type { CursorState } from '../App';
 interface EditorProps {
   initialContent: string;
   contentVersion?: number;
-  cursorToRestore?: CursorState | null;
+  /** Ref to cursor state - read inside effects, not during render */
+  cursorToRestoreRef?: React.RefObject<CursorState | null>;
   onChange: (markdown: string) => void;
   onCursorChange?: (cursor: CursorState) => void;
   assetBaseUri?: string;
@@ -280,10 +281,10 @@ function CursorTrackingPlugin({
 // Plugin to restore cursor after content reload
 function CursorRestorePlugin({
   contentVersion,
-  cursorToRestore,
+  cursorToRestoreRef,
 }: {
   contentVersion: number;
-  cursorToRestore: CursorState | null;
+  cursorToRestoreRef: React.RefObject<CursorState | null>;
 }) {
   const [editor] = useLexicalComposerContext();
   const lastRestoredVersion = useRef(contentVersion);
@@ -293,6 +294,8 @@ function CursorRestorePlugin({
     if (contentVersion === lastRestoredVersion.current) return;
     lastRestoredVersion.current = contentVersion;
 
+    // Read ref value inside effect, not during render
+    const cursorToRestore = cursorToRestoreRef.current;
     if (!cursorToRestore) return;
 
     console.log('[CursorRestorePlugin] Restoring cursor', {
@@ -333,7 +336,7 @@ function CursorRestorePlugin({
         rootElement.focus({ preventScroll: true });
       }
     });
-  }, [editor, contentVersion, cursorToRestore]);
+  }, [editor, contentVersion, cursorToRestoreRef]);
 
   return null;
 }
@@ -379,12 +382,12 @@ function findOffsetByContext(
 // NOT when content flows back from editor's own onChange
 function ExternalUpdatePlugin({
   content,
-  lastExternalLoad,
+  lastExternalLoadRef,
   currentContentRef,
   lastEditorChangeRef,
 }: {
   content: string;
-  lastExternalLoad: React.MutableRefObject<number>;
+  lastExternalLoadRef: React.MutableRefObject<number>;
   currentContentRef: React.MutableRefObject<string>;
   lastEditorChangeRef: React.MutableRefObject<number>;
 }) {
@@ -411,7 +414,7 @@ function ExternalUpdatePlugin({
     });
 
     // Mark that we're loading external content
-    lastExternalLoad.current = Date.now();
+    lastExternalLoadRef.current = Date.now();
     currentContentRef.current = content;
 
     // Defer the editor update to avoid React's flushSync warning
@@ -431,7 +434,7 @@ function ExternalUpdatePlugin({
         { discrete: true }
       );
     });
-  }, [editor, content, lastExternalLoad, currentContentRef, lastEditorChangeRef]);
+  }, [editor, content, lastExternalLoadRef, currentContentRef, lastEditorChangeRef]);
 
   return null;
 }
@@ -508,7 +511,7 @@ const DEBOUNCE_DELAY = 100;
 export function Editor({
   initialContent,
   contentVersion = 0,
-  cursorToRestore,
+  cursorToRestoreRef,
   onChange,
   onCursorChange,
   assetBaseUri,
@@ -517,12 +520,15 @@ export function Editor({
   editable = true,
   filePath,
 }: EditorProps) {
-  const lastExternalLoad = useRef<number>(0);
+  const lastExternalLoadRef = useRef<number>(0);
   const currentContentRef = useRef<string>(initialContent);
   const debounceTimerRef = useRef<number | null>(null);
   const pendingEditorRef = useRef<LexicalEditor | null>(null);
   // Track when editor-initiated changes happen to prevent feedback loops
   const lastEditorChangeRef = useRef<number>(0);
+  // Fallback ref for cursor restore when not provided
+  const fallbackCursorRef = useRef<CursorState | null>(null);
+  const effectiveCursorRef = cursorToRestoreRef ?? fallbackCursorRef;
 
   const assetContextValue = useMemo(
     () => createAssetContextValue({ assetBaseUri, documentDirUri, imagePathResolution }),
@@ -543,7 +549,7 @@ export function Editor({
       void editorState;
       // Skip changes that happen right after external content load
       // These are normalization diffs, not user edits
-      const timeSinceExternalLoad = Date.now() - lastExternalLoad.current;
+      const timeSinceExternalLoad = Date.now() - lastExternalLoadRef.current;
       if (timeSinceExternalLoad < 500) {
         return;
       }
@@ -563,7 +569,7 @@ export function Editor({
         if (!pendingEditor) return;
 
         // Double-check we're not in the post-load window
-        const timeSinceLoad = Date.now() - lastExternalLoad.current;
+        const timeSinceLoad = Date.now() - lastExternalLoadRef.current;
         if (timeSinceLoad < 500) {
           return;
         }
@@ -621,11 +627,11 @@ export function Editor({
             <CursorTrackingPlugin onCursorChange={onCursorChange} />
             <CursorRestorePlugin
               contentVersion={contentVersion}
-              cursorToRestore={cursorToRestore ?? null}
+              cursorToRestoreRef={effectiveCursorRef}
             />
             <ExternalUpdatePlugin
               content={initialContent}
-              lastExternalLoad={lastExternalLoad}
+              lastExternalLoadRef={lastExternalLoadRef}
               currentContentRef={currentContentRef}
               lastEditorChangeRef={lastEditorChangeRef}
             />

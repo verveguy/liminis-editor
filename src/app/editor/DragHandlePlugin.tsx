@@ -22,7 +22,7 @@ function getBlockElement(
   }
 
   // Return the element if it's a valid block (direct child of editor root)
-  if (element && element.parentElement === editorRoot) {
+  if (element?.parentElement === editorRoot) {
     return element;
   }
 
@@ -34,12 +34,10 @@ function getBlockElementAtY(
   y: number,
   editorRoot: HTMLElement
 ): HTMLElement | null {
-  const children = editorRoot.children;
-  for (let i = 0; i < children.length; i++) {
-    const child = children[i] as HTMLElement;
+  for (const child of editorRoot.children) {
     const rect = child.getBoundingClientRect();
     if (y >= rect.top && y <= rect.bottom) {
-      return child;
+      return child as HTMLElement;
     }
   }
   return null;
@@ -74,7 +72,11 @@ export function DragHandlePlugin() {
   const handleRef = useRef<HTMLDivElement | null>(null);
   // Use ref to access isDragging in event handlers without causing re-registration
   const isDraggingRef = useRef(false);
-  isDraggingRef.current = isDragging;
+  
+  // Sync isDragging state to ref (must be in effect, not during render)
+  useEffect(() => {
+    isDraggingRef.current = isDragging;
+  }, [isDragging]);
 
   // Track editable state changes
   useEffect(() => {
@@ -297,7 +299,7 @@ export function DragHandlePlugin() {
       if (node) {
         // If this is the only node, replace with empty paragraph
         const parent = node.getParent();
-        if (parent && parent.getChildrenSize() === 1) {
+        if (parent?.getChildrenSize() === 1) {
           const paragraph = $createParagraphNode();
           node.replace(paragraph);
           paragraph.selectStart();

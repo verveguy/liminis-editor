@@ -233,7 +233,7 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
       <Editor
         initialContent={content}
         contentVersion={contentVersion}
-        cursorToRestore={cursorStateRef.current}
+        cursorToRestoreRef={cursorStateRef}
         onChange={handleChange}
         onCursorChange={handleCursorChange}
         assetBaseUri={assetBaseUri}

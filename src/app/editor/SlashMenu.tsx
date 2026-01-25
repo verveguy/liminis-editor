@@ -418,8 +418,14 @@ export function SlashMenu({ isOpen, position, query, onClose }: SlashMenuProps) 
     return scored.map(({ option }) => option);
   }, [query]);
 
+  // Reset selection when query changes - use ref to track previous query
+  const prevQueryRef = useRef(query);
   useEffect(() => {
-    setSelectedIndex(0);
+    if (query !== prevQueryRef.current) {
+      prevQueryRef.current = query;
+      // Use microtask to avoid setState during render cycle
+      queueMicrotask(() => setSelectedIndex(0));
+    }
   }, [query]);
 
   // Scroll selected item into view

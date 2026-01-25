@@ -206,7 +206,7 @@ export function CodeBlockPlugin() {
         const codeNodes = findCodeNodesInTree(root);
 
         // Collect node keys, languages, and text content first (no DOM reads)
-        const nodeData: Array<{ nodeKey: string; language: string; textContent: string }> = [];
+        const nodeData: { nodeKey: string; language: string; textContent: string }[] = [];
         for (const node of codeNodes) {
           nodeData.push({
             nodeKey: node.getKey(),
@@ -282,7 +282,7 @@ export function CodeBlockPlugin() {
   const [copiedNodeKey, setCopiedNodeKey] = useState<string | null>(null);
 
   const handleCopyCode = useCallback((nodeKey: string, textContent: string) => {
-    navigator.clipboard.writeText(textContent).then(() => {
+    void navigator.clipboard.writeText(textContent).then(() => {
       setCopiedNodeKey(nodeKey);
       setTimeout(() => setCopiedNodeKey(null), 1500);
     });

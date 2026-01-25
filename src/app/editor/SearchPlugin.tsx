@@ -63,21 +63,25 @@ export function SearchPlugin() {
     };
   }, [query]);
 
-  // Get all text nodes recursively
-  const getAllTextNodes = useCallback((node: LexicalNode): TextNode[] => {
+  // Get all text nodes recursively - defined as a regular function to allow recursion
+  const getAllTextNodes = useCallback((startNode: LexicalNode): TextNode[] => {
     const textNodes: TextNode[] = [];
+    
+    // Inner recursive function
+    const collect = (node: LexicalNode): void => {
+      if ($isTextNode(node)) {
+        textNodes.push(node);
+      }
 
-    if ($isTextNode(node)) {
-      textNodes.push(node);
-    }
-
-    if ('getChildren' in node && typeof node.getChildren === 'function') {
-      const children = (node as { getChildren: () => LexicalNode[] }).getChildren();
-      children.forEach((child: LexicalNode) => {
-        textNodes.push(...getAllTextNodes(child));
-      });
-    }
-
+      if ('getChildren' in node && typeof node.getChildren === 'function') {
+        const children = (node as { getChildren: () => LexicalNode[] }).getChildren();
+        children.forEach((child: LexicalNode) => {
+          collect(child);
+        });
+      }
+    };
+    
+    collect(startNode);
     return textNodes;
   }, []);
 
@@ -151,7 +155,7 @@ export function SearchPlugin() {
     let node: Node | null;
 
     while ((node = walker.nextNode())) {
-      if (node.textContent && node.textContent.includes(content.substring(0, Math.min(content.length, 10)))) {
+      if (node.textContent?.includes(content.substring(0, Math.min(content.length, 10)))) {
         return node;
       }
     }

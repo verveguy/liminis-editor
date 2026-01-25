@@ -111,7 +111,7 @@ function preprocessDetailsBlocks(children: Content[]): (Content | ToggleContentM
       }
 
       // Check for opening details tag
-      const openingMatch = html.match(/<details(?:\s+open)?>\s*<summary>([\s\S]*?)<\/summary>/i);
+      const openingMatch = /<details(?:\s+open)?>\s*<summary>([\s\S]*?)<\/summary>/i.exec(html);
       if (openingMatch) {
         const isOpen = html.toLowerCase().includes('<details open');
         const summary = openingMatch[1].trim();
@@ -121,7 +121,7 @@ function preprocessDetailsBlocks(children: Content[]): (Content | ToggleContentM
         i++;
         while (i < children.length) {
           const innerNode = children[i];
-          if (innerNode.type === 'html' && innerNode.value.trim().match(/<\/details>/i)) {
+          if (innerNode.type === 'html' && (/<\/details>/i.exec(innerNode.value.trim()))) {
             // Found closing tag
             break;
           }
@@ -142,7 +142,7 @@ function preprocessDetailsBlocks(children: Content[]): (Content | ToggleContentM
       }
 
       // Check for complete details block in a single HTML node
-      const completeMatch = html.match(/<details(?:\s+open)?>\s*<summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/i);
+      const completeMatch = /<details(?:\s+open)?>\s*<summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/i.exec(html);
       if (completeMatch) {
         const isOpen = html.toLowerCase().includes('<details open');
         const summary = completeMatch[1].trim();
@@ -244,7 +244,7 @@ function convertParagraph(node: Paragraph): (ParagraphNode | ImageNode)[] {
     node.children.length === 1 &&
     node.children[0].type === 'image'
   ) {
-    const img = node.children[0] as Image;
+    const img = node.children[0];
     return [$createImageNode(img.url, img.alt || '', img.title ?? undefined)];
   }
 
@@ -276,7 +276,7 @@ function convertParagraph(node: Paragraph): (ParagraphNode | ImageNode)[] {
         currentParagraph = null;
       }
       // Add the image as its own block
-      const img = child as Image;
+      const img = child;
       result.push($createImageNode(img.url, img.alt || '', img.title ?? undefined));
     } else {
       // Text or other inline content
@@ -304,7 +304,7 @@ function convertParagraph(node: Paragraph): (ParagraphNode | ImageNode)[] {
 }
 
 function convertHeading(node: Heading): HeadingNode {
-  const tag = `h${node.depth}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+  const tag = `h${node.depth}`;
   const heading = $createHeadingNode(tag);
 
   for (const child of node.children) {
@@ -324,7 +324,7 @@ function convertBlockquote(node: Blockquote): LexicalBlockNode[] {
     if (firstChild.type === 'paragraph' && firstChild.children.length > 0) {
       const firstText = firstChild.children[0];
       if (firstText.type === 'text') {
-        const calloutMatch = firstText.value.match(/^\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i);
+        const calloutMatch = /^\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i.exec(firstText.value);
         if (calloutMatch) {
           const calloutType = calloutMatch[1].toLowerCase() as CalloutType;
           const restOfText = firstText.value.slice(calloutMatch[0].length).trim();
@@ -527,13 +527,13 @@ function convertHtml(node: Html): LexicalBlockNode[] {
   const html = node.value.trim();
 
   // Check for block equation: $$...$$
-  const blockEquationMatch = html.match(/^\$\$([^$]+)\$\$$/);
+  const blockEquationMatch = /^\$\$([^$]+)\$\$$/.exec(html);
   if (blockEquationMatch) {
     return [$createEquationNode(blockEquationMatch[1].trim(), false)];
   }
 
   // Check for inline equation: $...$
-  const inlineEquationMatch = html.match(/^\$([^$]+)\$$/);
+  const inlineEquationMatch = /^\$([^$]+)\$$/.exec(html);
   if (inlineEquationMatch) {
     return [$createEquationNode(inlineEquationMatch[1].trim(), true)];
   }
@@ -681,7 +681,7 @@ interface WikiLink {
 
 function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | EquationNode | LineBreakNode)[] {
   // Defensive: handle null/undefined nodes
-  if (!node || !node.type) {
+  if (!node?.type) {
     console.warn('[mdastToLexical] convertInlineNode received invalid node:', node);
     return [$createTextNode('')];
   }
@@ -750,12 +750,12 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | Equati
     case 'html': {
       // Check for inline equation: $...$
       const html = (node as Html).value;
-      const inlineEquationMatch = html.match(/^\$([^$]+)\$$/);
+      const inlineEquationMatch = /^\$([^$]+)\$$/.exec(html);
       if (inlineEquationMatch) {
         return [$createEquationNode(inlineEquationMatch[1].trim(), true)];
       }
       // Check for block equation: $$...$$ (shouldn't be inline, but handle gracefully)
-      const blockEquationMatch = html.match(/^\$\$([^$]+)\$\$$/);
+      const blockEquationMatch = /^\$\$([^$]+)\$\$$/.exec(html);
       if (blockEquationMatch) {
         return [$createEquationNode(blockEquationMatch[1].trim(), false)];
       }

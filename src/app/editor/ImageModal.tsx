@@ -113,16 +113,22 @@ export function ImageModal({ isOpen, onClose, onInsert }: ImageModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const selectedFileRef = useRef<{ dataUri: string; name: string } | null>(null);
 
-  // Reset state when modal opens
+  // Reset state when modal opens - track previous isOpen to detect open transition
+  const prevIsOpenRef = useRef(isOpen);
   useEffect(() => {
-    if (isOpen) {
-      setUrl('');
-      setAlt('');
-      setPreviewUrl(null);
-      setError(null);
-      setActiveTab('upload');
-      selectedFileRef.current = null;
+    // Only reset when transitioning from closed to open
+    if (isOpen && !prevIsOpenRef.current) {
+      // Use microtask to avoid setState during render
+      queueMicrotask(() => {
+        setUrl('');
+        setAlt('');
+        setPreviewUrl(null);
+        setError(null);
+        setActiveTab('upload');
+        selectedFileRef.current = null;
+      });
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen]);
 
   // Keyboard handling: Escape to close, Enter to submit

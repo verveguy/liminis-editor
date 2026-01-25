@@ -38,7 +38,7 @@ export function writeAsset(dataUri: string, suggestedName?: string): void {
 // Listen for messages from extension host
 export type MessageHandler = (message: HostToUIMessage) => void;
 
-const messageHandlers: Set<MessageHandler> = new Set();
+const messageHandlers = new Set<MessageHandler>();
 const MAX_HANDLERS = 10; // Reasonable limit for a single webview
 
 export function addMessageHandler(handler: MessageHandler): () => void {

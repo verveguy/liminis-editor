@@ -97,7 +97,7 @@ export function BlockClickPlugin() {
         // Check if we have an element selection on a decorator node
         return editor.getEditorState().read(() => {
           const sel = editor.getEditorState()._selection;
-          if (!sel || sel.getNodes().length !== 1) return false;
+          if (sel?.getNodes().length !== 1) return false;
 
           const node = sel.getNodes()[0];
           if (!$isDecoratorNode(node)) return false;

@@ -22,7 +22,7 @@ import {
 import { useCallback, useEffect, useRef, useState, ChangeEvent, forwardRef, RefObject } from 'react';
 import katex from 'katex';
 // Import KaTeX CSS as a string for injection into Shadow DOM (uses raw-css-loader plugin)
-// @ts-ignore - esbuild plugin handles this
+// @ts-expect-error - esbuild plugin handles this raw CSS import
 import katexCss from 'katex/dist/katex.min.css?raw';
 import { $isEquationNode } from './EquationNode';
 
@@ -92,7 +92,7 @@ function KatexRenderer({
         throwOnError: false,
         trust: false,
       });
-    } catch (e) {
+    } catch {
       // KaTeX will handle the error display
     }
   }, [equation, inline]);

@@ -154,7 +154,7 @@ function MermaidRenderer({
       }
     };
 
-    renderDiagram();
+    void renderDiagram();
   }, [code]);
 
   return (
