@@ -2014,6 +2014,10 @@ body {
 /* ============================================================
    Print Styles for Editor Content
    ============================================================
+   These styles are for native browser printing (Cmd/Ctrl+P).
+   Note: The "Export to PDF" feature uses a separate hidden window
+   with its own embedded styles (in src/main/index.ts), so changes
+   here will NOT affect PDF exports - only native browser print.
    Ensures the editor content prints cleanly with proper formatting.
 */
 @media print {
