@@ -2010,3 +2010,171 @@ body {
   white-space: pre-wrap;
   overflow-x: auto;
 }
+
+/* ============================================================
+   Print Styles for Editor Content
+   ============================================================
+   These styles are for native browser printing (Cmd/Ctrl+P).
+   Note: The "Export to PDF" feature uses a separate hidden window
+   with its own embedded styles (in src/main/index.ts), so changes
+   here will NOT affect PDF exports - only native browser print.
+   Ensures the editor content prints cleanly with proper formatting.
+*/
+@media print {
+  /* Reset editor colors for print */
+  :root,
+  .dark {
+    --vscode-foreground: #000000;
+    --vscode-background: #ffffff;
+    --vscode-code-bg: #f5f5f5;
+    --vscode-border: #cccccc;
+    --vscode-link: #0066cc;
+    --slashmd-heading-color: #000000;
+    --slashmd-h1-color: #000000;
+    --slashmd-h2-color: #000000;
+    --slashmd-h3-color: #000000;
+    --slashmd-h4-color: #000000;
+    --slashmd-h5-color: #000000;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  /* Editor input - show all content, remove scroll */
+  .editor-input {
+    min-height: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  /* Hide interactive elements */
+  .drag-handle,
+  .block-delete-button,
+  .toolbar,
+  .slash-menu,
+  .search-bar,
+  .code-block-toolbar,
+  .frontmatter-tray,
+  .frontmatter-toggle-button,
+  .image-modal-overlay,
+  .table-actions-menu,
+  .code-language-menu {
+    display: none !important;
+  }
+
+  /* Ensure code blocks print with background */
+  .editor-code {
+    background: #f5f5f5 !important;
+    color: #333333 !important;
+    border: 1px solid #ddd !important;
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Inline code */
+  .editor-text-code {
+    background: #f0f0f0 !important;
+    color: #333333 !important;
+  }
+
+  /* Links - readable in print */
+  .editor-link {
+    color: #0066cc !important;
+    text-decoration: underline !important;
+  }
+
+  /* Tables */
+  .editor-table {
+    page-break-inside: auto !important;
+  }
+
+  .editor-table-row {
+    page-break-inside: avoid !important;
+  }
+
+  .editor-table-cell,
+  .editor-table-cell-header {
+    border: 1px solid #999 !important;
+    background: white !important;
+  }
+
+  .editor-table-cell-header {
+    background: #f0f0f0 !important;
+  }
+
+  /* Blockquotes */
+  .editor-quote {
+    border-left: 3px solid #999 !important;
+    background: #fafafa !important;
+    color: #333 !important;
+  }
+
+  /* Callouts - ensure they print with visible borders */
+  .callout {
+    background: #fafafa !important;
+    border-left: 4px solid #666 !important;
+    page-break-inside: avoid !important;
+  }
+
+  .callout-note { border-left-color: #0696d7 !important; }
+  .callout-tip { border-left-color: #10b981 !important; }
+  .callout-warning { border-left-color: #eab308 !important; }
+  .callout-important { border-left-color: #8b5cf6 !important; }
+  .callout-caution { border-left-color: #ef4444 !important; }
+
+  /* Checkboxes - ensure visibility */
+  .editor-listitem-checked::before,
+  .editor-listitem-unchecked::before {
+    border-color: #666 !important;
+  }
+
+  .editor-listitem-checked::before {
+    background: #333 !important;
+    border-color: #333 !important;
+  }
+
+  /* Toggles - expand and print content */
+  .toggle-container {
+    border: 1px solid #ccc !important;
+  }
+
+  .toggle-content-area {
+    display: block !important; /* Always show content in print */
+  }
+
+  .toggle-title::before {
+    transform: translateY(-50%) rotate(90deg) !important; /* Show as expanded */
+  }
+
+  /* Images */
+  .image-wrapper img,
+  .image-block img {
+    max-width: 100% !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Hide image resize handles */
+  .image-resize-handle,
+  .image-size-badge {
+    display: none !important;
+  }
+
+  /* Mermaid diagrams */
+  .mermaid-renderer {
+    page-break-inside: avoid !important;
+  }
+
+  /* Dividers */
+  .divider-block::before {
+    background: #ccc !important;
+  }
+
+  /* Math */
+  .katex {
+    color: black !important;
+  }
+}
