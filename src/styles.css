@@ -1,16 +1,25 @@
-/* VitePress-inspired theme for editor */
+/* Loop-inspired theme for editor with design tokens */
 :root {
-  /* Typography - Inter font to match VitePress */
-  --vscode-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  /* ========================================
+     DESIGN TOKENS - Editor Light Theme
+     ======================================== */
+  
+  /* Brand Color - Purple theme (matches renderer) */
+  --editor-brand-hue: 270;
+  --editor-brand-saturation: 70%;
+  --editor-brand-lightness: 55%;
+  
+  /* Typography */
+  --vscode-font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Inter', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   --vscode-font-size: 16px;
   
-  /* VitePress Light Theme Colors */
+  /* Computed Colors */
   --vscode-foreground: rgba(60, 60, 67);
   --vscode-background: #ffffff;
-  --vscode-selection: rgba(6, 150, 215, 0.2);
-  --vscode-border: #e2e2e3;
-  --vscode-link: #0696d7;
-  --vscode-code-bg: #f6f6f7;
+  --vscode-selection: hsla(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness), 0.2);
+  --vscode-border: hsl(var(--editor-brand-hue), 20%, 88%);
+  --vscode-link: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
+  --vscode-code-bg: hsl(var(--editor-brand-hue), 30%, 97%);
 
   /* Syntax Highlighting - VitePress/Shiki inspired */
   --slashmd-token-comment: #a0ada0;
@@ -37,9 +46,9 @@
   --slashmd-bold-color: inherit;
   --slashmd-italic-color: inherit;
 
-  /* Callouts - VitePress Custom Containers style */
-  --slashmd-callout-note-bg: rgba(6, 150, 215, 0.08);
-  --slashmd-callout-note-border: #0696d7;
+  /* Callouts - Uses brand color for note type */
+  --slashmd-callout-note-bg: hsla(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness), 0.08);
+  --slashmd-callout-note-border: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
   --slashmd-callout-tip-bg: rgba(16, 185, 129, 0.08);
   --slashmd-callout-tip-border: #10b981;
   --slashmd-callout-warning-bg: rgba(234, 179, 8, 0.08);
@@ -50,14 +59,21 @@
   --slashmd-callout-caution-border: #ef4444;
 }
 
-/* VitePress Dark Theme */
+/* ========================================
+   DESIGN TOKENS - Editor Dark Theme
+   ======================================== */
 .dark {
+  /* Brand adjustments for dark mode */
+  --editor-brand-saturation: 80%;
+  --editor-brand-lightness: 70%;
+  
+  /* Computed Colors */
   --vscode-foreground: rgba(255, 255, 245, 0.86);
   --vscode-background: #1b1b1f;
-  --vscode-selection: rgba(61, 185, 235, 0.2);
-  --vscode-border: #2e2e32;
-  --vscode-link: #3db9eb;
-  --vscode-code-bg: #202127;
+  --vscode-selection: hsla(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness), 0.2);
+  --vscode-border: hsl(var(--editor-brand-hue), 10%, 20%);
+  --vscode-link: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
+  --vscode-code-bg: hsl(var(--editor-brand-hue), 10%, 13%);
 
   /* Syntax Highlighting - Dark mode */
   --slashmd-token-comment: #6a9955;
@@ -77,9 +93,9 @@
   --slashmd-h4-color: rgba(255, 255, 245, 0.86);
   --slashmd-h5-color: rgba(255, 255, 245, 0.86);
 
-  /* Callouts - Dark mode */
-  --slashmd-callout-note-bg: rgba(61, 185, 235, 0.1);
-  --slashmd-callout-note-border: #3db9eb;
+  /* Callouts - Dark mode, uses brand color for note type */
+  --slashmd-callout-note-bg: hsla(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness), 0.1);
+  --slashmd-callout-note-border: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
   --slashmd-callout-tip-bg: rgba(16, 185, 129, 0.1);
   --slashmd-callout-tip-border: #10b981;
   --slashmd-callout-warning-bg: rgba(234, 179, 8, 0.1);
@@ -101,7 +117,7 @@ body {
   font-size: var(--vscode-font-size);
   color: var(--vscode-foreground);
   background: var(--vscode-background);
-  line-height: 1.75;
+  line-height: 1.8;  /* Slightly more generous line height like Loop */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -144,65 +160,65 @@ body {
   user-select: none;
 }
 
-/* Typography */
+/* Typography - Loop-inspired with generous whitespace */
 .editor-paragraph {
-  margin: 0 0 8px 0;
+  margin: 0 0 16px 0;  /* More space between paragraphs like Loop */
 }
 
 .editor-heading-h1 {
-  font-size: 2em;
+  font-size: 2.5em;  /* Larger title like Loop */
   font-weight: 700;
-  margin: 24px 0 16px 0;
+  margin: 32px 0 24px 0;  /* More generous margins */
   line-height: 1.2;
   color: var(--slashmd-h1-color);
   margin-left: var(--slashmd-h1-indent);
 }
 
 .editor-heading-h2 {
-  font-size: 1.5em;
+  font-size: 1.75em;  /* Slightly larger */
   font-weight: 600;
-  margin: 20px 0 12px 0;
+  margin: 28px 0 16px 0;  /* More generous margins */
   line-height: 1.3;
   color: var(--slashmd-h2-color);
   margin-left: var(--slashmd-h2-indent);
 }
 
 .editor-heading-h3 {
-  font-size: 1.25em;
+  font-size: 1.35em;  /* Slightly larger */
   font-weight: 600;
-  margin: 16px 0 8px 0;
+  margin: 24px 0 12px 0;  /* More generous margins */
   line-height: 1.4;
   color: var(--slashmd-h3-color);
   margin-left: var(--slashmd-h3-indent);
 }
 
 .editor-heading-h4 {
-  font-size: 1.1em;
+  font-size: 1.15em;
   font-weight: 600;
-  margin: 14px 0 6px 0;
+  margin: 20px 0 10px 0;  /* More generous margins */
   line-height: 1.4;
   color: var(--slashmd-h4-color);
   margin-left: var(--slashmd-h4-indent);
 }
 
 .editor-heading-h5 {
-  font-size: 1em;
+  font-size: 1.05em;
   font-weight: 600;
-  margin: 12px 0 4px 0;
+  margin: 16px 0 8px 0;  /* More generous margins */
   line-height: 1.4;
   color: var(--slashmd-h5-color);
   margin-left: var(--slashmd-h5-indent);
 }
 
-/* Lists */
+/* Lists - Loop-inspired spacing */
 .editor-list-ul,
 .editor-list-ol {
-  margin: 8px 0;
-  padding-left: 24px;
+  margin: 16px 0;  /* More space around lists */
+  padding-left: 28px;
 }
 
 .editor-listitem {
-  margin: 4px 0;
+  margin: 8px 0;  /* More space between list items like Loop */
 }
 
 .editor-listitem-checked,
@@ -244,23 +260,23 @@ body {
   list-style-type: none;
 }
 
-/* Quote */
+/* Quote - Loop-inspired spacing */
 .editor-quote {
-  margin: 8px 0;
-  padding: 8px 16px;
+  margin: 20px 0;  /* More generous margins */
+  padding: 12px 20px;  /* More padding */
   border-left: 4px solid var(--vscode-border);
   background: var(--vscode-code-bg);
   font-style: italic;
 }
 
-/* Code */
+/* Code - Loop-inspired spacing */
 .editor-code {
   display: block;
   position: relative;
-  margin: 8px 0;
-  padding: 12px 16px;
+  margin: 20px 0;  /* More generous margins */
+  padding: 16px 20px;  /* More padding */
   background: var(--vscode-code-bg);
-  border-radius: 4px;
+  border-radius: 10px;  /* Friendlier rounded corners */
   font-family: 'Fira Code', 'Consolas', monospace;
   font-size: 0.9em;
   overflow-x: auto;
@@ -330,8 +346,8 @@ body {
   flex-direction: column;
   background: var(--vscode-background);
   border: 1px solid var(--vscode-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  border-radius: 12px;  /* Friendlier rounded corners */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);  /* Softer shadow */
   z-index: 300;
   overflow: hidden;
 }
@@ -417,7 +433,7 @@ body {
   font-family: 'Fira Code', 'Consolas', monospace;
   background: var(--vscode-code-bg);
   padding: 2px 6px;
-  border-radius: 3px;
+  border-radius: 6px;  /* Friendlier rounded corners */
   font-size: 0.9em;
 }
 
@@ -595,8 +611,8 @@ body {
 /* Callout */
 .callout {
   margin: 16px 0;
-  padding: 12px 16px;
-  border-radius: 4px;
+  padding: 14px 18px;  /* Slightly more padding */
+  border-radius: 10px;  /* Friendlier rounded corners */
   border-left: 4px solid;
 }
 
@@ -634,7 +650,7 @@ body {
 .toggle-container {
   margin: 8px 0;
   border: 1px solid var(--vscode-border);
-  border-radius: 6px;
+  border-radius: 10px;  /* Friendlier rounded corners */
   overflow: hidden;
 }
 
@@ -744,8 +760,8 @@ body {
   padding: 8px;
   background: var(--vscode-background);
   border: 1px solid var(--vscode-border);
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-radius: 10px;  /* Friendlier rounded corners */
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);  /* Softer shadow */
   z-index: 100;
 }
 
@@ -815,8 +831,8 @@ body {
   flex-direction: column;
   background: var(--vscode-background);
   border: 1px solid var(--vscode-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  border-radius: 12px;  /* Friendlier rounded corners */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);  /* Softer shadow */
   z-index: 200;
 }
 
@@ -1041,8 +1057,8 @@ body {
   min-width: 200px;
   background: var(--vscode-background);
   border: 1px solid var(--vscode-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  border-radius: 12px;  /* Friendlier rounded corners */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);  /* Softer shadow */
   z-index: 300;
   overflow: hidden;
 }
@@ -1147,8 +1163,8 @@ body {
   max-height: 90vh;
   background: var(--vscode-background);
   border: 1px solid var(--vscode-border);
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border-radius: 16px;  /* Friendlier rounded corners */
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);  /* Softer shadow */
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1374,8 +1390,8 @@ body {
   padding: 8px 12px;
   background: var(--vscode-background);
   border: 1px solid var(--vscode-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  border-radius: 12px;  /* Friendlier rounded corners */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);  /* Softer shadow */
   z-index: 500;
 }
 
