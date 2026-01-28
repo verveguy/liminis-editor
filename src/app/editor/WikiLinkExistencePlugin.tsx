@@ -8,9 +8,10 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
  * target files exist anywhere in the workspace. Links to non-existent files
  * get a CSS class applied to render them in red.
  *
- * Wiki-links like [[notes]] get converted to URLs like "notes.md". This plugin
- * uses findFiles to search for files by name across the entire workspace,
- * since the file might exist in any directory (e.g., drafts/notes.md).
+ * Uses the navigation layer's resolveWikiLinks API which handles:
+ * - Directory links (e.g., "entities/teams/") → resolves to index.md or README.md
+ * - File links with extension (e.g., "notes.md") → checks directly
+ * - File links without extension (e.g., "notes") → tries .md, .mdc
  *
  * The check is performed:
  * - When the document is loaded
@@ -30,46 +31,41 @@ export function WikiLinkExistencePlugin() {
       const wikiLinks = rootElement.querySelectorAll('a[data-wiki-link="true"]');
       if (wikiLinks.length === 0) return;
 
-      // Collect unique target paths and map them to their filenames
-      const targetToFilename = new Map<string, string>();
+      // Collect unique target paths
+      const targets = new Set<string>();
       wikiLinks.forEach((link) => {
         const target = link.getAttribute('data-wiki-target');
         if (target) {
-          // Extract just the filename from the target
-          // e.g., "notes.md" → "notes.md", "drafts/notes.md" → "notes.md"
-          const filename = target.split('/').pop() || target;
-          targetToFilename.set(target, filename);
+          targets.add(target);
         }
       });
 
-      if (targetToFilename.size === 0) return;
+      if (targets.size === 0) return;
 
       // Skip if we've already checked these exact targets
-      const targetsArray = Array.from(targetToFilename.keys());
+      const targetsArray = Array.from(targets);
       const targetKey = targetsArray.sort().join('|');
       if (lastCheckedRef.current.has(targetKey)) {
         return;
       }
 
-      // Find files by name across the workspace
+      // Use the navigation layer's resolver which handles directory links, etc.
       try {
-        if (!window.api?.fs?.findFiles) {
-          console.warn('[WikiLinkExistencePlugin] fs.findFiles not available');
+        if (!window.api?.fs?.resolveWikiLinks) {
+          console.warn('[WikiLinkExistencePlugin] fs.resolveWikiLinks not available');
           return;
         }
 
-        // Get unique filenames to search for
-        const filenames = Array.from(new Set(targetToFilename.values()));
-        const foundFiles = await window.api.fs.findFiles(filenames);
+        // Resolve all wiki-link paths
+        const resolved = await window.api.fs.resolveWikiLinks(targetsArray);
         lastCheckedRef.current.add(targetKey);
 
         // Update CSS classes on wiki-links
         wikiLinks.forEach((link) => {
           const target = link.getAttribute('data-wiki-target');
           if (target) {
-            const filename = targetToFilename.get(target);
-            // File exists if findFiles returned a path for this filename
-            const exists = filename ? foundFiles[filename] !== null : false;
+            // Link exists if resolver returned a non-null path
+            const exists = resolved[target] !== null;
             if (!exists) {
               link.classList.add('editor-link-broken');
             } else {
