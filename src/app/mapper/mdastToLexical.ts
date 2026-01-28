@@ -724,16 +724,27 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | Equati
       
       const displayText = wikiLink.data?.alias || target;
       
-      // Convert to URL, handling anchors properly
+      // Convert to URL, preserving semantic intent
+      // Directory links (trailing slash) are preserved - navigation layer resolves them
+      // Example: [[entities/people/]] → stays as entities/people/ (resolved to index.md at navigation time)
       let url: string;
       if (target.startsWith('#')) {
         // Anchor-only: #anchor → #anchor
         url = target;
+      } else if (target.endsWith('/')) {
+        // Directory link: preserve trailing slash for semantic clarity
+        // Navigation layer will resolve to index.md or README.md
+        url = target;
       } else if (target.includes('#')) {
-        // Path with anchor: page#anchor → page.md#anchor
+        // Path with anchor: page#anchor → page.md#anchor (or dir/#anchor preserved)
         const [path, anchor] = target.split('#', 2);
-        const pathWithExt = path.endsWith('.md') ? path : `${path}.md`;
-        url = `${pathWithExt}#${anchor}`;
+        if (path.endsWith('/')) {
+          // Directory with anchor - preserve for navigation layer
+          url = target;
+        } else {
+          const pathWithExt = path.endsWith('.md') ? path : `${path}.md`;
+          url = `${pathWithExt}#${anchor}`;
+        }
       } else {
         // Simple path: page → page.md
         url = target.endsWith('.md') ? target : `${target}.md`;

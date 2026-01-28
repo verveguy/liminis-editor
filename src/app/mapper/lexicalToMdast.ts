@@ -586,7 +586,7 @@ interface WikiLinkMdast {
 
 type PhrasingContentLike = PhrasingContent | WikiLinkMdast;
 
-// Check if a URL looks like a wiki-link (relative .md path or anchor, no protocol)
+// Check if a URL looks like a wiki-link (relative .md path, directory, or anchor, no protocol)
 function isWikiLinkUrl(url: string): boolean {
   // Has protocol = not a wiki-link
   if (url.includes('://') || url.startsWith('mailto:')) {
@@ -594,6 +594,11 @@ function isWikiLinkUrl(url: string): boolean {
   }
   // Anchor-only link = wiki-link
   if (url.startsWith('#')) {
+    return true;
+  }
+  // Directory link (trailing slash) = wiki-link
+  // e.g., "entities/teams/" resolves to entities/teams/index.md at navigation time
+  if (url.endsWith('/')) {
     return true;
   }
   // Contains .md (possibly with anchor after) = likely a wiki-link
