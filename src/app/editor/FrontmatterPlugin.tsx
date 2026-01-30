@@ -5,9 +5,7 @@
  * This plugin provides a UI to view/edit frontmatter in a sliding tray.
  * 
  * The toggle button is rendered externally (in the editor header).
- * This plugin communicates via custom events:
- * - Dispatches 'frontmatter:state' with { hasFrontmatter, isOpen } when state changes
- * - Listens for 'frontmatter:toggle' to toggle the tray
+ * This plugin communicates via Zustand store for state management.
  * 
  * For .mdc files (Cursor rules), a specialized form UI is shown with:
  * - alwaysApply dropdown (true/false)
@@ -19,6 +17,7 @@ import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot, $getNodeByKey, $createTextNode, LexicalNode, $isElementNode } from 'lexical';
 import { $isFrontmatterNode, FrontmatterNode } from './nodes';
+import { useEditorStore } from '../../../renderer/stores/editorStore';
 
 // Simple YAML frontmatter parser for MDC files
 // Only handles the fields we need: description, alwaysApply, globs
@@ -439,10 +438,14 @@ interface FrontmatterPluginProps {
 
 export function FrontmatterPlugin({ filePath }: FrontmatterPluginProps) {
   const [editor] = useLexicalComposerContext();
-  const [hasFrontmatter, setHasFrontmatter] = useState(false);
   const [frontmatterContent, setFrontmatterContent] = useState('');
   const [frontmatterNodeKey, setFrontmatterNodeKey] = useState<string | null>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  
+  // Use Zustand store for state management
+  const setHasFrontmatter = useEditorStore((state) => state.setHasFrontmatter);
+  const setFrontmatterOpen = useEditorStore((state) => state.setFrontmatterOpen);
+  const isFrontmatterOpen = useEditorStore((state) => state.isFrontmatterOpen);
+  const toggleFrontmatter = useEditorStore((state) => state.toggleFrontmatter);
   
   // Detect if we're editing an MDC file (Cursor rules)
   const isMdcFile = useMemo(() => {
@@ -464,7 +467,6 @@ export function FrontmatterPlugin({ filePath }: FrontmatterPluginProps) {
           setHasFrontmatter(false);
           setFrontmatterContent('');
           setFrontmatterNodeKey(null);
-          setIsOpen(false);
         }
       });
     };
@@ -478,26 +480,14 @@ export function FrontmatterPlugin({ filePath }: FrontmatterPluginProps) {
     });
 
     return unsubscribe;
-  }, [editor]);
+  }, [editor, setHasFrontmatter]);
 
-  // Dispatch state changes to external listeners (for header button)
+  // Listen for toggle commands from the UI
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent('frontmatter:state', {
-      detail: { hasFrontmatter, isOpen }
-    }));
-  }, [hasFrontmatter, isOpen]);
-
-  // Listen for toggle events from external button (in header)
-  useEffect(() => {
-    const handleToggleEvent = () => {
-      if (hasFrontmatter) {
-        setIsOpen((prev) => !prev);
-      }
-    };
-
-    window.addEventListener('frontmatter:toggle', handleToggleEvent);
-    return () => window.removeEventListener('frontmatter:toggle', handleToggleEvent);
-  }, [hasFrontmatter]);
+    // Subscribe to store changes to detect toggle requests
+    // The toggle function in the store handles the state change
+    // We don't need to do anything here as the state is already managed
+  }, []);
 
   // Update frontmatter content in the Lexical node
   const handleContentChange = useCallback((newContent: string) => {
@@ -518,8 +508,11 @@ export function FrontmatterPlugin({ filePath }: FrontmatterPluginProps) {
   }, [editor, frontmatterNodeKey]);
 
   const handleClose = useCallback(() => {
-    setIsOpen(false);
-  }, []);
+    setFrontmatterOpen(false);
+  }, [setFrontmatterOpen]);
+
+  // Get hasFrontmatter from store
+  const hasFrontmatter = useEditorStore((state) => state.hasFrontmatter);
 
   // Don't render anything if no frontmatter
   if (!hasFrontmatter) {
@@ -528,7 +521,7 @@ export function FrontmatterPlugin({ filePath }: FrontmatterPluginProps) {
 
   return (
     <FrontmatterTray
-      isOpen={isOpen}
+      isOpen={isFrontmatterOpen}
       content={frontmatterContent}
       onClose={handleClose}
       onContentChange={handleContentChange}
