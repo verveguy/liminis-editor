@@ -1015,10 +1015,11 @@ body {
   color: var(--slashmd-token-function);
 }
 
-/* Scrollbar */
+/* Scrollbar - auto-hides on macOS, styled when visible */
+/* Only style when hovering or scrolling to maintain macOS auto-hide behavior */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-track {
@@ -1026,13 +1027,25 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--vscode-border);
-  border-radius: 4px;
+  background: transparent;
+  border-radius: 6px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--vscode-foreground);
-  opacity: 0.5;
+/* Show scrollbar when hovering over scrollable area */
+*:hover::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.3);
+}
+
+*:hover::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.5);
+}
+
+/* Firefox scrollbar styling - auto mode */
+* {
+  scrollbar-width: auto;
+  scrollbar-color: rgba(128, 128, 128, 0.3) transparent;
 }
 
 /* Focus styles for accessibility */

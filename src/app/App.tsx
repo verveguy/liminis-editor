@@ -224,7 +224,7 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
   }
 
   return (
-    <div className="min-h-screen p-4">
+    <div className="min-h-screen p-0">
       {error && (
         <div className="fixed top-0 left-0 right-0 px-4 py-2 bg-red-500 text-white text-center z-[1000]" role="alert">
           {error}
