@@ -445,8 +445,7 @@ export function FrontmatterPlugin({ filePath }: FrontmatterPluginProps) {
   const setHasFrontmatter = useEditorStore((state) => state.setHasFrontmatter);
   const setFrontmatterOpen = useEditorStore((state) => state.setFrontmatterOpen);
   const isFrontmatterOpen = useEditorStore((state) => state.isFrontmatterOpen);
-  const toggleFrontmatter = useEditorStore((state) => state.toggleFrontmatter);
-  
+
   // Detect if we're editing an MDC file (Cursor rules)
   const isMdcFile = useMemo(() => {
     return filePath?.endsWith('.mdc') ?? false;
