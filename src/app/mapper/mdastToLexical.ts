@@ -8,7 +8,7 @@ import {
   TextNode,
   LineBreakNode,
 } from 'lexical';
-import { $createHeadingNode, $createQuoteNode, HeadingNode, QuoteNode } from '@lexical/rich-text';
+import { $createHeadingNode, $createQuoteNode, HeadingNode, QuoteNode, type HeadingTagType } from '@lexical/rich-text';
 import { $createListNode, $createListItemNode, ListNode, ListItemNode } from '@lexical/list';
 import { $createCodeNode, CodeNode } from '@lexical/code';
 import { LinkNode } from '@lexical/link';
@@ -304,7 +304,7 @@ function convertParagraph(node: Paragraph): (ParagraphNode | ImageNode)[] {
 }
 
 function convertHeading(node: Heading): HeadingNode {
-  const tag = `h${node.depth}`;
+  const tag = `h${node.depth}` as HeadingTagType;
   const heading = $createHeadingNode(tag);
 
   for (const child of node.children) {

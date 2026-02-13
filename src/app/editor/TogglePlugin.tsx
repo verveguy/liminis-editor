@@ -69,7 +69,7 @@ export function TogglePlugin(): null {
           return null;
         };
 
-        const toggleNode = findToggleContainer(container);
+        const toggleNode = findToggleContainer(container as HTMLElement);
         if (toggleNode) {
           toggleNode.toggleOpen();
         }
