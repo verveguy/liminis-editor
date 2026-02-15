@@ -239,7 +239,7 @@ body {
   top: 4px;
   width: 16px;
   height: 16px;
-  border: 1px solid var(--vscode-border);
+  border: 2px solid var(--checkbox-border);
   border-radius: 3px;
   cursor: pointer;
 }
