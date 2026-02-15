@@ -20,6 +20,7 @@
   --vscode-border: hsl(var(--editor-brand-hue), 20%, 88%);
   --vscode-link: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
   --vscode-code-bg: hsl(var(--editor-brand-hue), 30%, 97%);
+  --checkbox-border: hsl(var(--editor-brand-hue), 30%, 65%);
 
   /* Syntax Highlighting - VitePress/Shiki inspired */
   --slashmd-token-comment: #a0ada0;
@@ -74,6 +75,7 @@
   --vscode-border: hsl(var(--editor-brand-hue), 10%, 20%);
   --vscode-link: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
   --vscode-code-bg: hsl(var(--editor-brand-hue), 10%, 13%);
+  --checkbox-border: hsl(var(--editor-brand-hue), 20%, 50%);
 
   /* Syntax Highlighting - Dark mode */
   --slashmd-token-comment: #6a9955;
@@ -237,7 +239,7 @@ body {
   top: 4px;
   width: 16px;
   height: 16px;
-  border: 1px solid var(--vscode-border);
+  border: 2px solid var(--checkbox-border);
   border-radius: 3px;
   cursor: pointer;
 }
@@ -2057,6 +2059,7 @@ body {
     --vscode-background: #ffffff;
     --vscode-code-bg: #f5f5f5;
     --vscode-border: #cccccc;
+    --checkbox-border: #666666;
     --vscode-link: #0066cc;
     --slashmd-heading-color: #000000;
     --slashmd-h1-color: #000000;
