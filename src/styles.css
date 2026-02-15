@@ -20,6 +20,7 @@
   --vscode-border: hsl(var(--editor-brand-hue), 20%, 88%);
   --vscode-link: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
   --vscode-code-bg: hsl(var(--editor-brand-hue), 30%, 97%);
+  --checkbox-border: hsl(var(--editor-brand-hue), 30%, 65%);
 
   /* Syntax Highlighting - VitePress/Shiki inspired */
   --slashmd-token-comment: #a0ada0;
@@ -74,6 +75,7 @@
   --vscode-border: hsl(var(--editor-brand-hue), 10%, 20%);
   --vscode-link: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
   --vscode-code-bg: hsl(var(--editor-brand-hue), 10%, 13%);
+  --checkbox-border: hsl(var(--editor-brand-hue), 20%, 50%);
 
   /* Syntax Highlighting - Dark mode */
   --slashmd-token-comment: #6a9955;
