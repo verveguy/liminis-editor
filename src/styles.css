@@ -10,7 +10,7 @@
   --editor-brand-lightness: 55%;
   
   /* Typography */
-  --vscode-font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Inter', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --vscode-font-family: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   --vscode-font-size: 16px;
   
   /* Computed Colors */
