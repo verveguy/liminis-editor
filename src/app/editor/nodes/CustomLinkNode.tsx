@@ -61,6 +61,9 @@ export class CustomLinkNode extends LinkNode {
     if (this.isWikiLink()) {
       element.setAttribute('data-wiki-link', 'true');
       element.setAttribute('data-wiki-target', this.__url);
+    } else {
+      // External links get blue styling to differentiate from wiki-links
+      element.classList.add('editor-link-external');
     }
     return element;
   }
@@ -90,13 +93,15 @@ export class CustomLinkNode extends LinkNode {
     const title = this.__title;
     if (url !== prevNode.__url) {
       anchor.setAttribute('data-href', url);
-      // Update wiki-link attributes when URL changes
+      // Update wiki-link attributes and external link class when URL changes
       if (this.isWikiLink()) {
         anchor.setAttribute('data-wiki-link', 'true');
         anchor.setAttribute('data-wiki-target', url);
+        anchor.classList.remove('editor-link-external');
       } else {
         anchor.removeAttribute('data-wiki-link');
         anchor.removeAttribute('data-wiki-target');
+        anchor.classList.add('editor-link-external');
       }
     }
     if (target !== prevNode.__target) {
