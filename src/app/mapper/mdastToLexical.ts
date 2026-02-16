@@ -11,7 +11,8 @@ import {
 import { $createHeadingNode, $createQuoteNode, HeadingNode, QuoteNode, type HeadingTagType } from '@lexical/rich-text';
 import { $createListNode, $createListItemNode, ListNode, ListItemNode } from '@lexical/list';
 import { $createCodeNode, CodeNode } from '@lexical/code';
-import { LinkNode } from '@lexical/link';
+import { LinkNode, $isLinkNode } from '@lexical/link';
+import type { TextFormatType } from 'lexical';
 import {
   $createHorizontalRuleNode,
   $createImageNode,
@@ -782,8 +783,31 @@ function convertText(node: Text): TextNode {
   return $createTextNode(node.value);
 }
 
-function convertStrong(node: Strong): TextNode[] {
-  const nodes: TextNode[] = [];
+/**
+ * Apply a text format to all text children of a LinkNode.
+ * This allows formats like bold/italic to propagate through wiki links.
+ */
+function applyFormatToLinkChildren(
+  link: LinkNode,
+  format: TextFormatType,
+  marker?: '_' | '*'
+): void {
+  for (const child of link.getChildren()) {
+    if (child instanceof TextNode) {
+      if (!child.hasFormat(format)) {
+        child.toggleFormat(format);
+      }
+      // Set marker style for round-trip fidelity
+      if (marker && (format === 'bold' || format === 'italic')) {
+        const kind = format === 'bold' ? 'strong' : 'emphasis';
+        setMarkdownMarker(child, kind, marker);
+      }
+    }
+  }
+}
+
+function convertStrong(node: Strong): (TextNode | LinkNode)[] {
+  const nodes: (TextNode | LinkNode)[] = [];
   const marker = (node as any).data?._strongMarker;
   for (const child of node.children) {
     const converted = convertInlineNode(child);
@@ -794,14 +818,18 @@ function convertStrong(node: Strong): TextNode[] {
         }
         setMarkdownMarker(n, 'strong', marker);
         nodes.push(n);
+      } else if ($isLinkNode(n)) {
+        // Apply bold formatting to wiki link's text children
+        applyFormatToLinkChildren(n, 'bold', marker);
+        nodes.push(n);
       }
     }
   }
   return nodes;
 }
 
-function convertEmphasis(node: Emphasis): TextNode[] {
-  const nodes: TextNode[] = [];
+function convertEmphasis(node: Emphasis): (TextNode | LinkNode)[] {
+  const nodes: (TextNode | LinkNode)[] = [];
   const marker = (node as any).data?._emphasisMarker;
   for (const child of node.children) {
     const converted = convertInlineNode(child);
@@ -811,6 +839,10 @@ function convertEmphasis(node: Emphasis): TextNode[] {
           n.toggleFormat('italic');
         }
         setMarkdownMarker(n, 'emphasis', marker);
+        nodes.push(n);
+      } else if ($isLinkNode(n)) {
+        // Apply italic formatting to wiki link's text children
+        applyFormatToLinkChildren(n, 'italic', marker);
         nodes.push(n);
       }
     }
@@ -853,13 +885,17 @@ function convertLink(node: Link): LinkNode {
   return link;
 }
 
-function convertDelete(node: Delete): TextNode[] {
-  const nodes: TextNode[] = [];
+function convertDelete(node: Delete): (TextNode | LinkNode)[] {
+  const nodes: (TextNode | LinkNode)[] = [];
   for (const child of node.children) {
     const converted = convertInlineNode(child);
     for (const n of converted) {
       if (n instanceof TextNode) {
         n.setFormat('strikethrough');
+        nodes.push(n);
+      } else if ($isLinkNode(n)) {
+        // Apply strikethrough formatting to wiki link's text children
+        applyFormatToLinkChildren(n, 'strikethrough');
         nodes.push(n);
       }
     }
