@@ -457,10 +457,6 @@ body {
   color: var(--vscode-external-link);
 }
 
-.editor-link-external:hover {
-  text-decoration: underline;
-}
-
 /* When Cmd/Ctrl is held, show pointer cursor on links to indicate they can be opened */
 .modifier-held .editor-link {
   cursor: pointer;
