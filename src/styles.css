@@ -19,6 +19,7 @@
   --vscode-selection: hsla(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness), 0.2);
   --vscode-border: hsl(var(--editor-brand-hue), 20%, 88%);
   --vscode-link: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
+  --vscode-external-link: #2563eb; /* Tailwind blue-600 for external links */
   --vscode-code-bg: hsl(var(--editor-brand-hue), 30%, 97%);
   --checkbox-border: hsl(var(--editor-brand-hue), 30%, 65%);
 
@@ -74,6 +75,7 @@
   --vscode-selection: hsla(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness), 0.2);
   --vscode-border: hsl(var(--editor-brand-hue), 10%, 20%);
   --vscode-link: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
+  --vscode-external-link: #60a5fa; /* Tailwind blue-400 for external links in dark mode */
   --vscode-code-bg: hsl(var(--editor-brand-hue), 10%, 13%);
   --checkbox-border: hsl(var(--editor-brand-hue), 20%, 50%);
 
@@ -448,6 +450,11 @@ body {
 
 .editor-link:hover {
   text-decoration: underline;
+}
+
+/* External links (http/https/mailto) - blue color to differentiate from wiki-links */
+.editor-link-external {
+  color: var(--vscode-external-link);
 }
 
 /* When Cmd/Ctrl is held, show pointer cursor on links to indicate they can be opened */
