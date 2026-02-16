@@ -42,6 +42,7 @@ import { LinkClickPlugin } from './LinkClickPlugin';
 import { SearchPlugin } from './SearchPlugin';
 import { FrontmatterPlugin } from './FrontmatterPlugin';
 import { WikiLinkExistencePlugin } from './WikiLinkExistencePlugin';
+import { WikiLinkFormatPlugin } from './WikiLinkFormatPlugin';
 import { AssetContext, createAssetContextValue } from './AssetContext';
 import {
   CalloutNode,
@@ -648,6 +649,7 @@ export function Editor({
             <SearchPlugin />
             <FrontmatterPlugin filePath={filePath} />
             <WikiLinkExistencePlugin />
+            <WikiLinkFormatPlugin />
           </div>
         </div>
       </LexicalComposer>
