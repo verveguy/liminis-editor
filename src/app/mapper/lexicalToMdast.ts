@@ -608,6 +608,42 @@ function isWikiLinkUrl(url: string): boolean {
   return false;
 }
 
+/**
+ * Format an alias string with markdown format markers based on text format bitmask.
+ *
+ * Format bitmask values:
+ * - 1: bold
+ * - 2: italic
+ * - 4: strikethrough
+ *
+ * Order: strikethrough wraps bold wraps italic wraps text
+ * e.g., format=7 (all) produces ~~**_text_**~~
+ */
+export function formatAliasWithMarkers(text: string, format: number): string {
+  if (format === 0 || !text) {
+    return text;
+  }
+
+  let result = text;
+
+  // Apply italic first (innermost)
+  if (format & 2) {
+    result = `*${result}*`;
+  }
+
+  // Then bold
+  if (format & 1) {
+    result = `**${result}**`;
+  }
+
+  // Then strikethrough (outermost)
+  if (format & 4) {
+    result = `~~${result}~~`;
+  }
+
+  return result;
+}
+
 function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
   const url = (node as unknown as { getURL: () => string }).getURL();
   const children: PhrasingContent[] = [];
@@ -622,7 +658,7 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
   if (isWikiLinkUrl(url)) {
     // Convert URL back to wiki-link target
     let target: string;
-    
+
     if (url.startsWith('#')) {
       // Anchor-only: #anchor → #anchor
       target = url;
@@ -636,18 +672,29 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
       // Fallback: use URL as-is
       target = url;
     }
-    
-    // Extract alias from children if different from target
-    const displayText = children.length > 0 && children[0].type === 'text' 
-      ? (children[0]).value 
-      : '';
-    
+
+    // Extract alias and formatting from children
+    // Use full text content from all children to avoid data loss with mixed-format aliases
+    const displayText = node.getTextContent();
+    let textFormat = 0;
+
+    // Use the format of the first TextNode child as the representative format
+    const linkChildren = node.getChildren();
+    if (linkChildren.length > 0 && $isTextNode(linkChildren[0])) {
+      textFormat = linkChildren[0].getFormat();
+    }
+
     const hasAlias = displayText && displayText !== target;
     const aliasState = (node as any).getWikiAliasState?.() ?? null;
 
     const data: any = {};
     if (hasAlias) {
-      data.alias = displayText;
+      // Format the alias with markers if the text has formatting
+      data.alias = formatAliasWithMarkers(displayText, textFormat);
+    } else if (textFormat !== 0 && displayText) {
+      // No alias (displayText === target) but text is formatted
+      // We need to create an alias to preserve the formatting
+      data.alias = formatAliasWithMarkers(displayText, textFormat);
     } else if (aliasState === 'empty') {
       data._emptyAlias = true;
     } else {

@@ -26,6 +26,89 @@ import { LinkNode } from '@lexical/link';
 import { $createCustomLinkNode } from './nodes';
 import { $createImageNode, ImageNode } from './nodes/ImageNode';
 import { $createEquationNode, EquationNode } from './nodes';
+import type { TextFormatType } from 'lexical';
+
+/**
+ * Parses a wiki link alias and extracts format markers.
+ * Supports nested formats like ***bold italic***.
+ *
+ * @param alias - The raw alias text potentially containing format markers
+ * @returns Object with the plain text and array of formats to apply
+ *
+ * @example
+ * parseFormattedAlias('**bold**')     // { text: 'bold', formats: ['bold'] }
+ * parseFormattedAlias('*italic*')     // { text: 'italic', formats: ['italic'] }
+ * parseFormattedAlias('***both***')   // { text: 'both', formats: ['bold', 'italic'] }
+ * parseFormattedAlias('~~strike~~')   // { text: 'strike', formats: ['strikethrough'] }
+ */
+export function parseFormattedAlias(alias: string): { text: string; formats: TextFormatType[] } {
+  const formats: TextFormatType[] = [];
+  let text = alias;
+
+  // Process from outermost to innermost format markers
+  // We loop to handle nested formats like ***bold italic*** or ~~**bold strike**~~
+  let changed = true;
+  while (changed && text.length >= 2) {
+    changed = false;
+
+    // Check for strikethrough: ~~text~~
+    if (text.startsWith('~~') && text.endsWith('~~') && text.length >= 4) {
+      const inner = text.slice(2, -2);
+      if (inner.length > 0) {
+        formats.push('strikethrough');
+        text = inner;
+        changed = true;
+        continue;
+      }
+    }
+
+    // Check for bold: **text** (must check before single *)
+    if (text.startsWith('**') && text.endsWith('**') && text.length >= 4) {
+      const inner = text.slice(2, -2);
+      if (inner.length > 0) {
+        formats.push('bold');
+        text = inner;
+        changed = true;
+        continue;
+      }
+    }
+
+    // Check for bold: __text__ (must check before single _)
+    if (text.startsWith('__') && text.endsWith('__') && text.length >= 4) {
+      const inner = text.slice(2, -2);
+      if (inner.length > 0) {
+        formats.push('bold');
+        text = inner;
+        changed = true;
+        continue;
+      }
+    }
+
+    // Check for italic: *text* (but not if inner starts/ends with * which would be **)
+    if (text.startsWith('*') && text.endsWith('*') && text.length >= 2 && !text.startsWith('**') && !text.endsWith('**')) {
+      const inner = text.slice(1, -1);
+      if (inner.length > 0) {
+        formats.push('italic');
+        text = inner;
+        changed = true;
+        continue;
+      }
+    }
+
+    // Check for italic: _text_ (but not if inner starts/ends with _ which would be __)
+    if (text.startsWith('_') && text.endsWith('_') && text.length >= 2 && !text.startsWith('__') && !text.endsWith('__')) {
+      const inner = text.slice(1, -1);
+      if (inner.length > 0) {
+        formats.push('italic');
+        text = inner;
+        changed = true;
+        continue;
+      }
+    }
+  }
+
+  return { text, formats };
+}
 
 /**
  * Custom IMAGE transformer for ![alt](url) markdown syntax.
@@ -138,7 +221,7 @@ const WIKI_LINK: TextMatchTransformer = {
   regExp: /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]$/,
   replace: (textNode, match) => {
     const [, target, alias] = match;
-    
+
     // Handle anchors properly
     let url: string;
     if (target.startsWith('#')) {
@@ -153,10 +236,20 @@ const WIKI_LINK: TextMatchTransformer = {
       // Simple path: [[page]] → page.md
       url = target.endsWith('.md') ? target : `${target}.md`;
     }
-    
-    const displayText = alias || target;
+
+    // Parse alias for format markers (e.g., **bold**, *italic*, ~~strikethrough~~)
+    const rawDisplayText = alias || target;
+    const { text: displayText, formats } = parseFormattedAlias(rawDisplayText);
+
     const linkNode = $createCustomLinkNode(url);
-    linkNode.append($createTextNode(displayText));
+    const textNodeChild = $createTextNode(displayText);
+
+    // Apply detected formats to the text node
+    for (const format of formats) {
+      textNodeChild.toggleFormat(format);
+    }
+
+    linkNode.append(textNodeChild);
     textNode.replace(linkNode);
   },
   trigger: ']',
