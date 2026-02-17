@@ -619,7 +619,7 @@ function isWikiLinkUrl(url: string): boolean {
  * Order: strikethrough wraps bold wraps italic wraps text
  * e.g., format=7 (all) produces ~~**_text_**~~
  */
-function formatAliasWithMarkers(text: string, format: number): string {
+export function formatAliasWithMarkers(text: string, format: number): string {
   if (format === 0 || !text) {
     return text;
   }
@@ -674,14 +674,14 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
     }
 
     // Extract alias and formatting from children
-    // For wiki links, we get the raw text and format from the first TextNode child
-    let displayText = '';
+    // Use full text content from all children to avoid data loss with mixed-format aliases
+    const displayText = node.getTextContent();
     let textFormat = 0;
 
-    const firstChild = node.getChildren()[0];
-    if (firstChild && $isTextNode(firstChild)) {
-      displayText = firstChild.getTextContent();
-      textFormat = firstChild.getFormat();
+    // Use the format of the first TextNode child as the representative format
+    const linkChildren = node.getChildren();
+    if (linkChildren.length > 0 && $isTextNode(linkChildren[0])) {
+      textFormat = linkChildren[0].getFormat();
     }
 
     const hasAlias = displayText && displayText !== target;

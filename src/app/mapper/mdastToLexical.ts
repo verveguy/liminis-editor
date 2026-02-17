@@ -33,6 +33,7 @@ import {
   FrontmatterNode,
   CalloutType,
 } from '../editor/nodes';
+import { parseFormattedAlias } from '../editor/MarkdownShortcutsPlugin';
 import { $createTableNode, $createTableRowNode, $createTableCellNode, TableNode, TableRowNode, TableCellNode, TableCellHeaderStates } from '@lexical/table';
 import type { Root, Content, PhrasingContent, List, ListItem, Table, TableRow, TableCell, Heading, Paragraph, Blockquote, Code, Image, Link, Text, Strong, Emphasis, InlineCode, Delete, Html } from 'mdast';
 import DOMPurify from 'dompurify';
@@ -216,12 +217,18 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
       // Wrap in a paragraph with a link
       const wikiLink = node as unknown as { value: string; data?: { alias?: string } };
       const target = wikiLink.value || '';
-      const displayText = wikiLink.data?.alias || target;
+      const rawDisplayText = wikiLink.data?.alias || target;
       const url = target.endsWith('.md') ? target : `${target}.md`;
-      
+
       const paragraph = $createParagraphNode();
       const link = $createCustomLinkNode(url);
-      link.append($createTextNode(displayText));
+      // Parse format markers in alias (e.g., **bold**, *italic*, ~~strike~~)
+      const { text: plainText, formats } = parseFormattedAlias(rawDisplayText);
+      const textNode = $createTextNode(plainText);
+      for (const format of formats) {
+        textNode.toggleFormat(format);
+      }
+      link.append(textNode);
       paragraph.append(link);
       return [paragraph];
     }
@@ -756,7 +763,13 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | Equati
       if ((wikiLink as any).data?._emptyAlias) {
         link.setWikiAliasState('empty');
       }
-      link.append($createTextNode(displayText));
+      // Parse format markers in alias (e.g., **bold**, *italic*, ~~strike~~)
+      const { text: plainText, formats } = parseFormattedAlias(displayText);
+      const textNode = $createTextNode(plainText);
+      for (const format of formats) {
+        textNode.toggleFormat(format);
+      }
+      link.append(textNode);
       return [link];
     }
     case 'html': {

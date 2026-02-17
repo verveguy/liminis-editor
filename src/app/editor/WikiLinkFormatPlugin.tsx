@@ -71,15 +71,19 @@ function detectSurroundingFormats(
       if (remainingBefore.endsWith(marker) && remainingAfter.startsWith(marker)) {
         // Ensure we're not matching partial markers
         // e.g., don't match single * when we're actually looking at **
-        const charBeforeMarker = remainingBefore[remainingBefore.length - marker.length - 1];
-        const charAfterMarker = remainingAfter[marker.length];
-
         // For single char markers (* and _), ensure we're not part of a double marker
         if (marker.length === 1) {
+          const beforeIndex = remainingBefore.length - marker.length - 1;
+          const afterIndex = marker.length;
+
           // If the character before our marker is the same, skip (it's part of ** or __)
-          if (charBeforeMarker === marker) continue;
+          const isDoubleBefore =
+            beforeIndex >= 0 && remainingBefore[beforeIndex] === marker;
           // If the character after the closing marker is the same, skip
-          if (charAfterMarker === marker) continue;
+          const isDoubleAfter =
+            afterIndex < remainingAfter.length && remainingAfter[afterIndex] === marker;
+
+          if (isDoubleBefore || isDoubleAfter) continue;
         }
 
         detected.push({ format, markerLength: marker.length });
@@ -207,14 +211,19 @@ export function WikiLinkFormatPlugin(): null {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
-    return editor.registerUpdateListener(({ editorState, tags }) => {
+    return editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves, tags }) => {
       // Skip if this update was triggered by us to prevent infinite loops
       if (tags.has('wiki-link-format')) {
         return;
       }
 
-      // Check if there are any changes worth processing
-      // We read the state first to see if there are any LinkNodes with adjacent format markers
+      // Early exit if nothing changed in this update
+      if (dirtyElements.size === 0 && dirtyLeaves.size === 0) {
+        return;
+      }
+
+      // Check if there are any LinkNodes with adjacent format markers,
+      // and apply formatting in a single pass if found
       let needsUpdate = false;
 
       editorState.read(() => {

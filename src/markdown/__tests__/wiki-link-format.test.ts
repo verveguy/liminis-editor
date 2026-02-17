@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { parseMarkdown } from '../parse'
 import { stringifyMarkdown } from '../stringify'
 import { parseFormattedAlias } from '../../app/editor/MarkdownShortcutsPlugin'
+import { formatAliasWithMarkers } from '../../app/mapper/lexicalToMdast'
 
 /**
  * Tests for wiki link formatting features:
@@ -393,6 +394,45 @@ describe('wiki-link formatting - export', () => {
       const result = stringifyMarkdown(root as any)
       expect(result).toContain('[[page|**bold alias**]]')
     })
+  })
+})
+
+describe('formatAliasWithMarkers', () => {
+  it('should return plain text when format is 0', () => {
+    expect(formatAliasWithMarkers('hello', 0)).toBe('hello')
+  })
+
+  it('should wrap text with bold markers for format bitmask 1', () => {
+    expect(formatAliasWithMarkers('text', 1)).toBe('**text**')
+  })
+
+  it('should wrap text with italic markers for format bitmask 2', () => {
+    expect(formatAliasWithMarkers('text', 2)).toBe('*text*')
+  })
+
+  it('should wrap text with strikethrough markers for format bitmask 4', () => {
+    expect(formatAliasWithMarkers('text', 4)).toBe('~~text~~')
+  })
+
+  it('should handle bold + italic (format 3)', () => {
+    // Italic innermost, then bold
+    expect(formatAliasWithMarkers('text', 3)).toBe('***text***')
+  })
+
+  it('should handle bold + strikethrough (format 5)', () => {
+    expect(formatAliasWithMarkers('text', 5)).toBe('~~**text**~~')
+  })
+
+  it('should handle italic + strikethrough (format 6)', () => {
+    expect(formatAliasWithMarkers('text', 6)).toBe('~~*text*~~')
+  })
+
+  it('should handle all three formats (format 7)', () => {
+    expect(formatAliasWithMarkers('text', 7)).toBe('~~***text***~~')
+  })
+
+  it('should return empty string for empty text', () => {
+    expect(formatAliasWithMarkers('', 1)).toBe('')
   })
 })
 
