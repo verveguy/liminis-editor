@@ -62,7 +62,13 @@ export function AnchorScrollPlugin(): null {
       ) as HTMLElement | undefined
 
       if (heading) {
-        heading.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        // Scroll within the editor scroll container only, not the entire window.
+        // Using scrollIntoView() would scroll all ancestors including the app chrome.
+        const container = heading.closest('#editor-scroll-container')
+          || heading.closest('#editor-panel-scroll-container')
+        if (container) {
+          container.scrollTo({ top: heading.offsetTop, behavior: 'smooth' })
+        }
       } else {
         console.warn('Anchor target not found:', anchor)
       }
