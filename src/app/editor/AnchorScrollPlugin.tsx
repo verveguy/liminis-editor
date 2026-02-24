@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 
 /**
  * Normalize text for anchor matching.
@@ -29,6 +30,8 @@ function normalizeForMatch(text: string): string {
  * 4. Cleans up the subscription on unmount
  */
 export function AnchorScrollPlugin(): null {
+  const [editor] = useLexicalComposerContext()
+
   useEffect(() => {
     // Early exit if the preload API is not available
     if (!window.api?.editor?.onScrollToAnchor) {
@@ -37,6 +40,11 @@ export function AnchorScrollPlugin(): null {
 
     const unsubscribe = window.api.editor.onScrollToAnchor((anchor: string) => {
       const normalizedAnchor = normalizeForMatch(anchor)
+      const rootElement = editor.getRootElement()
+
+      if (!rootElement) {
+        return
+      }
 
       // Query all headings using established CSS class pattern from editorTheme
       const selector = [
@@ -46,7 +54,7 @@ export function AnchorScrollPlugin(): null {
         '.editor-heading-h4',
         '.editor-heading-h5',
       ].join(',')
-      const headings = Array.from(document.querySelectorAll(selector))
+      const headings = Array.from(rootElement.querySelectorAll(selector))
 
       // Find heading with matching text
       const heading = headings.find(h =>
@@ -61,7 +69,7 @@ export function AnchorScrollPlugin(): null {
     })
 
     return unsubscribe
-  }, [])
+  }, [editor])
 
   return null
 }
