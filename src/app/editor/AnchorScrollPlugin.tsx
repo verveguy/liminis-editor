@@ -11,8 +11,8 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 function normalizeForMatch(text: string): string {
   return text
     .toLowerCase()
-    .replace(/[—–]/g, '-')  // em-dash, en-dash → hyphen
-    .replace(/\s+/g, ' ')   // collapse whitespace
+    .replace(/[—–\-_]/g, ' ')  // em-dash, en-dash, hyphen, underscore → space
+    .replace(/\s+/g, ' ')      // collapse whitespace
     .trim()
 }
 
