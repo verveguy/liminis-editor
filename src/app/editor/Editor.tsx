@@ -43,6 +43,7 @@ import { SearchPlugin } from './SearchPlugin';
 import { FrontmatterPlugin } from './FrontmatterPlugin';
 import { WikiLinkExistencePlugin } from './WikiLinkExistencePlugin';
 import { WikiLinkFormatPlugin } from './WikiLinkFormatPlugin';
+import { AnchorScrollPlugin } from './AnchorScrollPlugin';
 import { AssetContext, createAssetContextValue } from './AssetContext';
 import {
   CalloutNode,
@@ -650,6 +651,7 @@ export function Editor({
             <FrontmatterPlugin filePath={filePath} />
             <WikiLinkExistencePlugin />
             <WikiLinkFormatPlugin />
+            <AnchorScrollPlugin />
           </div>
         </div>
       </LexicalComposer>
