@@ -200,6 +200,7 @@ export function ImageModal({ isOpen, onClose, onInsert }: ImageModalProps) {
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOver(false);
 
     const file = e.dataTransfer.files[0];
@@ -210,11 +211,13 @@ export function ImageModal({ isOpen, onClose, onInsert }: ImageModalProps) {
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOver(true);
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOver(false);
   }, []);
 
