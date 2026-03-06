@@ -30,6 +30,88 @@ interface Replacement {
 }
 
 /**
+ * Escape pipes inside wiki-links: [[target|alias]] → [[target\|alias]]
+ * This prevents GFM table parsing from splitting wiki-links at the pipe.
+ * The mdast-util-wiki-link patch will strip the backslash during conversion.
+ *
+ * NOTE: Only escapes the FIRST pipe inside each wiki-link (the alias divider).
+ * Additional pipes in the alias text are valid and should remain unescaped.
+ */
+function escapeWikiLinkPipes(text: string): { text: string; replacements: Replacement[] } {
+  const replacements: Replacement[] = [];
+  // Match [[ followed by non-] characters, then | (alias divider), then more content until ]]
+  // Use non-greedy matching to handle multiple wiki-links
+  const pattern = /\[\[([^\]|]+)\|([^\]]*)\]\]/g;
+
+  let result = '';
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    const originalStart = match.index;
+    const originalEnd = match.index + match[0].length;
+    const target = match[1];
+    const alias = match[2];
+
+    // Skip if pipe is already escaped (rare edge case where source has \|)
+    // This would show up as target ending with \
+    if (target.endsWith('\\')) {
+      continue;
+    }
+
+    const replacement = `[[${target}\\|${alias}]]`;
+
+    result += text.slice(cursor, originalStart);
+    const normalizedStart = result.length;
+    result += replacement;
+    const normalizedEnd = result.length;
+
+    replacements.push({
+      normalizedStart,
+      normalizedEnd,
+      delta: replacement.length - match[0].length, // +1 for the backslash
+      originalStart,
+      originalEnd,
+    });
+
+    cursor = originalEnd;
+  }
+
+  result += text.slice(cursor);
+  return { text: result, replacements };
+}
+
+/**
+ * Combine two sets of replacements from sequential preprocessing steps.
+ * The second set of replacements refers to positions in text AFTER the first set was applied.
+ * We need to adjust the second set's original positions to refer to the true original text.
+ */
+function combineReplacements(first: Replacement[], second: Replacement[]): Replacement[] {
+  if (first.length === 0) return second;
+  if (second.length === 0) return first;
+
+  // Adjust second replacements' original positions based on first replacements' deltas
+  const adjustedSecond = second.map((rep) => {
+    // Find cumulative delta from first replacements before this position
+    let deltaAdjustment = 0;
+    for (const firstRep of first) {
+      if (firstRep.normalizedEnd <= rep.originalStart) {
+        deltaAdjustment += firstRep.delta;
+      }
+    }
+
+    return {
+      ...rep,
+      originalStart: rep.originalStart - deltaAdjustment,
+      originalEnd: rep.originalEnd - deltaAdjustment,
+    };
+  });
+
+  // Merge and sort by normalizedStart
+  return [...first, ...adjustedSecond].sort((a, b) => a.normalizedStart - b.normalizedStart);
+}
+
+/**
  * Normalize wiki-links with empty aliases: [[target|]] → [[target|__EMPTY_ALIAS__]]
  * We preserve the intent by using a sentinel, then strip it after parsing.
  * Returns the normalized text plus offset mapping data.
@@ -155,6 +237,40 @@ function markEmptyAliasWikiLinks(root: Root): Root {
 }
 
 /**
+ * Strip trailing backslash from wiki-link values when they have an alias.
+ * This handles the escaped pipe (\|) that was added by escapeWikiLinkPipes().
+ * The backslash escapes the pipe from GFM table parsing but should not be
+ * part of the wiki-link target itself.
+ */
+function stripEscapedPipeFromWikiLinks(root: Root): Root {
+  function walk(node: any): any {
+    if (!node || typeof node !== 'object') return node;
+
+    if (node.type === 'wikiLink') {
+      // Only strip if there's an alias (the backslash was only added when there's a pipe/alias)
+      if (node.data?.alias && node.value?.endsWith('\\')) {
+        return {
+          ...node,
+          value: node.value.slice(0, -1),
+        };
+      }
+      return node;
+    }
+
+    if (node.children && Array.isArray(node.children)) {
+      return {
+        ...node,
+        children: node.children.map(walk),
+      };
+    }
+
+    return node;
+  }
+
+  return walk(root);
+}
+
+/**
  * Post-process mdast tree to support checkboxes in ordered lists.
  * 
  * GFM task lists only work with unordered lists (- [ ]), but Foam/Obsidian
@@ -220,8 +336,15 @@ function addCheckboxesToOrderedLists(root: Root): Root {
 
 export function parseMarkdown(text: string, _options: ParseOptions = {}): ParseResult {
   // Pre-process to handle edge cases
-  const { text: normalizedText, replacements } = normalizeWikiLinks(text);
-  
+  // Step 1: Escape pipes inside wiki-links to protect from GFM table parsing
+  const { text: pipesEscaped, replacements: pipeReplacements } = escapeWikiLinkPipes(text);
+
+  // Step 2: Normalize empty aliases (existing logic)
+  const { text: normalizedText, replacements: aliasReplacements } = normalizeWikiLinks(pipesEscaped);
+
+  // Combine replacements for offset mapping (pipeReplacements first, then adjust aliasReplacements)
+  const replacements = combineReplacements(pipeReplacements, aliasReplacements);
+
   let root = fromMarkdown(normalizedText, {
     extensions: [gfm(), math(), frontmatter(['yaml']), wikiLinkSyntax(wikiLinkOptions as any)],
     mdastExtensions: [
@@ -235,6 +358,9 @@ export function parseMarkdown(text: string, _options: ParseOptions = {}): ParseR
   // Post-process: add checkbox support for ordered lists
   // GFM only supports task lists in unordered lists, but Foam/Obsidian use them in ordered lists too
   root = addCheckboxesToOrderedLists(root);
+
+  // Post-process: strip escaped pipe backslash from wiki-link targets
+  root = stripEscapedPipeFromWikiLinks(root);
 
   // Post-process: mark wiki-links that had empty aliases in the source
   root = markEmptyAliasWikiLinks(root);
