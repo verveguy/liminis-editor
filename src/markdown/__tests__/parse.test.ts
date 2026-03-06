@@ -277,6 +277,62 @@ describe('parseMarkdown', () => {
       expect(wikiLinks[1].value).toBe('people/person')
       expect(wikiLinks[1].data.alias).toBe('Person Name')
     })
+
+    it('should parse full meeting table from issue #347', () => {
+      // This is the exact markdown from the issue description
+      const markdown = `| Time | Meeting | Key Outcome |
+| - | - | - |
+| 10:05 am | [[2026-03-05-gareth-jones|JARVIS/Tyto Architecture Sync — Gareth Jones]] (25m) — [[people/michelangelo-capraro|Michelangelo Capraro]], [[people/gareth-jones|Gareth Jones]] | Multi-agent domain boundary research collaboration initiated. |
+| 10:35 am | [[2026-03-05-agentic-accelerator-leads|Agentic Acceleration - Leads check-in]] (25m) — [[people/ritesh-bansal|Ritesh Bansal]], [[people/carl-white|Carl White]] | All Hands reception confirmed positive. |`
+
+      const result = parseMarkdown(markdown)
+      const table = result.root.children[0] as any
+
+      // Verify correct structure: 3 columns, not broken by wiki-link pipes
+      expect(table.children[0].children).toHaveLength(3) // header row: 3 cells
+      expect(table.children[1].children).toHaveLength(3) // data row 1: 3 cells
+      expect(table.children[2].children).toHaveLength(3) // data row 2: 3 cells
+
+      // Verify wiki-links in first data row (Meeting column)
+      const row1MeetingCell = table.children[1].children[1]
+      const row1WikiLinks = row1MeetingCell.children.filter((c: any) => c.type === 'wikiLink')
+      expect(row1WikiLinks).toHaveLength(3)
+      expect(row1WikiLinks[0].value).toBe('2026-03-05-gareth-jones')
+      expect(row1WikiLinks[0].data.alias).toBe('JARVIS/Tyto Architecture Sync — Gareth Jones')
+      expect(row1WikiLinks[1].value).toBe('people/michelangelo-capraro')
+      expect(row1WikiLinks[2].value).toBe('people/gareth-jones')
+
+      // Verify wiki-links in second data row (3 wiki-links)
+      const row2MeetingCell = table.children[2].children[1]
+      const row2WikiLinks = row2MeetingCell.children.filter((c: any) => c.type === 'wikiLink')
+      expect(row2WikiLinks).toHaveLength(3)
+      expect(row2WikiLinks[0].value).toBe('2026-03-05-agentic-accelerator-leads')
+      expect(row2WikiLinks[0].data.alias).toBe('Agentic Acceleration - Leads check-in')
+      expect(row2WikiLinks[1].value).toBe('people/ritesh-bansal')
+      expect(row2WikiLinks[2].value).toBe('people/carl-white')
+    })
+
+    it('should round-trip full meeting table preserving wiki-link aliases', () => {
+      const markdown = `| Time | Meeting |
+| - | - |
+| 10:05 am | [[meeting-note|Meeting Title]] — [[people/person|Person Name]] |`
+
+      const parsed = parseMarkdown(markdown)
+      const stringified = stringifyMarkdown(parsed.root)
+      const reparsed = parseMarkdown(stringified)
+
+      const table = reparsed.root.children[0] as any
+      expect(table.children[0].children).toHaveLength(2) // Still 2 columns
+      expect(table.children[1].children).toHaveLength(2)
+
+      const meetingCell = table.children[1].children[1]
+      const wikiLinks = meetingCell.children.filter((c: any) => c.type === 'wikiLink')
+      expect(wikiLinks).toHaveLength(2)
+      expect(wikiLinks[0].value).toBe('meeting-note')
+      expect(wikiLinks[0].data.alias).toBe('Meeting Title')
+      expect(wikiLinks[1].value).toBe('people/person')
+      expect(wikiLinks[1].data.alias).toBe('Person Name')
+    })
   })
 
   describe('frontmatter', () => {
