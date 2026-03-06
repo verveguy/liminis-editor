@@ -90,22 +90,31 @@ function combineReplacements(first: Replacement[], second: Replacement[]): Repla
   if (first.length === 0) return second;
   if (second.length === 0) return first;
 
-  // Adjust second replacements' original positions based on first replacements' deltas
-  const adjustedSecond = second.map((rep) => {
-    // Find cumulative delta from first replacements before this position
-    let deltaAdjustment = 0;
-    for (const firstRep of first) {
-      if (firstRep.normalizedEnd <= rep.originalStart) {
-        deltaAdjustment += firstRep.delta;
-      }
+  // Adjust second replacements' original positions based on first replacements' deltas.
+  // Uses a single-pass O(N+M) merge since both arrays are sorted by position.
+  //
+  // NOTE: This does not adjust the first set's normalizedStart/normalizedEnd for shifts
+  // introduced by the second step. In practice this is fine because mapNormalizedOffsetToOriginal
+  // is only used for emphasis/strong marker detection, and emphasis markers won't appear
+  // inside wiki-links. If additional preprocessing steps or offset uses are added in the
+  // future, this assumption should be revisited.
+  const adjustedSecond: Replacement[] = [];
+  let deltaAdjustment = 0;
+  let firstIndex = 0;
+
+  for (const rep of second) {
+    // Advance through `first` to accumulate deltas from replacements before this position
+    while (firstIndex < first.length && first[firstIndex].normalizedEnd <= rep.originalStart) {
+      deltaAdjustment += first[firstIndex].delta;
+      firstIndex++;
     }
 
-    return {
+    adjustedSecond.push({
       ...rep,
       originalStart: rep.originalStart - deltaAdjustment,
       originalEnd: rep.originalEnd - deltaAdjustment,
-    };
-  });
+    });
+  }
 
   // Merge and sort by normalizedStart
   return [...first, ...adjustedSecond].sort((a, b) => a.normalizedStart - b.normalizedStart);
@@ -239,8 +248,11 @@ function markEmptyAliasWikiLinks(root: Root): Root {
 /**
  * Strip trailing backslash from wiki-link values when they have an alias.
  * This handles the escaped pipe (\|) that was added by escapeWikiLinkPipes().
- * The backslash escapes the pipe from GFM table parsing but should not be
- * part of the wiki-link target itself.
+ *
+ * NOTE: The mdast-util-wiki-link patch already strips this backslash during
+ * fromMarkdown() processing. This function serves as defense-in-depth in case
+ * the patch is ever removed or updated. In normal operation the condition
+ * `node.value?.endsWith('\\')` will be false (already stripped by the patch).
  */
 function stripEscapedPipeFromWikiLinks(root: Root): Root {
   function walk(node: any): any {
