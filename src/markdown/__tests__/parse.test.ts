@@ -18,6 +18,7 @@ import {
   isInlineCode,
   isDelete,
 } from '../parse'
+import { stringifyMarkdown } from '../stringify'
 
 describe('parseMarkdown', () => {
   describe('basic parsing', () => {
@@ -165,6 +166,116 @@ describe('parseMarkdown', () => {
       const paragraph = result.root.children[0] as any
       const wikiLinks = paragraph.children.filter((c: any) => c.type === 'wikiLink')
       expect(wikiLinks).toHaveLength(2)
+    })
+  })
+
+  describe('wiki-links in tables', () => {
+    it('should parse wiki-link with alias inside table cell', () => {
+      const markdown = '| Header |\n| - |\n| [[page|alias]] |'
+      const result = parseMarkdown(markdown)
+
+      expect(result.root.children[0].type).toBe('table')
+      const table = result.root.children[0] as any
+      expect(table.children).toHaveLength(2) // header + data row
+
+      const dataRow = table.children[1]
+      expect(dataRow.children).toHaveLength(1) // 1 cell
+
+      const cell = dataRow.children[0]
+      expect(cell.children[0].type).toBe('wikiLink')
+      expect(cell.children[0].value).toBe('page')
+      expect(cell.children[0].data.alias).toBe('alias')
+    })
+
+    it('should parse multiple wiki-links with aliases in same cell', () => {
+      const markdown = '| Links |\n| - |\n| [[a|A]], [[b|B]] |'
+      const result = parseMarkdown(markdown)
+
+      const table = result.root.children[0] as any
+      const cell = table.children[1].children[0]
+
+      const wikiLinks = cell.children.filter((c: any) => c.type === 'wikiLink')
+      expect(wikiLinks).toHaveLength(2)
+      expect(wikiLinks[0].value).toBe('a')
+      expect(wikiLinks[0].data.alias).toBe('A')
+      expect(wikiLinks[1].value).toBe('b')
+      expect(wikiLinks[1].data.alias).toBe('B')
+    })
+
+    it('should parse wiki-link without alias in table (no regression)', () => {
+      const markdown = '| Link |\n| - |\n| [[page]] |'
+      const result = parseMarkdown(markdown)
+
+      const table = result.root.children[0] as any
+      const cell = table.children[1].children[0]
+      expect(cell.children[0].type).toBe('wikiLink')
+      expect(cell.children[0].value).toBe('page')
+      // Note: mdast-util-wiki-link sets alias to target value when no explicit alias
+      expect(cell.children[0].data.alias).toBe('page')
+    })
+
+    it('should parse mixed content in table cell (text + wiki-link)', () => {
+      const markdown = '| Content |\n| - |\n| See [[page|link]] for details |'
+      const result = parseMarkdown(markdown)
+
+      const table = result.root.children[0] as any
+      const cell = table.children[1].children[0]
+
+      // Should have text, wiki-link, and more text
+      const wikiLink = cell.children.find((c: any) => c.type === 'wikiLink')
+      expect(wikiLink).toBeDefined()
+      expect(wikiLink.value).toBe('page')
+      expect(wikiLink.data.alias).toBe('link')
+
+      const textNodes = cell.children.filter((c: any) => c.type === 'text')
+      expect(textNodes.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('should parse wiki-link in table header row', () => {
+      const markdown = '| [[page|Header Link]] |\n| - |\n| Data |'
+      const result = parseMarkdown(markdown)
+
+      const table = result.root.children[0] as any
+      const headerRow = table.children[0]
+      const headerCell = headerRow.children[0]
+
+      expect(headerCell.children[0].type).toBe('wikiLink')
+      expect(headerCell.children[0].value).toBe('page')
+      expect(headerCell.children[0].data.alias).toBe('Header Link')
+    })
+
+    it('should round-trip wiki-links in tables', () => {
+      const markdown = '| Col |\n| - |\n| [[page|alias]] |'
+      const parsed = parseMarkdown(markdown)
+      const stringified = stringifyMarkdown(parsed.root)
+      const reparsed = parseMarkdown(stringified)
+
+      const cell = (reparsed.root.children[0] as any).children[1].children[0]
+      expect(cell.children[0].type).toBe('wikiLink')
+      expect(cell.children[0].value).toBe('page')
+      expect(cell.children[0].data.alias).toBe('alias')
+    })
+
+    it('should parse complex table from issue description', () => {
+      const markdown = `| Time | Meeting |
+| - | - |
+| 10:05 am | [[meeting-note|Meeting Title]] — [[people/person|Person Name]] |`
+
+      const result = parseMarkdown(markdown)
+      const table = result.root.children[0] as any
+
+      // Verify correct structure: 2 columns
+      expect(table.children[0].children).toHaveLength(2) // header row: 2 cells
+      expect(table.children[1].children).toHaveLength(2) // data row: 2 cells
+
+      // Verify wiki-links in second cell
+      const meetingCell = table.children[1].children[1]
+      const wikiLinks = meetingCell.children.filter((c: any) => c.type === 'wikiLink')
+      expect(wikiLinks).toHaveLength(2)
+      expect(wikiLinks[0].value).toBe('meeting-note')
+      expect(wikiLinks[0].data.alias).toBe('Meeting Title')
+      expect(wikiLinks[1].value).toBe('people/person')
+      expect(wikiLinks[1].data.alias).toBe('Person Name')
     })
   })
 
