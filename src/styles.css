@@ -1,45 +1,43 @@
-/* Loop-inspired theme for editor with design tokens */
+/* Loop-inspired theme for editor with design tokens (OKLCH) */
 :root {
   /* ========================================
      DESIGN TOKENS - Editor Light Theme
      ======================================== */
-  
+
   /* Brand Color - Purple theme (matches renderer) */
-  --editor-brand-hue: 270;
-  --editor-brand-saturation: 70%;
-  --editor-brand-lightness: 55%;
-  
+  --editor-brand: oklch(0.55 0.20 303);
+
   /* Typography */
   --vscode-font-family: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   --vscode-font-size: 16px;
-  
-  /* Computed Colors */
-  --vscode-foreground: rgba(60, 60, 67);
-  --vscode-background: #ffffff;
-  --vscode-selection: hsla(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness), 0.2);
-  --vscode-border: hsl(var(--editor-brand-hue), 20%, 88%);
-  --vscode-link: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
-  --vscode-external-link: #2563eb; /* Tailwind blue-600 for external links */
-  --vscode-code-bg: hsl(var(--editor-brand-hue), 30%, 97%);
-  --checkbox-border: hsl(var(--editor-brand-hue), 30%, 65%);
 
-  /* Syntax Highlighting - VitePress/Shiki inspired */
-  --slashmd-token-comment: #a0ada0;
-  --slashmd-token-punctuation: #999999;
-  --slashmd-token-property: #998418;
-  --slashmd-token-selector: #22863a;
-  --slashmd-token-operator: #d73a49;
-  --slashmd-token-keyword: #d73a49;
-  --slashmd-token-variable: #e36209;
-  --slashmd-token-function: #6f42c1;
+  /* Computed Colors (OKLCH) */
+  --vscode-foreground: oklch(0.35 0.01 265);
+  --vscode-background: oklch(1 0 0);
+  --vscode-selection: oklch(0.55 0.20 303 / 0.2);
+  --vscode-border: oklch(0.91 0.03 303);
+  --vscode-link: oklch(0.55 0.20 303);
+  --vscode-external-link: oklch(0.55 0.20 255); /* blue for external links */
+  --vscode-code-bg: oklch(0.98 0.02 303);
+  --checkbox-border: oklch(0.65 0.08 303);
 
-  /* Typography - VitePress style */
-  --slashmd-heading-color: rgba(60, 60, 67);
-  --slashmd-h1-color: rgba(60, 60, 67);
-  --slashmd-h2-color: rgba(60, 60, 67);
-  --slashmd-h3-color: rgba(60, 60, 67);
-  --slashmd-h4-color: rgba(60, 60, 67);
-  --slashmd-h5-color: rgba(60, 60, 67);
+  /* Syntax Highlighting - VitePress/Shiki inspired (OKLCH) */
+  --slashmd-token-comment: oklch(0.70 0.03 135);
+  --slashmd-token-punctuation: oklch(0.65 0 0);
+  --slashmd-token-property: oklch(0.60 0.12 85);
+  --slashmd-token-selector: oklch(0.52 0.14 145);
+  --slashmd-token-operator: oklch(0.55 0.20 25);
+  --slashmd-token-keyword: oklch(0.55 0.20 25);
+  --slashmd-token-variable: oklch(0.60 0.18 50);
+  --slashmd-token-function: oklch(0.50 0.18 303);
+
+  /* Typography - VitePress style (OKLCH) */
+  --slashmd-heading-color: oklch(0.35 0.01 265);
+  --slashmd-h1-color: oklch(0.35 0.01 265);
+  --slashmd-h2-color: oklch(0.35 0.01 265);
+  --slashmd-h3-color: oklch(0.35 0.01 265);
+  --slashmd-h4-color: oklch(0.35 0.01 265);
+  --slashmd-h5-color: oklch(0.35 0.01 265);
   --slashmd-h1-indent: 0;
   --slashmd-h2-indent: 0;
   --slashmd-h3-indent: 0;
@@ -48,66 +46,65 @@
   --slashmd-bold-color: inherit;
   --slashmd-italic-color: inherit;
 
-  /* Callouts - Uses brand color for note type */
-  --slashmd-callout-note-bg: hsla(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness), 0.08);
-  --slashmd-callout-note-border: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
-  --slashmd-callout-tip-bg: rgba(16, 185, 129, 0.08);
-  --slashmd-callout-tip-border: #10b981;
-  --slashmd-callout-warning-bg: rgba(234, 179, 8, 0.08);
-  --slashmd-callout-warning-border: #eab308;
-  --slashmd-callout-important-bg: rgba(139, 92, 246, 0.08);
-  --slashmd-callout-important-border: #8b5cf6;
-  --slashmd-callout-caution-bg: rgba(239, 68, 68, 0.08);
-  --slashmd-callout-caution-border: #ef4444;
+  /* Callouts - Uses brand color for note type (OKLCH) */
+  --slashmd-callout-note-bg: oklch(0.55 0.20 303 / 0.08);
+  --slashmd-callout-note-border: oklch(0.55 0.20 303);
+  --slashmd-callout-tip-bg: oklch(0.65 0.18 160 / 0.08);
+  --slashmd-callout-tip-border: oklch(0.65 0.18 160);
+  --slashmd-callout-warning-bg: oklch(0.80 0.18 85 / 0.08);
+  --slashmd-callout-warning-border: oklch(0.80 0.18 85);
+  --slashmd-callout-important-bg: oklch(0.58 0.22 290 / 0.08);
+  --slashmd-callout-important-border: oklch(0.58 0.22 290);
+  --slashmd-callout-caution-bg: oklch(0.63 0.24 27 / 0.08);
+  --slashmd-callout-caution-border: oklch(0.63 0.24 27);
 }
 
 /* ========================================
    DESIGN TOKENS - Editor Dark Theme
    ======================================== */
 .dark {
-  /* Brand adjustments for dark mode */
-  --editor-brand-saturation: 80%;
-  --editor-brand-lightness: 70%;
-  
-  /* Computed Colors */
-  --vscode-foreground: rgba(255, 255, 245, 0.86);
-  --vscode-background: #1b1b1f;
-  --vscode-selection: hsla(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness), 0.2);
-  --vscode-border: hsl(var(--editor-brand-hue), 10%, 20%);
-  --vscode-link: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
-  --vscode-external-link: #60a5fa; /* Tailwind blue-400 for external links in dark mode */
-  --vscode-code-bg: hsl(var(--editor-brand-hue), 10%, 13%);
-  --checkbox-border: hsl(var(--editor-brand-hue), 20%, 50%);
+  /* Brand Color - Lighter for dark mode visibility */
+  --editor-brand: oklch(0.70 0.20 303);
 
-  /* Syntax Highlighting - Dark mode */
-  --slashmd-token-comment: #6a9955;
-  --slashmd-token-punctuation: #d4d4d4;
-  --slashmd-token-property: #dcdcaa;
-  --slashmd-token-selector: #6a9955;
-  --slashmd-token-operator: #d4d4d4;
-  --slashmd-token-keyword: #569cd6;
-  --slashmd-token-variable: #9cdcfe;
-  --slashmd-token-function: #dcdcaa;
+  /* Computed Colors (OKLCH) */
+  --vscode-foreground: oklch(0.97 0.01 90 / 0.86);
+  --vscode-background: oklch(0.17 0.01 265);
+  --vscode-selection: oklch(0.70 0.20 303 / 0.2);
+  --vscode-border: oklch(0.27 0.02 303);
+  --vscode-link: oklch(0.70 0.20 303);
+  --vscode-external-link: oklch(0.70 0.18 255); /* lighter blue for dark mode */
+  --vscode-code-bg: oklch(0.20 0.02 303);
+  --checkbox-border: oklch(0.55 0.06 303);
 
-  /* Typography - Dark mode */
-  --slashmd-heading-color: rgba(255, 255, 245, 0.86);
-  --slashmd-h1-color: rgba(255, 255, 245, 0.86);
-  --slashmd-h2-color: rgba(255, 255, 245, 0.86);
-  --slashmd-h3-color: rgba(255, 255, 245, 0.86);
-  --slashmd-h4-color: rgba(255, 255, 245, 0.86);
-  --slashmd-h5-color: rgba(255, 255, 245, 0.86);
+  /* Syntax Highlighting - Dark mode (OKLCH) */
+  --slashmd-token-comment: oklch(0.60 0.10 140);
+  --slashmd-token-punctuation: oklch(0.85 0 0);
+  --slashmd-token-property: oklch(0.85 0.10 95);
+  --slashmd-token-selector: oklch(0.60 0.10 140);
+  --slashmd-token-operator: oklch(0.85 0 0);
+  --slashmd-token-keyword: oklch(0.65 0.12 240);
+  --slashmd-token-variable: oklch(0.78 0.10 220);
+  --slashmd-token-function: oklch(0.85 0.10 95);
 
-  /* Callouts - Dark mode, uses brand color for note type */
-  --slashmd-callout-note-bg: hsla(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness), 0.1);
-  --slashmd-callout-note-border: hsl(var(--editor-brand-hue), var(--editor-brand-saturation), var(--editor-brand-lightness));
-  --slashmd-callout-tip-bg: rgba(16, 185, 129, 0.1);
-  --slashmd-callout-tip-border: #10b981;
-  --slashmd-callout-warning-bg: rgba(234, 179, 8, 0.1);
-  --slashmd-callout-warning-border: #eab308;
-  --slashmd-callout-important-bg: rgba(139, 92, 246, 0.1);
-  --slashmd-callout-important-border: #8b5cf6;
-  --slashmd-callout-caution-bg: rgba(239, 68, 68, 0.1);
-  --slashmd-callout-caution-border: #ef4444;
+  /* Typography - Dark mode (OKLCH) */
+  --slashmd-heading-color: oklch(0.97 0.01 90 / 0.86);
+  --slashmd-h1-color: oklch(0.97 0.01 90 / 0.86);
+  --slashmd-h2-color: oklch(0.97 0.01 90 / 0.86);
+  --slashmd-h3-color: oklch(0.97 0.01 90 / 0.86);
+  --slashmd-h4-color: oklch(0.97 0.01 90 / 0.86);
+  --slashmd-h5-color: oklch(0.97 0.01 90 / 0.86);
+
+  /* Callouts - Dark mode, uses brand color for note type (OKLCH) */
+  --slashmd-callout-note-bg: oklch(0.70 0.20 303 / 0.1);
+  --slashmd-callout-note-border: oklch(0.70 0.20 303);
+  --slashmd-callout-tip-bg: oklch(0.65 0.18 160 / 0.1);
+  --slashmd-callout-tip-border: oklch(0.65 0.18 160);
+  --slashmd-callout-warning-bg: oklch(0.80 0.18 85 / 0.1);
+  --slashmd-callout-warning-border: oklch(0.80 0.18 85);
+  --slashmd-callout-important-bg: oklch(0.58 0.22 290 / 0.1);
+  --slashmd-callout-important-border: oklch(0.58 0.22 290);
+  --slashmd-callout-caution-bg: oklch(0.63 0.24 27 / 0.1);
+  --slashmd-callout-caution-border: oklch(0.63 0.24 27);
 }
 
 * {
