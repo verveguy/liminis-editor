@@ -277,7 +277,7 @@ body {
   margin: 20px 0;  /* More generous margins */
   padding: 16px 20px;  /* More padding */
   background: var(--vscode-code-bg);
-  border-radius: 10px;  /* Friendlier rounded-sm corners */
+  border-radius: 10px;  /* Friendlier rounded corners */
   font-family: 'Fira Code', 'Consolas', monospace;
   font-size: 0.9em;
   overflow-x: auto;
@@ -347,7 +347,7 @@ body {
   flex-direction: column;
   background: var(--vscode-background);
   border: 1px solid var(--vscode-border);
-  border-radius: 12px;  /* Friendlier rounded-sm corners */
+  border-radius: 12px;  /* Friendlier rounded corners */
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);  /* Softer shadow */
   z-index: 300;
   overflow: hidden;
@@ -434,7 +434,7 @@ body {
   font-family: 'Fira Code', 'Consolas', monospace;
   background: var(--vscode-code-bg);
   padding: 2px 6px;
-  border-radius: 6px;  /* Friendlier rounded-sm corners */
+  border-radius: 6px;  /* Friendlier rounded corners */
   font-size: 0.9em;
 }
 
@@ -618,7 +618,7 @@ body {
 .callout {
   margin: 16px 0;
   padding: 14px 18px;  /* Slightly more padding */
-  border-radius: 10px;  /* Friendlier rounded-sm corners */
+  border-radius: 10px;  /* Friendlier rounded corners */
   border-left: 4px solid;
 }
 
@@ -656,7 +656,7 @@ body {
 .toggle-container {
   margin: 8px 0;
   border: 1px solid var(--vscode-border);
-  border-radius: 10px;  /* Friendlier rounded-sm corners */
+  border-radius: 10px;  /* Friendlier rounded corners */
   overflow: hidden;
 }
 
@@ -766,7 +766,7 @@ body {
   padding: 8px;
   background: var(--vscode-background);
   border: 1px solid var(--vscode-border);
-  border-radius: 10px;  /* Friendlier rounded-sm corners */
+  border-radius: 10px;  /* Friendlier rounded corners */
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);  /* Softer shadow */
   z-index: 100;
 }
@@ -837,7 +837,7 @@ body {
   flex-direction: column;
   background: var(--vscode-background);
   border: 1px solid var(--vscode-border);
-  border-radius: 12px;  /* Friendlier rounded-sm corners */
+  border-radius: 12px;  /* Friendlier rounded corners */
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);  /* Softer shadow */
   z-index: 200;
 }
@@ -1076,7 +1076,7 @@ body {
   min-width: 200px;
   background: var(--vscode-background);
   border: 1px solid var(--vscode-border);
-  border-radius: 12px;  /* Friendlier rounded-sm corners */
+  border-radius: 12px;  /* Friendlier rounded corners */
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);  /* Softer shadow */
   z-index: 300;
   overflow: hidden;
@@ -1182,7 +1182,7 @@ body {
   max-height: 90vh;
   background: var(--vscode-background);
   border: 1px solid var(--vscode-border);
-  border-radius: 16px;  /* Friendlier rounded-sm corners */
+  border-radius: 16px;  /* Friendlier rounded corners */
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);  /* Softer shadow */
   display: flex;
   flex-direction: column;
@@ -1409,7 +1409,7 @@ body {
   padding: 8px 12px;
   background: var(--vscode-background);
   border: 1px solid var(--vscode-border);
-  border-radius: 12px;  /* Friendlier rounded-sm corners */
+  border-radius: 12px;  /* Friendlier rounded corners */
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);  /* Softer shadow */
   z-index: 500;
 }

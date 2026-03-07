@@ -192,7 +192,7 @@ function findAllLinkNodes(root: ElementNode): LinkNode[] {
 }
 
 /**
- * WikiLinkFormatPlugin - Applies formatting to wiki links when surrounded-sm by format markers
+ * WikiLinkFormatPlugin - Applies formatting to wiki links when surrounded by format markers
  *
  * This plugin detects patterns like `**[[page]]**` typed during live editing and:
  * 1. Removes the format markers from the surrounding TextNodes
