@@ -253,12 +253,12 @@ function convertParagraph(node: Paragraph): (ParagraphNode | ImageNode)[] {
     node.children[0].type === 'image'
   ) {
     const img = node.children[0];
-    return [$createImageNode(img.url, img.alt || '', img.title ?? undefined)];
+    return [$createImageNode(img.url, img.alt || '', { title: img.title ?? undefined })];
   }
 
   // Check if paragraph contains any images mixed with text
   const hasImages = node.children.some((child: PhrasingContent) => child.type === 'image');
-  
+
   if (!hasImages) {
     // Simple case: no images, just create a paragraph
     const paragraph = $createParagraphNode();
@@ -285,7 +285,7 @@ function convertParagraph(node: Paragraph): (ParagraphNode | ImageNode)[] {
       }
       // Add the image as its own block
       const img = child;
-      result.push($createImageNode(img.url, img.alt || '', img.title ?? undefined));
+      result.push($createImageNode(img.url, img.alt || '', { title: img.title ?? undefined }));
     } else {
       // Text or other inline content
       if (!currentParagraph) {
@@ -594,7 +594,7 @@ function convertHtml(node: Html): LexicalBlockNode[] {
       const imageNode = $createImageNode(
         src,
         imgElement.getAttribute('alt') || '',
-        imgElement.getAttribute('title') || undefined
+        { title: imgElement.getAttribute('title') || undefined }
       );
 
       const width = imgElement.getAttribute('width');

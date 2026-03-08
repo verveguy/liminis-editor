@@ -39,7 +39,7 @@ export function ImagePlugin() {
         editor.update(() => {
           const selection = $getSelection();
           if ($isRangeSelection(selection)) {
-            const imageNode = $createImageNode(relPath, alt, undefined, webviewUri);
+            const imageNode = $createImageNode(relPath, alt, { displaySrc: webviewUri });
             selection.insertNodes([imageNode]);
           }
         });

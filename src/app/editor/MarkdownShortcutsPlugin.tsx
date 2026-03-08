@@ -136,7 +136,7 @@ const IMAGE: TextMatchTransformer = {
   // Replace the matched text with an ImageNode
   replace: (textNode, match) => {
     const [, alt, src, title] = match;
-    const imageNode = $createImageNode(src, alt || '', title);
+    const imageNode = $createImageNode(src, alt || '', { title });
     textNode.replace(imageNode);
   },
   // Trigger character - transform happens when ) is typed

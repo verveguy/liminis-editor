@@ -36,19 +36,23 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
   }
 
   static clone(node: ImageNode): ImageNode {
-    const cloned = new ImageNode(node.__src, node.__alt, node.__title, node.__linkUrl, node.__key);
+    const cloned = new ImageNode(node.__src, node.__alt, {
+      title: node.__title,
+      linkUrl: node.__linkUrl,
+      key: node.__key,
+    });
     cloned.__displaySrc = node.__displaySrc;
     cloned.__width = node.__width;
     cloned.__height = node.__height;
     return cloned;
   }
 
-  constructor(src: string, alt: string, title?: string, linkUrl?: string, key?: NodeKey) {
-    super(key);
+  constructor(src: string, alt: string, options?: { title?: string; linkUrl?: string; key?: NodeKey }) {
+    super(options?.key);
     this.__src = src;
     this.__alt = alt;
-    this.__title = title;
-    this.__linkUrl = linkUrl;
+    this.__title = options?.title;
+    this.__linkUrl = options?.linkUrl;
     this.__displaySrc = undefined;
     this.__width = undefined;
     this.__height = undefined;
@@ -139,7 +143,7 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
           const widthAttr = img.getAttribute('width');
           const heightAttr = img.getAttribute('height');
 
-          const node = new ImageNode(src, alt, title);
+          const node = new ImageNode(src, alt, { title });
           if (widthAttr) {
             node.__width = parseInt(widthAttr, 10);
           }
@@ -175,12 +179,10 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
   }
 
   static importJSON(serializedNode: SerializedImageNode): ImageNode {
-    const node = new ImageNode(
-      serializedNode.src,
-      serializedNode.alt,
-      serializedNode.title,
-      serializedNode.linkUrl
-    );
+    const node = new ImageNode(serializedNode.src, serializedNode.alt, {
+      title: serializedNode.title,
+      linkUrl: serializedNode.linkUrl,
+    });
     if (serializedNode.width) {
       node.__width = serializedNode.width;
     }
@@ -222,13 +224,11 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
 export function $createImageNode(
   src: string,
   alt: string,
-  title?: string,
-  displaySrc?: string,
-  linkUrl?: string
+  options?: { title?: string; displaySrc?: string; linkUrl?: string }
 ): ImageNode {
-  const node = new ImageNode(src, alt, title, linkUrl);
-  if (displaySrc) {
-    node.__displaySrc = displaySrc;
+  const node = new ImageNode(src, alt, { title: options?.title, linkUrl: options?.linkUrl });
+  if (options?.displaySrc) {
+    node.__displaySrc = options.displaySrc;
   }
   return node;
 }
