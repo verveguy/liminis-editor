@@ -17,6 +17,7 @@ export type SerializedImageNode = Spread<
     title?: string;
     width?: number;
     height?: number;
+    linkUrl?: string;
   },
   SerializedLexicalNode
 >;
@@ -28,24 +29,26 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
   __displaySrc: string | undefined; // Webview URI for display
   __width: number | undefined;
   __height: number | undefined;
+  __linkUrl: string | undefined; // Optional URL to link to when clicked
 
   static getType(): string {
     return 'image';
   }
 
   static clone(node: ImageNode): ImageNode {
-    const cloned = new ImageNode(node.__src, node.__alt, node.__title, node.__key);
+    const cloned = new ImageNode(node.__src, node.__alt, node.__title, node.__linkUrl, node.__key);
     cloned.__displaySrc = node.__displaySrc;
     cloned.__width = node.__width;
     cloned.__height = node.__height;
     return cloned;
   }
 
-  constructor(src: string, alt: string, title?: string, key?: NodeKey) {
+  constructor(src: string, alt: string, title?: string, linkUrl?: string, key?: NodeKey) {
     super(key);
     this.__src = src;
     this.__alt = alt;
     this.__title = title;
+    this.__linkUrl = linkUrl;
     this.__displaySrc = undefined;
     this.__width = undefined;
     this.__height = undefined;
@@ -104,6 +107,15 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
   setHeight(height: number | undefined): void {
     const writable = this.getWritable();
     writable.__height = height;
+  }
+
+  getLinkUrl(): string | undefined {
+    return this.__linkUrl;
+  }
+
+  setLinkUrl(linkUrl: string | undefined): void {
+    const writable = this.getWritable();
+    writable.__linkUrl = linkUrl;
   }
 
   createDOM(): HTMLElement {
@@ -166,7 +178,8 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
     const node = new ImageNode(
       serializedNode.src,
       serializedNode.alt,
-      serializedNode.title
+      serializedNode.title,
+      serializedNode.linkUrl
     );
     if (serializedNode.width) {
       node.__width = serializedNode.width;
@@ -185,6 +198,7 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
       title: this.__title,
       width: this.__width,
       height: this.__height,
+      linkUrl: this.__linkUrl,
       version: 1,
     };
   }
@@ -209,9 +223,10 @@ export function $createImageNode(
   src: string,
   alt: string,
   title?: string,
-  displaySrc?: string
+  displaySrc?: string,
+  linkUrl?: string
 ): ImageNode {
-  const node = new ImageNode(src, alt, title);
+  const node = new ImageNode(src, alt, title, linkUrl);
   if (displaySrc) {
     node.__displaySrc = displaySrc;
   }
