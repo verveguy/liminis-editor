@@ -207,7 +207,7 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
             const value = node.value ?? '';
             const data = node.data && typeof node.data === 'object' ? node.data : {};
             const alias = typeof data.alias === 'string' ? data.alias : '';
-            const hasAlias = alias.length > 0;
+            const hasAlias = alias.length > 0 && alias !== value;
             const emptyAlias = data._emptyAlias === true;
             const aliasPart = hasAlias ? `${wikiLinkOptions.aliasDivider}${alias}` : emptyAlias ? `${wikiLinkOptions.aliasDivider}` : '';
             return `[[${value}${aliasPart}]]`;
@@ -253,14 +253,15 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   // Convert "1. \[ ]" -> "1. [ ]"
   result = result.replace(/^(\s*\d+\.\s*)\\\[( |x|X)\]/gm, '$1[$2]');
 
-  // Post-process: preserve escaped brackets (ensure closing bracket is also escaped)
-  result = result.replace(/\\\[([^\]\n]+)\](?!\])/g, '\\[$1\\]');
-
   // Post-process: unescape wiki-link brackets that were escaped
   // mdast-util-to-markdown escapes [ to \[ to prevent link interpretation
   // Pattern: \[\[content]] or \[\[content\]\] → [[content]]
-  result = result.replace(/\\\[\\\[([^\]\n]+?)\]\]/g, '[[$1]]');
+  // NOTE: must run before the bracket preservation step below
   result = result.replace(/\\\[\\\[([^\]\n]+?)\\\]\\\]/g, '[[$1]]');
+  result = result.replace(/\\\[\\\[([^\]\n]+?)\]\]/g, '[[$1]]');
+
+  // Post-process: preserve escaped brackets (ensure closing bracket is also escaped)
+  result = result.replace(/\\\[([^\]\n]+)\](?!\])/g, '\\[$1\\]');
 
   // Post-process: collapse excessive blank lines introduced during stringify
   // Keep at most one blank line between blocks.
