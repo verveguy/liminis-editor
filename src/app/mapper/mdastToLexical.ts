@@ -37,6 +37,7 @@ import { parseFormattedAlias } from '../editor/MarkdownShortcutsPlugin';
 import { $createTableNode, $createTableRowNode, $createTableCellNode, TableNode, TableRowNode, TableCellNode, TableCellHeaderStates } from '@lexical/table';
 import type { Root, Content, PhrasingContent, List, ListItem, Table, TableRow, TableCell, Heading, Paragraph, Blockquote, Code, Image, Link, Text, Strong, Emphasis, InlineCode, Delete, Html } from 'mdast';
 import DOMPurify from 'dompurify';
+import { getFileType } from '../../../renderer/utils/fileTypes';
 
 type LexicalBlockNode =
   | ParagraphNode
@@ -218,7 +219,7 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
       const wikiLink = node as unknown as { value: string; data?: { alias?: string } };
       const target = wikiLink.value || '';
       const rawDisplayText = wikiLink.data?.alias || target;
-      const url = target.endsWith('.md') ? target : `${target}.md`;
+      const url = getFileType(target) !== 'unknown' ? target : `${target}.md`;
 
       const paragraph = $createParagraphNode();
       const link = $createCustomLinkNode(url);
@@ -750,12 +751,12 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | Equati
           // Directory with anchor - preserve for navigation layer
           url = target;
         } else {
-          const pathWithExt = path.endsWith('.md') ? path : `${path}.md`;
+          const pathWithExt = getFileType(path) !== 'unknown' ? path : `${path}.md`;
           url = `${pathWithExt}#${anchor}`;
         }
       } else {
-        // Simple path: page → page.md
-        url = target.endsWith('.md') ? target : `${target}.md`;
+        // Simple path: page → page.md (unless it already has a recognized extension)
+        url = getFileType(target) !== 'unknown' ? target : `${target}.md`;
       }
       
       const link = $createCustomLinkNode(url);

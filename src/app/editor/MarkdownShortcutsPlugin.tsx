@@ -27,6 +27,7 @@ import { $createCustomLinkNode } from './nodes';
 import { $createImageNode, ImageNode } from './nodes/ImageNode';
 import { $createEquationNode, EquationNode } from './nodes';
 import type { TextFormatType } from 'lexical';
+import { getFileType } from '../../../renderer/utils/fileTypes';
 
 /**
  * Parses a wiki link alias and extracts format markers.
@@ -230,11 +231,11 @@ const WIKI_LINK: TextMatchTransformer = {
     } else if (target.includes('#')) {
       // Path with anchor: [[page#anchor]] → page.md#anchor
       const [path, anchor] = target.split('#', 2);
-      const pathWithExt = path.endsWith('.md') ? path : `${path}.md`;
+      const pathWithExt = getFileType(path) !== 'unknown' ? path : `${path}.md`;
       url = `${pathWithExt}#${anchor}`;
     } else {
-      // Simple path: [[page]] → page.md
-      url = target.endsWith('.md') ? target : `${target}.md`;
+      // Simple path: [[page]] → page.md (unless it already has a recognized extension)
+      url = getFileType(target) !== 'unknown' ? target : `${target}.md`;
     }
 
     // Parse alias for format markers (e.g., **bold**, *italic*, ~~strikethrough~~)
