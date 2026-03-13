@@ -278,15 +278,7 @@ export function SearchPlugin() {
   const closeSearch = useCallback(() => {
     // Set selection at current match before closing (if we have a valid match)
     // This allows user to immediately edit at the found location after pressing Escape
-    if (matches.length > 0 && currentMatchIndex >= 0 && currentMatchIndex < matches.length) {
-      const match = matches[currentMatchIndex];
-      editor.update(() => {
-        const selection = $createRangeSelection();
-        selection.anchor.set(match.node.getKey(), match.startOffset, 'text');
-        selection.focus.set(match.node.getKey(), match.endOffset, 'text');
-        $setSelection(selection);
-      });
-    }
+    scrollToMatch(currentMatchIndex, true);
 
     // Save scroll position before any DOM changes
     const scrollY = window.scrollY;
@@ -315,7 +307,7 @@ export function SearchPlugin() {
     requestAnimationFrame(() => {
       window.scrollTo(scrollX, scrollY);
     });
-  }, [editor, matches, currentMatchIndex]);
+  }, [editor, scrollToMatch, currentMatchIndex]);
 
   // Update highlights when matches or current index changes
   useEffect(() => {
