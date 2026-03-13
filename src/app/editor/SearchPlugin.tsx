@@ -229,18 +229,25 @@ export function SearchPlugin() {
   }, [editor, matches, currentMatchIndex, debouncedQuery, findTextNodeWithContent]);
 
   // Scroll to current match
-  const scrollToMatch = useCallback((matchIndex: number) => {
+  // setSelection parameter controls whether to set Lexical selection (which steals focus)
+  // - true (default): Set selection AND scroll (for navigation via Enter/buttons)
+  // - false: Only scroll, no selection (for soft scroll during typing)
+  const scrollToMatch = useCallback((matchIndex: number, setSelection = true) => {
     if (matches.length === 0 || matchIndex < 0 || matchIndex >= matches.length) return;
 
     const match = matches[matchIndex];
 
-    editor.update(() => {
-      const selection = $createRangeSelection();
-      selection.anchor.set(match.node.getKey(), match.startOffset, 'text');
-      selection.focus.set(match.node.getKey(), match.endOffset, 'text');
-      $setSelection(selection);
-    });
+    // Only set Lexical selection when explicitly navigating
+    if (setSelection) {
+      editor.update(() => {
+        const selection = $createRangeSelection();
+        selection.anchor.set(match.node.getKey(), match.startOffset, 'text');
+        selection.focus.set(match.node.getKey(), match.endOffset, 'text');
+        $setSelection(selection);
+      });
+    }
 
+    // Always scroll (no focus change)
     editor.getEditorState().read(() => {
       const key = match.node.getKey();
       const domElement = editor.getElementByKey(key);
@@ -256,7 +263,7 @@ export function SearchPlugin() {
     if (matches.length === 0) return;
     const nextIndex = (currentMatchIndex + 1) % matches.length;
     setCurrentMatchIndex(nextIndex);
-    scrollToMatch(nextIndex);
+    scrollToMatch(nextIndex, true); // Explicit selection for navigation
   }, [matches, currentMatchIndex, scrollToMatch]);
 
   // Navigate to previous match
@@ -264,11 +271,15 @@ export function SearchPlugin() {
     if (matches.length === 0) return;
     const prevIndex = currentMatchIndex <= 0 ? matches.length - 1 : currentMatchIndex - 1;
     setCurrentMatchIndex(prevIndex);
-    scrollToMatch(prevIndex);
+    scrollToMatch(prevIndex, true); // Explicit selection for navigation
   }, [matches, currentMatchIndex, scrollToMatch]);
 
   // Close search
   const closeSearch = useCallback(() => {
+    // Set selection at current match before closing (if we have a valid match)
+    // This allows user to immediately edit at the found location after pressing Escape
+    scrollToMatch(currentMatchIndex, true);
+
     // Save scroll position before any DOM changes
     const scrollY = window.scrollY;
     const scrollX = window.scrollX;
@@ -296,7 +307,7 @@ export function SearchPlugin() {
     requestAnimationFrame(() => {
       window.scrollTo(scrollX, scrollY);
     });
-  }, [editor]);
+  }, [editor, scrollToMatch, currentMatchIndex]);
 
   // Update highlights when matches or current index changes
   useEffect(() => {
@@ -411,11 +422,11 @@ export function SearchPlugin() {
     };
   }, [isOpen, closeSearch, goToNextMatch, goToPrevMatch]);
 
-  // Scroll to first match when search results appear
+  // Scroll to first match when search results appear (soft scroll, no selection)
   useEffect(() => {
     if (!isOpen) return;
     if (matches.length > 0 && currentMatchIndex >= 0) {
-      scrollToMatch(currentMatchIndex);
+      scrollToMatch(currentMatchIndex, false); // Soft scroll only - don't steal focus from input
     }
   }, [isOpen, matches, currentMatchIndex, scrollToMatch]);
 
