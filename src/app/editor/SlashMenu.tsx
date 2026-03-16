@@ -11,7 +11,7 @@ import {
 import { $createHeadingNode, $createQuoteNode } from '@lexical/rich-text';
 import { $createListNode, $createListItemNode } from '@lexical/list';
 import { $createCodeNode } from '@lexical/code';
-import { $createHorizontalRuleNode, $createCalloutNode, $createToggleNode, $createEquationNode, $createMermaidNode } from './nodes';
+import { $createHorizontalRuleNode, $createCalloutNode, $createToggleNode, $createEquationNode, $createMermaidNode, $createC4Node } from './nodes';
 import {
   $createTableNode,
   $createTableRowNode,
@@ -366,6 +366,42 @@ const BLOCK_OPTIONS: BlockOption[] = [
     A[Start] --> B{Decision}
     B -->|Yes| C[OK]
     B -->|No| D[End]`);
+          selection.insertNodes([node]);
+        }
+      });
+    },
+  },
+  {
+    key: 'c4',
+    label: 'C4 Architecture Diagram',
+    description: 'System context, container, or component diagram',
+    icon: '🏗',
+    keywords: ['c4', 'architecture', 'diagram', 'system', 'container', 'component'],
+    onSelect: (editor) => {
+      editor.update(() => {
+        const selection = $getSelection();
+        if ($isRangeSelection(selection)) {
+          const node = $createC4Node(`system "My System" {
+  style: boundary
+
+  container "Web App" [webapp] {
+    tech: "React"
+    description: "User interface"
+  }
+
+  container "API" [api] {
+    tech: "Node.js"
+    description: "Backend services"
+  }
+
+  container "Database" [db] {
+    shape: cylinder
+    tech: "PostgreSQL"
+  }
+
+  webapp -> api: "REST/HTTPS"
+  api -> db: "SQL"
+}`);
           selection.insertNodes([node]);
         }
       });
