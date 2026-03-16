@@ -1,0 +1,722 @@
+/**
+ * C4Component - React component for rendering and editing C4 architecture diagrams
+ * Uses Shadow DOM for style isolation (like MermaidComponent)
+ *
+ * TODO: Full implementation in TASK 7
+ */
+
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
+import { mergeRegister } from '@lexical/utils';
+import {
+  $getNodeByKey,
+  $getSelection,
+  $isNodeSelection,
+  COMMAND_PRIORITY_HIGH,
+  KEY_ESCAPE_COMMAND,
+  NodeKey,
+  SELECTION_CHANGE_COMMAND,
+} from 'lexical';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { parseC4 } from '../c4/parser';
+import { layoutC4Diagram } from '../c4/layout';
+import { $isC4Node } from './C4Node';
+
+// =============================================================================
+// C4 RENDERER COMPONENT
+// =============================================================================
+
+function C4DiagramRenderer({
+  code,
+  onDoubleClick,
+}: {
+  code: string;
+  onDoubleClick: () => void;
+}): JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const shadowRootRef = useRef<ShadowRoot | null>(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Detect theme using MutationObserver
+  useEffect(() => {
+    const detectTheme = () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      setIsDarkMode(isDark);
+    };
+
+    detectTheme();
+
+    const observer = new MutationObserver(detectTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container === null) return;
+
+    // Create shadow root if it doesn't exist
+    if (!shadowRootRef.current) {
+      shadowRootRef.current = container.attachShadow({ mode: 'open' });
+
+      // Add styles for the shadow DOM
+      const style = document.createElement('style');
+      style.textContent = `
+        :host {
+          display: block;
+          width: 100%;
+        }
+        .c4-container {
+          display: flex;
+          justify-content: center;
+          padding: 1rem;
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 8px;
+          overflow-x: auto;
+        }
+        .c4-container svg {
+          max-width: 100%;
+          height: auto;
+        }
+        .c4-error {
+          padding: 1rem;
+          font-family: ui-monospace, monospace;
+          font-size: 13px;
+        }
+      `;
+      shadowRootRef.current.appendChild(style);
+    }
+
+    const shadowRoot = shadowRootRef.current;
+
+    // Clear previous content (except style)
+    const existingContainer = shadowRoot.querySelector('.c4-container, .c4-error');
+    if (existingContainer) {
+      existingContainer.remove();
+    }
+
+    // Parse and render the diagram
+    const parseResult = parseC4(code);
+
+    if (parseResult.errors.length > 0 || !parseResult.diagram) {
+      // Show errors
+      const errorContainer = document.createElement('div');
+      errorContainer.className = 'c4-error';
+
+      const errorDiv = document.createElement('div');
+      errorDiv.style.cssText = `
+        padding: 1rem;
+        background: ${isDarkMode ? 'oklch(0.20 0.02 25)' : 'oklch(0.95 0.02 25)'};
+        border-radius: 8px;
+        border: 1px solid ${isDarkMode ? 'oklch(0.70 0.20 25)' : 'oklch(0.55 0.25 25)'};
+      `;
+
+      const errorTitle = document.createElement('div');
+      errorTitle.style.cssText = `
+        color: ${isDarkMode ? 'oklch(0.70 0.20 25)' : 'oklch(0.55 0.25 25)'};
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      `;
+      errorTitle.textContent = 'C4 Diagram Parse Error';
+      errorDiv.appendChild(errorTitle);
+
+      parseResult.errors.forEach((error) => {
+        const errorLine = document.createElement('div');
+        errorLine.style.color = isDarkMode ? 'oklch(0.85 0.00 0)' : 'oklch(0.25 0.00 0)';
+        errorLine.textContent = `Line ${error.line}, Column ${error.column}: ${error.message}`;
+        errorDiv.appendChild(errorLine);
+      });
+
+      errorContainer.appendChild(errorDiv);
+      shadowRoot.appendChild(errorContainer);
+      return;
+    }
+
+    // Layout and render the diagram
+    const layout = layoutC4Diagram(parseResult.diagram);
+
+    const renderContainer = document.createElement('div');
+    renderContainer.className = 'c4-container';
+
+    // Create SVG element
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', String(layout.width));
+    svg.setAttribute('height', String(layout.height));
+    svg.setAttribute('viewBox', `0 0 ${layout.width} ${layout.height}`);
+    svg.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+
+    // Use ReactDOMServer to render the React component to string, then parse
+    // For now, we'll use a simpler approach with inline SVG generation
+    // The full React-based rendering will be implemented in TASK 7
+
+    // Placeholder SVG content showing the diagram dimensions
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', String(layout.width / 2));
+    text.setAttribute('y', String(layout.height / 2));
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('fill', isDarkMode ? '#ccc' : '#333');
+    text.textContent = `C4 Diagram (${layout.nodes.length} elements)`;
+    svg.appendChild(text);
+
+    // Actually render the diagram by creating the SVG elements directly
+    renderC4ToSVG(svg, layout, isDarkMode);
+
+    renderContainer.appendChild(svg);
+    shadowRoot.appendChild(renderContainer);
+  }, [code, isDarkMode]);
+
+  return (
+    <div
+      role="button"
+      tabIndex={-1}
+      onDoubleClick={onDoubleClick}
+      ref={containerRef}
+      className="c4-renderer"
+      style={{
+        display: 'block',
+        cursor: 'pointer',
+        minHeight: '100px',
+      }}
+    />
+  );
+}
+
+// Helper function to render C4 diagram to SVG DOM
+function renderC4ToSVG(
+  svg: SVGSVGElement,
+  layout: ReturnType<typeof layoutC4Diagram>,
+  isDarkMode: boolean
+): void {
+  const colors = isDarkMode
+    ? {
+        containerFill: 'oklch(0.50 0.15 240)',
+        componentFill: 'oklch(0.55 0.12 240)',
+        externalFill: 'oklch(0.45 0.02 240)',
+        personFill: 'oklch(0.45 0.16 152)',
+        boundaryFill: 'oklch(0.20 0.01 240)',
+        containerStroke: 'oklch(0.65 0.15 240)',
+        componentStroke: 'oklch(0.70 0.12 240)',
+        externalStroke: 'oklch(0.60 0.02 240)',
+        personStroke: 'oklch(0.60 0.16 152)',
+        boundaryStroke: 'oklch(0.50 0.05 240)',
+        edgeStroke: 'oklch(0.70 0.00 0)',
+        textPrimary: 'oklch(0.98 0.00 0)',
+        textSecondary: 'oklch(0.85 0.00 0)',
+        textOnBoundary: 'oklch(0.90 0.00 0)',
+        edgeLabel: 'oklch(0.85 0.00 0)',
+      }
+    : {
+        containerFill: 'oklch(0.62 0.15 240)',
+        componentFill: 'oklch(0.70 0.12 240)',
+        externalFill: 'oklch(0.75 0.02 240)',
+        personFill: 'oklch(0.55 0.16 152)',
+        boundaryFill: 'oklch(0.97 0.01 240)',
+        containerStroke: 'oklch(0.45 0.15 240)',
+        componentStroke: 'oklch(0.55 0.12 240)',
+        externalStroke: 'oklch(0.55 0.02 240)',
+        personStroke: 'oklch(0.40 0.16 152)',
+        boundaryStroke: 'oklch(0.60 0.05 240)',
+        edgeStroke: 'oklch(0.40 0.00 0)',
+        textPrimary: 'oklch(0.98 0.00 0)',
+        textSecondary: 'oklch(0.90 0.00 0)',
+        textOnBoundary: 'oklch(0.25 0.00 0)',
+        edgeLabel: 'oklch(0.30 0.00 0)',
+      };
+
+  // Render boundaries first (back layer)
+  const boundariesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  boundariesGroup.setAttribute('class', 'boundaries-layer');
+
+  // Render edges
+  const edgesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  edgesGroup.setAttribute('class', 'edges-layer');
+
+  // Render nodes
+  const nodesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  nodesGroup.setAttribute('class', 'nodes-layer');
+
+  // Separate boundary nodes from regular nodes
+  const boundaryNodes = layout.nodes.filter(
+    (n) =>
+      n.element.type === 'system' &&
+      ((n.children?.length ?? 0) > 0 || n.element.properties.style === 'boundary')
+  );
+  const regularNodes = layout.nodes.filter(
+    (n) =>
+      !(
+        n.element.type === 'system' &&
+        ((n.children?.length ?? 0) > 0 || n.element.properties.style === 'boundary')
+      )
+  );
+
+  // Render boundary nodes
+  for (const node of boundaryNodes) {
+    renderNodeToSVG(boundariesGroup, node, colors);
+  }
+
+  // Render edges
+  for (const edge of layout.edges) {
+    renderEdgeToSVG(edgesGroup, edge, colors);
+  }
+
+  // Render regular nodes
+  for (const node of regularNodes) {
+    renderNodeToSVG(nodesGroup, node, colors);
+  }
+
+  svg.appendChild(boundariesGroup);
+  svg.appendChild(edgesGroup);
+  svg.appendChild(nodesGroup);
+}
+
+function renderNodeToSVG(
+  group: SVGGElement,
+  node: ReturnType<typeof layoutC4Diagram>['nodes'][0],
+  colors: Record<string, string>
+): void {
+  const { x, y, width, height, element } = node;
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+  const isExt = element.properties.external === true;
+  const isBoundaryStyle = element.properties.style === 'boundary';
+  const hasChildren = (node.children?.length ?? 0) > 0 || isBoundaryStyle;
+
+  if (element.type === 'person') {
+    // Person icon
+    const centerX = x + width / 2;
+    const iconY = y + 12;
+    const headRadius = 14;
+    const bodyWidth = 40;
+    const bodyHeight = 30;
+
+    // Head
+    const head = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    head.setAttribute('cx', String(centerX));
+    head.setAttribute('cy', String(iconY + headRadius));
+    head.setAttribute('r', String(headRadius));
+    head.setAttribute('fill', colors.personFill);
+    head.setAttribute('stroke', colors.personStroke);
+    head.setAttribute('stroke-width', '1.5');
+    g.appendChild(head);
+
+    // Body
+    const body = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    body.setAttribute('x', String(centerX - bodyWidth / 2));
+    body.setAttribute('y', String(iconY + headRadius * 2 + 4));
+    body.setAttribute('width', String(bodyWidth));
+    body.setAttribute('height', String(bodyHeight));
+    body.setAttribute('rx', String(bodyWidth / 2));
+    body.setAttribute('ry', '8');
+    body.setAttribute('fill', colors.personFill);
+    body.setAttribute('stroke', colors.personStroke);
+    body.setAttribute('stroke-width', '1.5');
+    g.appendChild(body);
+
+    // Name
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', String(centerX));
+    text.setAttribute('y', String(y + height - 18));
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('fill', colors.textOnBoundary);
+    text.setAttribute('font-size', '14');
+    text.setAttribute('font-weight', '600');
+    text.textContent = element.name;
+    g.appendChild(text);
+  } else if (element.properties.shape === 'cylinder') {
+    // Cylinder shape for databases
+    const ellipseRy = 12;
+    const bodyY = y + ellipseRy;
+    const bodyHeight2 = height - ellipseRy * 2;
+
+    // Body
+    const body = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    body.setAttribute('x', String(x));
+    body.setAttribute('y', String(bodyY));
+    body.setAttribute('width', String(width));
+    body.setAttribute('height', String(bodyHeight2));
+    body.setAttribute('fill', isExt ? colors.externalFill : colors.containerFill);
+    body.setAttribute('stroke', isExt ? colors.externalStroke : colors.containerStroke);
+    body.setAttribute('stroke-width', isExt ? '2' : '1.5');
+    if (isExt) body.setAttribute('stroke-dasharray', '8 4');
+    g.appendChild(body);
+
+    // Bottom ellipse
+    const bottom = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    bottom.setAttribute('cx', String(x + width / 2));
+    bottom.setAttribute('cy', String(y + height - ellipseRy));
+    bottom.setAttribute('rx', String(width / 2));
+    bottom.setAttribute('ry', String(ellipseRy));
+    bottom.setAttribute('fill', isExt ? colors.externalFill : colors.containerFill);
+    bottom.setAttribute('stroke', isExt ? colors.externalStroke : colors.containerStroke);
+    bottom.setAttribute('stroke-width', isExt ? '2' : '1.5');
+    if (isExt) bottom.setAttribute('stroke-dasharray', '8 4');
+    g.appendChild(bottom);
+
+    // Top ellipse
+    const top = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    top.setAttribute('cx', String(x + width / 2));
+    top.setAttribute('cy', String(y + ellipseRy));
+    top.setAttribute('rx', String(width / 2));
+    top.setAttribute('ry', String(ellipseRy));
+    top.setAttribute('fill', isExt ? colors.externalFill : colors.containerFill);
+    top.setAttribute('stroke', isExt ? colors.externalStroke : colors.containerStroke);
+    top.setAttribute('stroke-width', isExt ? '2' : '1.5');
+    if (isExt) top.setAttribute('stroke-dasharray', '8 4');
+    g.appendChild(top);
+
+    // Name
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', String(x + width / 2));
+    text.setAttribute('y', String(y + height / 2 - (element.properties.tech ? 6 : 0)));
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dominant-baseline', 'middle');
+    text.setAttribute('fill', colors.textPrimary);
+    text.setAttribute('font-size', '14');
+    text.setAttribute('font-weight', '600');
+    text.textContent = element.name;
+    g.appendChild(text);
+
+    // Tech badge
+    if (element.properties.tech) {
+      const techText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      techText.setAttribute('x', String(x + width / 2));
+      techText.setAttribute('y', String(y + height / 2 + 12));
+      techText.setAttribute('text-anchor', 'middle');
+      techText.setAttribute('fill', colors.textSecondary);
+      techText.setAttribute('font-size', '11');
+      techText.setAttribute('opacity', '0.8');
+      techText.textContent = `[${element.properties.tech}]`;
+      g.appendChild(techText);
+    }
+  } else {
+    // Rectangle shapes (system, container, component)
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', String(x));
+    rect.setAttribute('y', String(y));
+    rect.setAttribute('width', String(width));
+    rect.setAttribute('height', String(height));
+    rect.setAttribute('rx', element.type === 'component' ? '4' : '8');
+    rect.setAttribute('ry', element.type === 'component' ? '4' : '8');
+
+    if (element.type === 'system') {
+      rect.setAttribute('fill', isExt ? colors.externalFill : hasChildren ? colors.boundaryFill : colors.containerFill);
+      rect.setAttribute('stroke', isExt ? colors.externalStroke : hasChildren ? colors.boundaryStroke : colors.containerStroke);
+      rect.setAttribute('stroke-width', isExt || hasChildren ? '2' : '1.5');
+      if (isExt || hasChildren) rect.setAttribute('stroke-dasharray', '8 4');
+    } else if (element.type === 'container') {
+      rect.setAttribute('fill', isExt ? colors.externalFill : colors.containerFill);
+      rect.setAttribute('stroke', isExt ? colors.externalStroke : colors.containerStroke);
+      rect.setAttribute('stroke-width', isExt ? '2' : '1.5');
+      if (isExt) rect.setAttribute('stroke-dasharray', '8 4');
+    } else {
+      rect.setAttribute('fill', colors.componentFill);
+      rect.setAttribute('stroke', colors.componentStroke);
+      rect.setAttribute('stroke-width', '1');
+    }
+    g.appendChild(rect);
+
+    // Name text
+    const textY = element.type === 'system' && hasChildren
+      ? y + 24
+      : y + height / 2 - (element.properties.tech ? 6 : 0) - (element.properties.description ? 6 : 0);
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', String(x + width / 2));
+    text.setAttribute('y', String(textY));
+    text.setAttribute('text-anchor', 'middle');
+    if (element.type !== 'system' || !hasChildren) {
+      text.setAttribute('dominant-baseline', 'middle');
+    }
+    text.setAttribute('fill', hasChildren ? colors.textOnBoundary : colors.textPrimary);
+    text.setAttribute('font-size', element.type === 'component' ? '13' : '14');
+    text.setAttribute('font-weight', element.type === 'component' ? '500' : '600');
+    text.textContent = element.name;
+    g.appendChild(text);
+
+    // Tech badge
+    if (element.properties.tech) {
+      const techY = element.type === 'system' && hasChildren
+        ? y + 40
+        : y + height / 2 + 10 - (element.properties.description ? 6 : 0);
+
+      const techText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      techText.setAttribute('x', String(x + width / 2));
+      techText.setAttribute('y', String(techY));
+      techText.setAttribute('text-anchor', 'middle');
+      techText.setAttribute('fill', hasChildren ? colors.textOnBoundary : colors.textSecondary);
+      techText.setAttribute('font-size', element.type === 'component' ? '10' : '11');
+      techText.setAttribute('opacity', '0.8');
+      techText.textContent = `[${element.properties.tech}]`;
+      g.appendChild(techText);
+    }
+
+    // Description
+    if (element.properties.description && !hasChildren) {
+      const descY = y + height / 2 + (element.properties.tech ? 26 : 14);
+      const descText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      descText.setAttribute('x', String(x + width / 2));
+      descText.setAttribute('y', String(descY));
+      descText.setAttribute('text-anchor', 'middle');
+      descText.setAttribute('fill', colors.textSecondary);
+      descText.setAttribute('font-size', '11');
+      descText.setAttribute('opacity', '0.7');
+      const desc = element.properties.description;
+      descText.textContent = desc.length > 35 ? desc.slice(0, 32) + '...' : desc;
+      g.appendChild(descText);
+    }
+  }
+
+  group.appendChild(g);
+}
+
+function renderEdgeToSVG(
+  group: SVGGElement,
+  edge: ReturnType<typeof layoutC4Diagram>['edges'][0],
+  colors: Record<string, string>
+): void {
+  const { points, label } = edge;
+  if (points.length < 2) return;
+
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+  // Shorten edge for arrowhead
+  const arrowSize = 8;
+  const shortenedPoints = [...points];
+  const lastIndex = shortenedPoints.length - 1;
+  const secondLastIndex = lastIndex - 1;
+
+  const dx = shortenedPoints[lastIndex].x - shortenedPoints[secondLastIndex].x;
+  const dy = shortenedPoints[lastIndex].y - shortenedPoints[secondLastIndex].y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+
+  if (len > arrowSize) {
+    const ratio = (len - arrowSize) / len;
+    shortenedPoints[lastIndex] = {
+      x: shortenedPoints[secondLastIndex].x + dx * ratio,
+      y: shortenedPoints[secondLastIndex].y + dy * ratio,
+    };
+  }
+
+  // Path
+  const pathD = shortenedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', pathD);
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', colors.edgeStroke);
+  path.setAttribute('stroke-width', '1.5');
+  g.appendChild(path);
+
+  // Arrowhead
+  if (len > 0) {
+    const ux = dx / len;
+    const uy = dy / len;
+    const px = -uy;
+    const py = ux;
+    const tipX = points[lastIndex].x;
+    const tipY = points[lastIndex].y;
+    const baseX = points[lastIndex].x - ux * arrowSize;
+    const baseY = points[lastIndex].y - uy * arrowSize;
+    const halfW = arrowSize * 0.5;
+
+    const arrowPoints = `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
+    const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    arrow.setAttribute('points', arrowPoints);
+    arrow.setAttribute('fill', colors.edgeStroke);
+    g.appendChild(arrow);
+  }
+
+  // Label
+  if (label) {
+    const midpoint = {
+      x: (points[0].x + points[points.length - 1].x) / 2,
+      y: (points[0].y + points[points.length - 1].y) / 2,
+    };
+
+    // Background
+    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bgRect.setAttribute('x', String(midpoint.x - (label.length * 3.5 + 8)));
+    bgRect.setAttribute('y', String(midpoint.y - 10));
+    bgRect.setAttribute('width', String(label.length * 7 + 16));
+    bgRect.setAttribute('height', '18');
+    bgRect.setAttribute('rx', '3');
+    bgRect.setAttribute('ry', '3');
+    bgRect.setAttribute('fill', 'white');
+    bgRect.setAttribute('fill-opacity', '0.9');
+    g.appendChild(bgRect);
+
+    // Text
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', String(midpoint.x));
+    text.setAttribute('y', String(midpoint.y + 4));
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('fill', colors.edgeLabel);
+    text.setAttribute('font-size', '11');
+    text.textContent = label;
+    g.appendChild(text);
+  }
+
+  group.appendChild(g);
+}
+
+// =============================================================================
+// C4 EDITOR COMPONENT
+// =============================================================================
+
+function C4Editor({
+  code,
+  setCode,
+  onClose,
+}: {
+  code: string;
+  setCode: (code: string) => void;
+  onClose: () => void;
+}): JSX.Element {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+    }
+  };
+
+  return (
+    <div className="c4-editor-container">
+      <div className="c4-editor-header">
+        <span className="c4-editor-label">```c4</span>
+        <button
+          className="c4-editor-close"
+          onClick={onClose}
+          title="Close editor (Esc)"
+        >
+          ✕
+        </button>
+      </div>
+      <textarea
+        ref={textareaRef}
+        className="c4-editor-textarea"
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Enter C4 diagram code..."
+        spellCheck={false}
+      />
+      <div className="c4-editor-footer">
+        <span className="c4-editor-label">```</span>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// MAIN C4 COMPONENT
+// =============================================================================
+
+interface C4ComponentProps {
+  code: string;
+  nodeKey: NodeKey;
+}
+
+export default function C4Component({
+  code,
+  nodeKey,
+}: C4ComponentProps): JSX.Element {
+  const [editor] = useLexicalComposerContext();
+  const [isEditable, setIsEditable] = useState(() => editor.isEditable());
+  const [codeValue, setCodeValue] = useState(code);
+  const [showEditor, setShowEditor] = useState<boolean>(false);
+
+  // Listen for editable changes
+  useEffect(() => {
+    return editor.registerEditableListener((editable) => {
+      setIsEditable(editable);
+    });
+  }, [editor]);
+
+  const onHide = useCallback(() => {
+    setShowEditor(false);
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey);
+      if ($isC4Node(node)) {
+        node.setCode(codeValue);
+      }
+    });
+  }, [editor, codeValue, nodeKey]);
+
+  useEffect(() => {
+    if (!showEditor && codeValue !== code) {
+      setCodeValue(code);
+    }
+  }, [showEditor, code, codeValue]);
+
+  useEffect(() => {
+    if (!isEditable) {
+      return;
+    }
+    if (showEditor) {
+      return mergeRegister(
+        editor.registerCommand(
+          SELECTION_CHANGE_COMMAND,
+          () => {
+            // Don't close on selection change while editing
+            return false;
+          },
+          COMMAND_PRIORITY_HIGH,
+        ),
+        editor.registerCommand(
+          KEY_ESCAPE_COMMAND,
+          () => {
+            if (showEditor) {
+              onHide();
+              return true;
+            }
+            return false;
+          },
+          COMMAND_PRIORITY_HIGH,
+        ),
+      );
+    } else {
+      return editor.registerUpdateListener(({ editorState }) => {
+        const isSelected = editorState.read(() => {
+          const selection = $getSelection();
+          return (
+            $isNodeSelection(selection) &&
+            selection.has(nodeKey) &&
+            selection.getNodes().length === 1
+          );
+        });
+        if (isSelected) {
+          setShowEditor(true);
+        }
+      });
+    }
+  }, [editor, nodeKey, onHide, showEditor, isEditable]);
+
+  if (showEditor && isEditable) {
+    return (
+      <C4Editor
+        code={codeValue}
+        setCode={setCodeValue}
+        onClose={onHide}
+      />
+    );
+  }
+
+  return (
+    <C4DiagramRenderer
+      code={codeValue}
+      onDoubleClick={() => {
+        if (isEditable) {
+          setShowEditor(true);
+        }
+      }}
+    />
+  );
+}
