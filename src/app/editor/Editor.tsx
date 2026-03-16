@@ -54,6 +54,7 @@ import {
   HorizontalRuleNode,
   EquationNode,
   MermaidNode,
+  C4Node,
   FrontmatterNode,
   CustomLinkNode,
 } from './nodes';
@@ -171,6 +172,7 @@ const editorNodes = [
   HorizontalRuleNode,
   EquationNode,
   MermaidNode,
+  C4Node,
   FrontmatterNode,
 ];
 
