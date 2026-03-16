@@ -503,6 +503,14 @@ describe('round-trip fidelity', () => {
       name: 'frontmatter',
       markdown: '---\ntitle: Test\n---\n\nContent',
     },
+    {
+      name: 'c4 diagram',
+      markdown: '```c4\nsystem "Test" [test] {}\n```',
+    },
+    {
+      name: 'mermaid diagram',
+      markdown: '```mermaid\nflowchart TD\n    A --> B\n```',
+    },
   ]
 
   testCases.forEach(({ name, markdown }) => {
