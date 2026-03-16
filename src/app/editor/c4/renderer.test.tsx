@@ -1,0 +1,566 @@
+import { describe, it, expect } from 'vitest';
+import { render } from '@testing-library/react';
+import { C4Renderer, C4ErrorDisplay } from './renderer';
+import { layoutC4Diagram } from './layout';
+import { parseC4 } from './parser';
+import type { LayoutResult, LayoutNode, LayoutEdge, C4Element } from './types';
+
+/**
+ * Helper to create a minimal layout result for testing.
+ */
+function createLayoutResult(
+  nodes: LayoutNode[],
+  edges: LayoutEdge[] = [],
+  width = 500,
+  height = 400
+): LayoutResult {
+  return { nodes, edges, width, height };
+}
+
+/**
+ * Helper to create a layout node.
+ */
+function createLayoutNode(
+  type: C4Element['type'],
+  id: string,
+  name: string,
+  options: {
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    properties?: C4Element['properties'];
+    children?: LayoutNode[];
+  } = {}
+): LayoutNode {
+  return {
+    id,
+    x: options.x ?? 0,
+    y: options.y ?? 0,
+    width: options.width ?? 200,
+    height: options.height ?? 80,
+    element: {
+      type,
+      id,
+      name,
+      properties: options.properties ?? {},
+      children: [],
+    },
+    children: options.children,
+  };
+}
+
+/**
+ * Helper to create a layout edge.
+ */
+function createLayoutEdge(
+  source: string,
+  target: string,
+  label: string,
+  points = [
+    { x: 100, y: 50 },
+    { x: 300, y: 50 },
+  ]
+): LayoutEdge {
+  return { source, target, label, points };
+}
+
+describe('C4Renderer', () => {
+  describe('SVG structure', () => {
+    it('should render an SVG element with correct dimensions', () => {
+      const layout = createLayoutResult([], [], 600, 400);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const svg = container.querySelector('svg');
+      expect(svg).toBeTruthy();
+      expect(svg?.getAttribute('width')).toBe('600');
+      expect(svg?.getAttribute('height')).toBe('400');
+      expect(svg?.getAttribute('viewBox')).toBe('0 0 600 400');
+    });
+
+    it('should have correct layer structure', () => {
+      const layout = createLayoutResult([createLayoutNode('container', 'api', 'API')]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const svg = container.querySelector('svg');
+      const groups = svg?.querySelectorAll('g');
+
+      // Should have boundaries-layer, edges-layer, nodes-layer
+      expect(groups?.length).toBeGreaterThanOrEqual(3);
+
+      // Use getAttribute for SVG class attribute (JSDOM compatibility)
+      const classNames = Array.from(groups ?? []).map((g) => g.getAttribute('class'));
+      expect(classNames).toContain('boundaries-layer');
+      expect(classNames).toContain('edges-layer');
+      expect(classNames).toContain('nodes-layer');
+    });
+
+    it('should render empty diagram without errors', () => {
+      const layout = createLayoutResult([]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const svg = container.querySelector('svg');
+      expect(svg).toBeTruthy();
+    });
+  });
+
+  describe('system boundary rendering', () => {
+    it('should render system with dotted stroke', () => {
+      const node = createLayoutNode('system', 'banking', 'Banking', {
+        properties: { style: 'boundary' },
+        children: [createLayoutNode('container', 'webapp', 'Web App')],
+      });
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      // System boundary should be in boundaries-layer
+      const boundariesLayer = container.querySelector('.boundaries-layer');
+      const rect = boundariesLayer?.querySelector('rect');
+
+      expect(rect).toBeTruthy();
+      expect(rect?.getAttribute('stroke-dasharray')).toBe('8 4');
+    });
+
+    it('should render system name at top', () => {
+      const node = createLayoutNode('system', 'banking', 'Internet Banking', {
+        properties: { style: 'boundary' },
+        children: [createLayoutNode('container', 'webapp', 'Web App')],
+      });
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const boundariesLayer = container.querySelector('.boundaries-layer');
+      const texts = boundariesLayer?.querySelectorAll('text');
+
+      const nameText = Array.from(texts ?? []).find(
+        (t) => t.textContent === 'Internet Banking'
+      );
+      expect(nameText).toBeTruthy();
+    });
+  });
+
+  describe('container rendering', () => {
+    it('should render container with solid fill', () => {
+      const node = createLayoutNode('container', 'api', 'API Service');
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const nodesLayer = container.querySelector('.nodes-layer');
+      const rect = nodesLayer?.querySelector('rect');
+
+      expect(rect).toBeTruthy();
+      expect(rect?.getAttribute('stroke-dasharray')).toBe('none');
+    });
+
+    it('should render container name', () => {
+      const node = createLayoutNode('container', 'api', 'API Service');
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const nodesLayer = container.querySelector('.nodes-layer');
+      const texts = nodesLayer?.querySelectorAll('text');
+
+      const nameText = Array.from(texts ?? []).find(
+        (t) => t.textContent === 'API Service'
+      );
+      expect(nameText).toBeTruthy();
+    });
+
+    it('should render tech badge when present', () => {
+      const node = createLayoutNode('container', 'api', 'API', {
+        properties: { tech: 'Node.js' },
+      });
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const texts = container.querySelectorAll('text');
+      const techText = Array.from(texts).find((t) => t.textContent === '[Node.js]');
+      expect(techText).toBeTruthy();
+    });
+
+    it('should render description when present', () => {
+      const node = createLayoutNode('container', 'api', 'API', {
+        properties: { description: 'Handles requests' },
+      });
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const texts = container.querySelectorAll('text');
+      const descText = Array.from(texts).find((t) =>
+        t.textContent?.includes('Handles requests')
+      );
+      expect(descText).toBeTruthy();
+    });
+
+    it('should truncate long descriptions', () => {
+      const longDesc =
+        'This is a very long description that should be truncated to fit within the element bounds';
+      const node = createLayoutNode('container', 'api', 'API', {
+        properties: { description: longDesc },
+      });
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const texts = container.querySelectorAll('text');
+      const descText = Array.from(texts).find((t) => t.textContent?.includes('...'));
+      expect(descText).toBeTruthy();
+    });
+  });
+
+  describe('external system rendering', () => {
+    it('should render external system with dashed border', () => {
+      const node = createLayoutNode('system', 'email', 'Email System', {
+        properties: { external: true },
+      });
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const rects = container.querySelectorAll('rect');
+      const externalRect = Array.from(rects).find(
+        (r) => r.getAttribute('stroke-dasharray') === '8 4'
+      );
+      expect(externalRect).toBeTruthy();
+    });
+
+    it('should use grey fill for external systems', () => {
+      const node = createLayoutNode('container', 'ext', 'External API', {
+        properties: { external: true },
+      });
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const rects = container.querySelectorAll('rect');
+      // External systems should have a grey-ish OKLCH fill
+      const externalRect = Array.from(rects).find((r) => {
+        const fill = r.getAttribute('fill') ?? '';
+        return fill.includes('oklch') && fill.includes('0.02');
+      });
+      expect(externalRect).toBeTruthy();
+    });
+  });
+
+  describe('component rendering', () => {
+    it('should render component with smaller border radius', () => {
+      const node = createLayoutNode('component', 'auth', 'Auth Module');
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const nodesLayer = container.querySelector('.nodes-layer');
+      const rect = nodesLayer?.querySelector('rect');
+
+      expect(rect).toBeTruthy();
+      // Components have smaller border radius (BORDER_RADIUS / 2 = 4)
+      expect(Number(rect?.getAttribute('rx'))).toBe(4);
+    });
+  });
+
+  describe('person rendering', () => {
+    it('should render person with circle head', () => {
+      const node = createLayoutNode('person', 'user', 'Customer');
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const nodesLayer = container.querySelector('.nodes-layer');
+      const circle = nodesLayer?.querySelector('circle');
+
+      expect(circle).toBeTruthy();
+    });
+
+    it('should render person with body rectangle', () => {
+      const node = createLayoutNode('person', 'user', 'Customer');
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const nodesLayer = container.querySelector('.nodes-layer');
+      // Person has a rounded rect for body
+      const rects = nodesLayer?.querySelectorAll('rect');
+
+      expect(rects?.length).toBeGreaterThan(0);
+    });
+
+    it('should render person name', () => {
+      const node = createLayoutNode('person', 'user', 'Customer');
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const texts = container.querySelectorAll('text');
+      const nameText = Array.from(texts).find((t) => t.textContent === 'Customer');
+      expect(nameText).toBeTruthy();
+    });
+  });
+
+  describe('cylinder shape rendering', () => {
+    it('should render cylinder with ellipses', () => {
+      const node = createLayoutNode('container', 'db', 'Database', {
+        properties: { shape: 'cylinder' },
+      });
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const ellipses = container.querySelectorAll('ellipse');
+      // Cylinder has top and bottom ellipses
+      expect(ellipses.length).toBe(2);
+    });
+
+    it('should render cylinder body', () => {
+      const node = createLayoutNode('container', 'db', 'Database', {
+        properties: { shape: 'cylinder' },
+      });
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const rects = container.querySelectorAll('rect');
+      expect(rects.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('relationship/edge rendering', () => {
+    it('should render edge as path', () => {
+      const nodes = [
+        createLayoutNode('container', 'a', 'A', { x: 0, y: 0 }),
+        createLayoutNode('container', 'b', 'B', { x: 300, y: 0 }),
+      ];
+      const edges = [createLayoutEdge('a', 'b', 'Calls')];
+      const layout = createLayoutResult(nodes, edges);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const edgesLayer = container.querySelector('.edges-layer');
+      const path = edgesLayer?.querySelector('path');
+
+      expect(path).toBeTruthy();
+      expect(path?.getAttribute('d')).toBeTruthy();
+    });
+
+    it('should render edge with arrowhead', () => {
+      const nodes = [
+        createLayoutNode('container', 'a', 'A', { x: 0, y: 0 }),
+        createLayoutNode('container', 'b', 'B', { x: 300, y: 0 }),
+      ];
+      const edges = [createLayoutEdge('a', 'b', 'Calls')];
+      const layout = createLayoutResult(nodes, edges);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const edgesLayer = container.querySelector('.edges-layer');
+      const polygon = edgesLayer?.querySelector('polygon');
+
+      expect(polygon).toBeTruthy();
+      expect(polygon?.getAttribute('points')).toBeTruthy();
+    });
+
+    it('should render edge label', () => {
+      const nodes = [
+        createLayoutNode('container', 'a', 'A', { x: 0, y: 0 }),
+        createLayoutNode('container', 'b', 'B', { x: 300, y: 0 }),
+      ];
+      const edges = [createLayoutEdge('a', 'b', 'JSON/HTTPS')];
+      const layout = createLayoutResult(nodes, edges);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const texts = container.querySelectorAll('text');
+      const labelText = Array.from(texts).find((t) => t.textContent === 'JSON/HTTPS');
+      expect(labelText).toBeTruthy();
+    });
+
+    it('should render edge label with background', () => {
+      const nodes = [
+        createLayoutNode('container', 'a', 'A', { x: 0, y: 0 }),
+        createLayoutNode('container', 'b', 'B', { x: 300, y: 0 }),
+      ];
+      const edges = [createLayoutEdge('a', 'b', 'API')];
+      const layout = createLayoutResult(nodes, edges);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const edgesLayer = container.querySelector('.edges-layer');
+      // Label background is a rect in the edges layer
+      const rects = edgesLayer?.querySelectorAll('rect');
+      expect(rects?.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('theme support', () => {
+    it('should use light colors in light mode', () => {
+      const node = createLayoutNode('container', 'api', 'API');
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
+
+      const rect = container.querySelector('.nodes-layer rect');
+      const fill = rect?.getAttribute('fill') ?? '';
+      // Light mode container fill has higher lightness
+      expect(fill).toContain('oklch(0.62');
+    });
+
+    it('should use dark colors in dark mode', () => {
+      const node = createLayoutNode('container', 'api', 'API');
+      const layout = createLayoutResult([node]);
+      const { container } = render(<C4Renderer layout={layout} isDarkMode={true} />);
+
+      const rect = container.querySelector('.nodes-layer rect');
+      const fill = rect?.getAttribute('fill') ?? '';
+      // Dark mode container fill has lower lightness
+      expect(fill).toContain('oklch(0.50');
+    });
+  });
+
+  describe('integration with parser and layout', () => {
+    it('should render a complete parsed diagram', () => {
+      const code = `
+        system "Banking" [banking] {
+          style: boundary
+
+          container "Web App" [webapp] {
+            tech: "React"
+          }
+
+          container "API" [api] {
+            tech: "Node.js"
+          }
+
+          webapp -> api: "JSON/HTTPS"
+        }
+
+        person "Customer" [user] {
+          description: "Bank customer"
+        }
+
+        user -> webapp: "Uses"
+      `;
+
+      const parseResult = parseC4(code);
+      expect(parseResult.errors).toHaveLength(0);
+
+      const layoutResult = layoutC4Diagram(parseResult.diagram!);
+      const { container } = render(
+        <C4Renderer layout={layoutResult} isDarkMode={false} />
+      );
+
+      // Should have SVG
+      const svg = container.querySelector('svg');
+      expect(svg).toBeTruthy();
+
+      // Should have rendered all elements
+      const texts = container.querySelectorAll('text');
+      const textContents = Array.from(texts).map((t) => t.textContent);
+
+      expect(textContents).toContain('Banking');
+      expect(textContents).toContain('Web App');
+      expect(textContents).toContain('API');
+      expect(textContents).toContain('Customer');
+
+      // Should have tech badges
+      expect(textContents.some((t) => t?.includes('React'))).toBe(true);
+      expect(textContents.some((t) => t?.includes('Node.js'))).toBe(true);
+
+      // Should have edge labels
+      expect(textContents).toContain('JSON/HTTPS');
+      expect(textContents).toContain('Uses');
+    });
+
+    it('should render the full spec example', () => {
+      const code = `
+        system "Internet Banking" [banking] {
+          style: boundary
+
+          container "Web App" [webapp] {
+            tech: "React, TypeScript"
+            description: "Delivers the SPA"
+          }
+
+          container "API" [api] {
+            tech: "Node.js, Express"
+            description: "Provides banking API"
+          }
+
+          container "Database" [db] {
+            shape: cylinder
+            tech: "PostgreSQL"
+          }
+
+          webapp -> api: "JSON/HTTPS"
+          api -> db: "SQL/TCP"
+        }
+
+        system "Email System" [email] {
+          external: true
+        }
+
+        api -> email: "SMTP"
+      `;
+
+      const parseResult = parseC4(code);
+      expect(parseResult.errors).toHaveLength(0);
+
+      const layoutResult = layoutC4Diagram(parseResult.diagram!);
+      const { container } = render(
+        <C4Renderer layout={layoutResult} isDarkMode={false} />
+      );
+
+      // Verify SVG structure
+      const svg = container.querySelector('svg');
+      expect(svg).toBeTruthy();
+
+      // Verify all elements are rendered
+      const allText = container.textContent ?? '';
+      expect(allText).toContain('Internet Banking');
+      expect(allText).toContain('Web App');
+      expect(allText).toContain('API');
+      expect(allText).toContain('Database');
+      expect(allText).toContain('Email System');
+
+      // Verify cylinder is rendered for database
+      const ellipses = container.querySelectorAll('ellipse');
+      expect(ellipses.length).toBeGreaterThan(0);
+
+      // Verify external system has dashed border
+      const rects = container.querySelectorAll('rect');
+      const dashedRects = Array.from(rects).filter(
+        (r) => r.getAttribute('stroke-dasharray') === '8 4'
+      );
+      expect(dashedRects.length).toBeGreaterThan(0);
+    });
+  });
+});
+
+describe('C4ErrorDisplay', () => {
+  it('should render error message', () => {
+    const errors = [{ message: 'Unexpected token', line: 1, column: 5 }];
+    const { container } = render(<C4ErrorDisplay errors={errors} isDarkMode={false} />);
+
+    expect(container.textContent).toContain('C4 Diagram Parse Error');
+    expect(container.textContent).toContain('Unexpected token');
+    expect(container.textContent).toContain('Line 1');
+    expect(container.textContent).toContain('Column 5');
+  });
+
+  it('should render multiple errors', () => {
+    const errors = [
+      { message: 'Error 1', line: 1, column: 1 },
+      { message: 'Error 2', line: 2, column: 3 },
+      { message: 'Error 3', line: 5, column: 10 },
+    ];
+    const { container } = render(<C4ErrorDisplay errors={errors} isDarkMode={false} />);
+
+    expect(container.textContent).toContain('Error 1');
+    expect(container.textContent).toContain('Error 2');
+    expect(container.textContent).toContain('Error 3');
+  });
+
+  it('should render in both light and dark mode', () => {
+    const errors = [{ message: 'Error', line: 1, column: 1 }];
+
+    // Light mode renders without error
+    const { container: lightContainer } = render(
+      <C4ErrorDisplay errors={errors} isDarkMode={false} />
+    );
+    expect(lightContainer.textContent).toContain('Error');
+
+    // Dark mode renders without error
+    const { container: darkContainer } = render(
+      <C4ErrorDisplay errors={errors} isDarkMode={true} />
+    );
+    expect(darkContainer.textContent).toContain('Error');
+
+    // Both should render the error content
+    expect(lightContainer.querySelector('div')).toBeTruthy();
+    expect(darkContainer.querySelector('div')).toBeTruthy();
+  });
+});
