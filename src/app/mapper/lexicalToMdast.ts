@@ -22,12 +22,14 @@ import {
   $isToggleContentNode,
   $isEquationNode,
   $isMermaidNode,
+  $isC4Node,
   $isFrontmatterNode,
   ImageNode,
   CalloutNode,
   ToggleContainerNode,
   EquationNode,
   MermaidNode,
+  C4Node,
   FrontmatterNode,
 } from '../editor/nodes';
 import type {
@@ -122,6 +124,10 @@ function convertLexicalNode(node: LexicalNode): Content[] {
 
   if ($isMermaidNode(node)) {
     return [convertMermaidNode(node)];
+  }
+
+  if ($isC4Node(node)) {
+    return [convertC4Node(node)];
   }
 
   // Fallback: create paragraph
@@ -387,6 +393,15 @@ function convertMermaidNode(node: MermaidNode): Code {
   return {
     type: 'code',
     lang: 'mermaid',
+    value: node.getCode(),
+  };
+}
+
+function convertC4Node(node: C4Node): Code {
+  // Export as a fenced code block with lang="c4"
+  return {
+    type: 'code',
+    lang: 'c4',
     value: node.getCode(),
   };
 }

@@ -22,6 +22,7 @@ import {
   $createToggleContentNode,
   $createEquationNode,
   $createMermaidNode,
+  $createC4Node,
   $createFrontmatterNode,
   $createCustomLinkNode,
   HorizontalRuleNode,
@@ -30,6 +31,7 @@ import {
   ToggleContainerNode,
   EquationNode,
   MermaidNode,
+  C4Node,
   FrontmatterNode,
   CalloutType,
 } from '../editor/nodes';
@@ -52,6 +54,7 @@ type LexicalBlockNode =
   | TableNode
   | EquationNode
   | MermaidNode
+  | C4Node
   | FrontmatterNode;
 
 // Convert mdast tree to Lexical editor state
@@ -457,12 +460,17 @@ function convertListItem(node: ListItem, parentList: List): ListItemNode {
   return listItem;
 }
 
-function convertCode(node: Code): CodeNode | MermaidNode {
+function convertCode(node: Code): CodeNode | MermaidNode | C4Node {
   // Check if this is a mermaid diagram
   if (node.lang === 'mermaid') {
     return $createMermaidNode(node.value);
   }
-  
+
+  // Check if this is a C4 architecture diagram
+  if (node.lang === 'c4') {
+    return $createC4Node(node.value);
+  }
+
   // If no language was specified, use 'plain' to avoid Lexical defaulting to 'javascript'
   const language = node.lang ? node.lang : 'plain';
   const code = $createCodeNode(language);
