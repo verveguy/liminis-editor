@@ -463,10 +463,10 @@ function renderNodeToSVG(
       rect.setAttribute('stroke-width', isExt || hasChildren ? '2' : '1.5');
       if (isExt || hasChildren) rect.setAttribute('stroke-dasharray', '8 4');
     } else if (element.type === 'container') {
-      rect.setAttribute('fill', isExt ? colors.externalFill : colors.containerFill);
-      rect.setAttribute('stroke', isExt ? colors.externalStroke : colors.containerStroke);
-      rect.setAttribute('stroke-width', isExt ? '2' : '1.5');
-      if (isExt) rect.setAttribute('stroke-dasharray', '8 4');
+      rect.setAttribute('fill', isExt ? colors.externalFill : hasChildren ? colors.boundaryFill : colors.containerFill);
+      rect.setAttribute('stroke', isExt ? colors.externalStroke : hasChildren ? colors.boundaryStroke : colors.containerStroke);
+      rect.setAttribute('stroke-width', isExt || hasChildren ? '2' : '1.5');
+      if (isExt || hasChildren) rect.setAttribute('stroke-dasharray', '8 4');
     } else {
       rect.setAttribute('fill', colors.componentFill);
       rect.setAttribute('stroke', colors.componentStroke);
@@ -475,7 +475,7 @@ function renderNodeToSVG(
     g.appendChild(rect);
 
     // Name text
-    const textY = element.type === 'system' && hasChildren
+    const textY = hasChildren
       ? y + 24
       : y + height / 2 - (element.properties.tech ? 6 : 0) - (element.properties.description ? 6 : 0);
 
@@ -483,7 +483,7 @@ function renderNodeToSVG(
     text.setAttribute('x', String(x + width / 2));
     text.setAttribute('y', String(textY));
     text.setAttribute('text-anchor', 'middle');
-    if (element.type !== 'system' || !hasChildren) {
+    if (!hasChildren) {
       text.setAttribute('dominant-baseline', 'middle');
     }
     text.setAttribute('fill', hasChildren ? colors.textOnBoundary : colors.textPrimary);
@@ -494,7 +494,7 @@ function renderNodeToSVG(
 
     // Tech badge
     if (element.properties.tech) {
-      const techY = element.type === 'system' && hasChildren
+      const techY = hasChildren
         ? y + 40
         : y + height / 2 + 10 - (element.properties.description ? 6 : 0);
 

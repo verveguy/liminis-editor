@@ -256,6 +256,7 @@ function Container({ node, colors }: ElementProps): JSX.Element {
   const isExt = isExternal(element);
   const isCylinder = element.properties.shape === 'cylinder';
   const isQueue = element.properties.shape === 'queue';
+  const hasChildren = (node.children?.length ?? 0) > 0 || element.properties.style === 'boundary';
 
   if (isCylinder) {
     return <CylinderShape node={node} colors={colors} />;
@@ -264,6 +265,13 @@ function Container({ node, colors }: ElementProps): JSX.Element {
   if (isQueue) {
     return <QueueShape node={node} colors={colors} />;
   }
+
+  const fill = isExt ? colors.externalFill : hasChildren ? colors.boundaryFill : colors.containerFill;
+  const stroke = isExt ? colors.externalStroke : hasChildren ? colors.boundaryStroke : colors.containerStroke;
+  const textColor = hasChildren ? colors.textOnBoundary : colors.textPrimary;
+  const textY = hasChildren
+    ? y + 24
+    : y + height / 2 - (element.properties.tech ? 6 : 0) - (element.properties.description ? 6 : 0);
 
   return (
     <g>
@@ -275,18 +283,18 @@ function Container({ node, colors }: ElementProps): JSX.Element {
         height={height}
         rx={BORDER_RADIUS}
         ry={BORDER_RADIUS}
-        fill={isExt ? colors.externalFill : colors.containerFill}
-        stroke={isExt ? colors.externalStroke : colors.containerStroke}
-        strokeWidth={isExt ? 2 : 1.5}
-        strokeDasharray={isExt ? '8 4' : 'none'}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={isExt || hasChildren ? 2 : 1.5}
+        strokeDasharray={isExt || hasChildren ? '8 4' : 'none'}
       />
       {/* Name label */}
       <text
         x={x + width / 2}
-        y={y + height / 2 - (element.properties.tech ? 6 : 0) - (element.properties.description ? 6 : 0)}
+        y={textY}
         textAnchor="middle"
-        dominantBaseline="middle"
-        fill={colors.textPrimary}
+        dominantBaseline={hasChildren ? undefined : 'middle'}
+        fill={textColor}
         fontSize={NAME_FONT_SIZE}
         fontWeight="600"
         fontFamily="system-ui, -apple-system, sans-serif"
