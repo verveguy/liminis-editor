@@ -545,11 +545,13 @@ function alignCrossBoundaryElements(
       }
     }
 
-    // Align right peers to the same X
+    // Align right peers to the same X (closest to boundary, not furthest)
     if (rightPeers.length > 1) {
-      const alignX = Math.max(...rightPeers.map((n) => n.x));
+      const alignX = Math.min(...rightPeers.map((n) => n.x));
+      // Ensure it's still outside the boundary
+      const minX = boundary.x + boundary.width + BOUNDARY_PADDING;
       for (const peer of rightPeers) {
-        peer.x = alignX;
+        peer.x = Math.max(alignX, minX);
       }
     }
   }
