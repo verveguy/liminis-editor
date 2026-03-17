@@ -266,9 +266,18 @@ function layoutGroup(
     layoutNode.x = dagreNode.x - dagreNode.width / 2;
     layoutNode.y = dagreNode.y - dagreNode.height / 2;
 
-    // Offset children to be inside parent boundary
+    // Offset children to be centered inside parent boundary
     if (layoutNode.children && layoutNode.children.length > 0) {
-      const offsetX = layoutNode.x + BOUNDARY_PADDING;
+      // Calculate children's actual bounding box (dagre may not start at 0)
+      const childMinX = Math.min(...layoutNode.children.map((n) => n.x));
+      const childMaxX = Math.max(...layoutNode.children.map((n) => n.x + n.width));
+      const childrenWidth = childMaxX - childMinX;
+
+      // Center children horizontally within parent
+      const availableWidth = layoutNode.width - BOUNDARY_PADDING * 2;
+      const centerOffsetX = (availableWidth - childrenWidth) / 2;
+
+      const offsetX = layoutNode.x + BOUNDARY_PADDING + Math.max(0, centerOffsetX) - childMinX;
       const offsetY = layoutNode.y + BOUNDARY_HEADER_HEIGHT;
 
       for (const child of layoutNode.children) {
