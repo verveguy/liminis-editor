@@ -444,7 +444,7 @@ function renderNodeToSVG(
       descText.setAttribute('font-size', '11');
       descText.setAttribute('opacity', '0.7');
       const desc = element.properties.description;
-      descText.textContent = desc.length > 35 ? desc.slice(0, 32) + '...' : desc;
+      descText.textContent = desc.length > 50 ? desc.slice(0, 47) + '...' : desc;
       g.appendChild(descText);
     }
   } else {
@@ -520,7 +520,7 @@ function renderNodeToSVG(
       descText.setAttribute('font-size', '11');
       descText.setAttribute('opacity', '0.7');
       const desc = element.properties.description;
-      descText.textContent = desc.length > 35 ? desc.slice(0, 32) + '...' : desc;
+      descText.textContent = desc.length > 50 ? desc.slice(0, 47) + '...' : desc;
       g.appendChild(descText);
     }
   }
@@ -591,10 +591,25 @@ function renderEdgeToSVG(
       y: (points[0].y + points[points.length - 1].y) / 2,
     };
 
+    // Offset label perpendicular to edge direction to avoid overlap
+    const edgeDx = points[points.length - 1].x - points[0].x;
+    const edgeDy = points[points.length - 1].y - points[0].y;
+    const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
+
+    let labelX = midpoint.x;
+    let labelY = midpoint.y;
+
+    if (edgeLen > 0) {
+      const perpX = (-edgeDy / edgeLen) * 20;
+      const perpY = (edgeDx / edgeLen) * 20;
+      labelX += perpX;
+      labelY += perpY;
+    }
+
     // Background
     const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    bgRect.setAttribute('x', String(midpoint.x - (label.length * 3.5 + 8)));
-    bgRect.setAttribute('y', String(midpoint.y - 10));
+    bgRect.setAttribute('x', String(labelX - (label.length * 3.5 + 8)));
+    bgRect.setAttribute('y', String(labelY - 10));
     bgRect.setAttribute('width', String(label.length * 7 + 16));
     bgRect.setAttribute('height', '18');
     bgRect.setAttribute('rx', '3');
@@ -605,8 +620,8 @@ function renderEdgeToSVG(
 
     // Text
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', String(midpoint.x));
-    text.setAttribute('y', String(midpoint.y + 4));
+    text.setAttribute('x', String(labelX));
+    text.setAttribute('y', String(labelY + 4));
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('fill', colors.edgeLabel);
     text.setAttribute('font-size', '11');

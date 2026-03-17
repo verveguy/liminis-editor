@@ -239,8 +239,8 @@ function SystemBoundary({ node, colors }: ElementProps): JSX.Element {
           fontFamily="system-ui, -apple-system, sans-serif"
           opacity={0.7}
         >
-          {element.properties.description.length > 35
-            ? element.properties.description.slice(0, 32) + '...'
+          {element.properties.description.length > 50
+            ? element.properties.description.slice(0, 47) + '...'
             : element.properties.description}
         </text>
       )}
@@ -318,8 +318,8 @@ function Container({ node, colors }: ElementProps): JSX.Element {
           fontFamily="system-ui, -apple-system, sans-serif"
           opacity={0.7}
         >
-          {element.properties.description.length > 35
-            ? element.properties.description.slice(0, 32) + '...'
+          {element.properties.description.length > 50
+            ? element.properties.description.slice(0, 47) + '...'
             : element.properties.description}
         </text>
       )}
@@ -478,8 +478,8 @@ function QueueShape({ node, colors }: ElementProps): JSX.Element {
           fontFamily="system-ui, -apple-system, sans-serif"
           opacity={0.7}
         >
-          {element.properties.description.length > 35
-            ? element.properties.description.slice(0, 32) + '...'
+          {element.properties.description.length > 50
+            ? element.properties.description.slice(0, 47) + '...'
             : element.properties.description}
         </text>
       )}
@@ -630,8 +630,17 @@ function Edge({ edge, colors }: EdgeProps): JSX.Element {
     points[points.length - 1]
   );
 
-  // Get midpoint for label
+  // Get midpoint for label, offset perpendicular to edge
   const midpoint = getEdgeMidpoint(points);
+  const edgeDx = points[points.length - 1].x - points[0].x;
+  const edgeDy = points[points.length - 1].y - points[0].y;
+  const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
+  let labelX = midpoint.x;
+  let labelY = midpoint.y;
+  if (edgeLen > 0) {
+    labelX += (-edgeDy / edgeLen) * 20;
+    labelY += (edgeDx / edgeLen) * 20;
+  }
 
   return (
     <g>
@@ -653,8 +662,8 @@ function Edge({ edge, colors }: EdgeProps): JSX.Element {
       {label && (
         <>
           <rect
-            x={midpoint.x - (label.length * 3.5 + 8)}
-            y={midpoint.y - 10}
+            x={labelX - (label.length * 3.5 + 8)}
+            y={labelY - 10}
             width={label.length * 7 + 16}
             height={18}
             rx={3}
@@ -663,8 +672,8 @@ function Edge({ edge, colors }: EdgeProps): JSX.Element {
             fillOpacity={0.9}
           />
           <text
-            x={midpoint.x}
-            y={midpoint.y + 4}
+            x={labelX}
+            y={labelY + 4}
             textAnchor="middle"
             fill={colors.edgeLabel}
             fontSize={EDGE_LABEL_FONT_SIZE}

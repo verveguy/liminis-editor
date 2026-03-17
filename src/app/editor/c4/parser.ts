@@ -297,7 +297,7 @@ class C4PlantUMLParser {
     // Check if this line ends with { (boundary with children)
     const hasBrace = line.includes('{') && !line.includes('}');
 
-    if (info.boundary || hasBrace) {
+    if (hasBrace) {
       this.lineNum++;
       // Parse children
       const childrenBefore = this.elements.length;

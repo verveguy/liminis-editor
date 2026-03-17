@@ -23,15 +23,18 @@ import type {
 // =============================================================================
 
 const DEFAULT_OPTIONS: Required<LayoutOptions> = {
-  nodeWidth: 200,
+  nodeWidth: 240,
   nodeHeight: 80,
-  nodePadding: 20,
-  rankSep: 80,
-  edgeSep: 20,
+  nodePadding: 30,
+  rankSep: 100,
+  edgeSep: 25,
 };
 
 /** Padding around boundary group contents */
 const BOUNDARY_PADDING = 40;
+
+/** Space reserved for boundary header (title + optional tech badge) */
+const BOUNDARY_HEADER_HEIGHT = 55;
 
 /** Additional height for elements with tech badges or descriptions */
 const TECH_BADGE_HEIGHT = 16;
@@ -62,15 +65,15 @@ function calculateNodeDimensions(
   let width = options.nodeWidth;
   let height = options.nodeHeight;
 
-  // Estimate width based on name length (roughly 8px per character)
-  const nameWidth = element.name.length * 8 + 32; // 32px padding
+  // Estimate width based on name length (roughly 9px per character)
+  const nameWidth = element.name.length * 9 + 48;
   width = Math.max(width, nameWidth);
 
   // Add height for tech badge if present
   if (element.properties.tech) {
     height += TECH_BADGE_HEIGHT;
-    // Also consider tech string width
-    const techWidth = element.properties.tech.length * 6 + 32;
+    // Account for [] brackets around tech text
+    const techWidth = (element.properties.tech.length + 2) * 7 + 48;
     width = Math.max(width, techWidth);
   }
 
@@ -78,7 +81,7 @@ function calculateNodeDimensions(
   if (element.properties.description) {
     height += DESCRIPTION_HEIGHT;
     // Description wraps, so limit width contribution
-    const descWidth = Math.min(element.properties.description.length * 6, 280);
+    const descWidth = Math.min(element.properties.description.length * 7, 360);
     width = Math.max(width, descWidth);
   }
 
@@ -111,8 +114,9 @@ function mapDirection(direction: C4Direction | undefined): 'TB' | 'BT' | 'LR' | 
     case 'left':
       return 'RL'; // Right to Left
     case 'right':
+      return 'LR'; // Left to Right
     default:
-      return 'LR'; // Left to Right (default)
+      return 'TB'; // Top to Bottom (C4 convention)
   }
 }
 
@@ -157,7 +161,7 @@ function layoutGroup(
   const g = new dagre.graphlib.Graph();
 
   // Determine layout direction from parent or use default
-  const direction = parentDirection || 'right';
+  const direction = parentDirection || 'down';
 
   g.setGraph({
     rankdir: mapDirection(direction),
@@ -222,7 +226,7 @@ function layoutGroup(
       : baseDimensions.width;
 
     const nodeHeight = isBoundary
-      ? Math.max(baseDimensions.height, childBounds.height + 40) // 40px for header
+      ? Math.max(baseDimensions.height, childBounds.height + BOUNDARY_HEADER_HEIGHT)
       : baseDimensions.height;
 
     // Add to dagre graph
@@ -265,7 +269,7 @@ function layoutGroup(
     // Offset children to be inside parent boundary
     if (layoutNode.children && layoutNode.children.length > 0) {
       const offsetX = layoutNode.x + BOUNDARY_PADDING;
-      const offsetY = layoutNode.y + 40; // Header space
+      const offsetY = layoutNode.y + BOUNDARY_HEADER_HEIGHT;
 
       for (const child of layoutNode.children) {
         offsetLayoutNode(child, offsetX, offsetY);
