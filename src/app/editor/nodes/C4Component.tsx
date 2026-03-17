@@ -591,31 +591,46 @@ function renderEdgeToSVG(
       y: (points[0].y + points[points.length - 1].y) / 2,
     };
 
-    // Offset label perpendicular to edge direction to avoid overlap
+    // Calculate edge angle for label rotation
     const edgeDx = points[points.length - 1].x - points[0].x;
     const edgeDy = points[points.length - 1].y - points[0].y;
     const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
 
+    // Angle in degrees, normalized so text is always readable (not upside-down)
+    // Only rotate for diagonal/horizontal edges — keep labels horizontal for
+    // mostly-vertical edges (within 25 degrees of vertical)
+    let angleDeg = Math.atan2(edgeDy, edgeDx) * (180 / Math.PI);
+    if (angleDeg > 90) angleDeg -= 180;
+    if (angleDeg < -90) angleDeg += 180;
+    // Only rotate if edge is within 60° of horizontal
+    if (Math.abs(angleDeg) > 60) angleDeg = 0;
+
+    // Offset label perpendicular to edge direction
     let labelX = midpoint.x;
     let labelY = midpoint.y;
 
     if (edgeLen > 0) {
-      const perpX = (-edgeDy / edgeLen) * 20;
-      const perpY = (edgeDx / edgeLen) * 20;
+      const perpX = (-edgeDy / edgeLen) * 14;
+      const perpY = (edgeDx / edgeLen) * 14;
       labelX += perpX;
       labelY += perpY;
     }
 
+    const labelWidth = label.length * 7 + 16;
+    const labelHeight = 18;
+    const transform = `rotate(${angleDeg}, ${labelX}, ${labelY})`;
+
     // Background
     const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    bgRect.setAttribute('x', String(labelX - (label.length * 3.5 + 8)));
-    bgRect.setAttribute('y', String(labelY - 10));
-    bgRect.setAttribute('width', String(label.length * 7 + 16));
-    bgRect.setAttribute('height', '18');
+    bgRect.setAttribute('x', String(labelX - labelWidth / 2));
+    bgRect.setAttribute('y', String(labelY - labelHeight / 2));
+    bgRect.setAttribute('width', String(labelWidth));
+    bgRect.setAttribute('height', String(labelHeight));
     bgRect.setAttribute('rx', '3');
     bgRect.setAttribute('ry', '3');
     bgRect.setAttribute('fill', colors.edgeLabelBackground);
     bgRect.setAttribute('fill-opacity', '0.9');
+    bgRect.setAttribute('transform', transform);
     g.appendChild(bgRect);
 
     // Text
@@ -624,6 +639,7 @@ function renderEdgeToSVG(
     text.setAttribute('y', String(labelY + 4));
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('fill', colors.edgeLabel);
+    text.setAttribute('transform', transform);
     text.setAttribute('font-size', '11');
     text.textContent = label;
     g.appendChild(text);

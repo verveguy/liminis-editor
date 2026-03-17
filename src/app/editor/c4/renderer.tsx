@@ -638,17 +638,28 @@ function Edge({ edge, colors }: EdgeProps): JSX.Element {
     points[points.length - 1]
   );
 
-  // Get midpoint for label, offset perpendicular to edge
+  // Get midpoint for label, offset perpendicular to edge, rotated along edge
   const midpoint = getEdgeMidpoint(points);
   const edgeDx = points[points.length - 1].x - points[0].x;
   const edgeDy = points[points.length - 1].y - points[0].y;
   const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
+
   let labelX = midpoint.x;
   let labelY = midpoint.y;
   if (edgeLen > 0) {
-    labelX += (-edgeDy / edgeLen) * 20;
-    labelY += (edgeDx / edgeLen) * 20;
+    labelX += (-edgeDy / edgeLen) * 14;
+    labelY += (edgeDx / edgeLen) * 14;
   }
+
+  // Angle in degrees — only rotate for clearly horizontal edges (within 30°)
+  let angleDeg = Math.atan2(edgeDy, edgeDx) * (180 / Math.PI);
+  if (angleDeg > 90) angleDeg -= 180;
+  if (angleDeg < -90) angleDeg += 180;
+  if (Math.abs(angleDeg) > 60) angleDeg = 0;
+
+  const labelWidth = label ? label.length * 7 + 16 : 0;
+  const labelHeight = 18;
+  const labelTransform = `rotate(${angleDeg}, ${labelX}, ${labelY})`;
 
   return (
     <g>
@@ -670,19 +681,21 @@ function Edge({ edge, colors }: EdgeProps): JSX.Element {
       {label && (
         <>
           <rect
-            x={labelX - (label.length * 3.5 + 8)}
-            y={labelY - 10}
-            width={label.length * 7 + 16}
-            height={18}
+            x={labelX - labelWidth / 2}
+            y={labelY - labelHeight / 2}
+            width={labelWidth}
+            height={labelHeight}
             rx={3}
             ry={3}
             fill={colors.edgeLabelBackground}
             fillOpacity={0.9}
+            transform={labelTransform}
           />
           <text
             x={labelX}
             y={labelY + 4}
             textAnchor="middle"
+            transform={labelTransform}
             fill={colors.edgeLabel}
             fontSize={EDGE_LABEL_FONT_SIZE}
             fontFamily="system-ui, -apple-system, sans-serif"
