@@ -257,8 +257,8 @@ function renderC4ToSVG(
   }
 
   svg.appendChild(boundariesGroup);
-  svg.appendChild(edgesGroup);
   svg.appendChild(nodesGroup);
+  svg.appendChild(edgesGroup);
 }
 
 function renderNodeToSVG(

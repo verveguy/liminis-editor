@@ -766,16 +766,16 @@ export function C4Renderer({ layout, isDarkMode }: C4RendererProps): JSX.Element
         {boundaryNodes.map((node) => renderNode(node, colors))}
       </g>
 
-      {/* Edges layer */}
+      {/* Nodes layer */}
+      <g className="nodes-layer">
+        {regularNodes.map((node) => renderNode(node, colors))}
+      </g>
+
+      {/* Edges layer (front-most, so relationships are always visible) */}
       <g className="edges-layer">
         {layout.edges.map((edge, i) => (
           <Edge key={`${edge.source}-${edge.target}-${i}`} edge={edge} colors={colors} />
         ))}
-      </g>
-
-      {/* Nodes layer (front-most) */}
-      <g className="nodes-layer">
-        {regularNodes.map((node) => renderNode(node, colors))}
       </g>
     </svg>
   );
