@@ -404,25 +404,15 @@ describe('C4Renderer', () => {
   describe('integration with parser and layout', () => {
     it('should render a complete parsed diagram', () => {
       const code = `
-        system "Banking" [banking] {
-          style: boundary
+System_Boundary(banking, "Banking") {
+  Container(webapp, "Web App", "React")
+  Container(api, "API", "Node.js")
+}
 
-          container "Web App" [webapp] {
-            tech: "React"
-          }
+Person(user, "Customer", "Bank customer")
 
-          container "API" [api] {
-            tech: "Node.js"
-          }
-
-          webapp -> api: "JSON/HTTPS"
-        }
-
-        person "Customer" [user] {
-          description: "Bank customer"
-        }
-
-        user -> webapp: "Uses"
+Rel(webapp, api, "JSON/HTTPS")
+Rel(user, webapp, "Uses")
       `;
 
       const parseResult = parseC4(code);
@@ -457,33 +447,17 @@ describe('C4Renderer', () => {
 
     it('should render the full spec example', () => {
       const code = `
-        system "Internet Banking" [banking] {
-          style: boundary
+System_Boundary(banking, "Internet Banking") {
+  Container(webapp, "Web App", "React, TypeScript", "Delivers the SPA")
+  Container(api, "API", "Node.js, Express", "Provides banking API")
+  ContainerDb(db, "Database", "PostgreSQL")
+}
 
-          container "Web App" [webapp] {
-            tech: "React, TypeScript"
-            description: "Delivers the SPA"
-          }
+System_Ext(email, "Email System")
 
-          container "API" [api] {
-            tech: "Node.js, Express"
-            description: "Provides banking API"
-          }
-
-          container "Database" [db] {
-            shape: cylinder
-            tech: "PostgreSQL"
-          }
-
-          webapp -> api: "JSON/HTTPS"
-          api -> db: "SQL/TCP"
-        }
-
-        system "Email System" [email] {
-          external: true
-        }
-
-        api -> email: "SMTP"
+Rel(webapp, api, "JSON/HTTPS")
+Rel(api, db, "SQL/TCP")
+Rel(api, email, "SMTP")
       `;
 
       const parseResult = parseC4(code);

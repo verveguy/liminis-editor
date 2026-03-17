@@ -371,25 +371,15 @@ describe('C4 Layout Engine', () => {
   describe('integration with parser', () => {
     it('should layout parsed diagram', () => {
       const code = `
-        system "Banking" [banking] {
-          style: boundary
+System_Boundary(banking, "Banking") {
+  Container(webapp, "Web App", "React")
+  Container(api, "API", "Node.js")
+}
 
-          container "Web App" [webapp] {
-            tech: "React"
-          }
+System_Ext(email, "Email")
 
-          container "API" [api] {
-            tech: "Node.js"
-          }
-
-          webapp -> api: "JSON/HTTPS"
-        }
-
-        system "Email" [email] {
-          external: true
-        }
-
-        api -> email: "SMTP"
+Rel(webapp, api, "JSON/HTTPS")
+Rel(api, email, "SMTP")
       `;
 
       const parseResult = parseC4(code);
@@ -410,33 +400,17 @@ describe('C4 Layout Engine', () => {
 
     it('should layout the full spec example', () => {
       const code = `
-        system "Internet Banking" [banking] {
-          style: boundary
+System_Boundary(banking, "Internet Banking") {
+  Container(webapp, "Web App", "React, TypeScript", "Delivers the SPA")
+  Container(api, "API", "Node.js, Express", "Provides banking API")
+  ContainerDb(db, "Database", "PostgreSQL")
+}
 
-          container "Web App" [webapp] {
-            tech: "React, TypeScript"
-            description: "Delivers the SPA"
-          }
+System_Ext(email, "Email System")
 
-          container "API" [api] {
-            tech: "Node.js, Express"
-            description: "Provides banking API"
-          }
-
-          container "Database" [db] {
-            shape: cylinder
-            tech: "PostgreSQL"
-          }
-
-          webapp -> api: "JSON/HTTPS"
-          api -> db: "SQL/TCP"
-        }
-
-        system "Email System" [email] {
-          external: true
-        }
-
-        api -> email: "SMTP"
+Rel(webapp, api, "JSON/HTTPS")
+Rel(api, db, "SQL/TCP")
+Rel(api, email, "SMTP")
       `;
 
       const parseResult = parseC4(code);

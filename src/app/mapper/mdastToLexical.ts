@@ -467,7 +467,7 @@ function convertCode(node: Code): CodeNode | MermaidNode | C4Node {
   }
 
   // Check if this is a C4 architecture diagram
-  if (node.lang === 'c4') {
+  if (node.lang === 'c4' || (node.lang === 'plantuml' && isC4PlantUML(node.value))) {
     return $createC4Node(node.value);
   }
 
@@ -476,6 +476,12 @@ function convertCode(node: Code): CodeNode | MermaidNode | C4Node {
   const code = $createCodeNode(language);
   code.append($createTextNode(node.value));
   return code;
+}
+
+/** Detect C4-PlantUML content inside a plantuml code block */
+const C4_MACRO_PATTERN = /\b(?:Person|System|Container|Component|Boundary|Rel|BiRel)\s*[\(_]/;
+function isC4PlantUML(code: string): boolean {
+  return C4_MACRO_PATTERN.test(code);
 }
 
 function convertThematicBreak(): HorizontalRuleNode {

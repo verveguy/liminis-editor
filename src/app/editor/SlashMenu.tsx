@@ -381,27 +381,17 @@ const BLOCK_OPTIONS: BlockOption[] = [
       editor.update(() => {
         const selection = $getSelection();
         if ($isRangeSelection(selection)) {
-          const node = $createC4Node(`system "My System" {
-  style: boundary
+          const node = $createC4Node(`Person(user, "User", "End user of the system")
 
-  container "Web App" [webapp] {
-    tech: "React"
-    description: "User interface"
-  }
+System_Boundary(mySystem, "My System") {
+  Container(web, "Web App", "React", "Delivers the UI")
+  Container(api, "API Server", "Node.js", "Business logic")
+  ContainerDb(db, "Database", "PostgreSQL", "Stores data")
+}
 
-  container "API" [api] {
-    tech: "Node.js"
-    description: "Backend services"
-  }
-
-  container "Database" [db] {
-    shape: cylinder
-    tech: "PostgreSQL"
-  }
-
-  webapp -> api: "REST/HTTPS"
-  api -> db: "SQL"
-}`);
+Rel(user, web, "Uses", "HTTPS")
+Rel(web, api, "Calls", "REST/JSON")
+Rel(api, db, "Reads/Writes", "SQL")`);
           selection.insertNodes([node]);
         }
       });

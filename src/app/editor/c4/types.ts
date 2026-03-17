@@ -15,7 +15,7 @@ export type C4ElementType = 'system' | 'container' | 'component' | 'person';
 /**
  * Shape override for C4 elements (e.g., cylinder for databases)
  */
-export type C4Shape = 'rectangle' | 'cylinder';
+export type C4Shape = 'rectangle' | 'cylinder' | 'queue';
 
 /**
  * Layout direction for element groupings

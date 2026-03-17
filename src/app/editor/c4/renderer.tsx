@@ -255,9 +255,14 @@ function Container({ node, colors }: ElementProps): JSX.Element {
   const { x, y, width, height, element } = node;
   const isExt = isExternal(element);
   const isCylinder = element.properties.shape === 'cylinder';
+  const isQueue = element.properties.shape === 'queue';
 
   if (isCylinder) {
     return <CylinderShape node={node} colors={colors} />;
+  }
+
+  if (isQueue) {
+    return <QueueShape node={node} colors={colors} />;
   }
 
   return (
@@ -394,6 +399,88 @@ function CylinderShape({ node, colors }: ElementProps): JSX.Element {
           opacity={0.8}
         >
           [{element.properties.tech}]
+        </text>
+      )}
+    </g>
+  );
+}
+
+/**
+ * Render a queue shape (rectangle with wavy right edge for message queues).
+ */
+function QueueShape({ node, colors }: ElementProps): JSX.Element {
+  const { x, y, width, height, element } = node;
+  const isExt = isExternal(element);
+  const waveDepth = 10;
+  const r = BORDER_RADIUS;
+  const fill = isExt ? colors.externalFill : colors.containerFill;
+  const stroke = isExt ? colors.externalStroke : colors.containerStroke;
+
+  // Path: rounded left corners, wavy right edge
+  const pathD = [
+    `M ${x + r} ${y}`,
+    `L ${x + width - waveDepth} ${y}`,
+    `C ${x + width + waveDepth * 0.3} ${y + height * 0.25}, ${x + width - waveDepth * 1.3} ${y + height * 0.5}, ${x + width - waveDepth} ${y + height * 0.5}`,
+    `C ${x + width - waveDepth * 0.7} ${y + height * 0.5}, ${x + width + waveDepth * 0.3} ${y + height * 0.75}, ${x + width - waveDepth} ${y + height}`,
+    `L ${x + r} ${y + height}`,
+    `Q ${x} ${y + height}, ${x} ${y + height - r}`,
+    `L ${x} ${y + r}`,
+    `Q ${x} ${y}, ${x + r} ${y}`,
+    'Z',
+  ].join(' ');
+
+  const textCenterX = x + (width - waveDepth) / 2;
+
+  return (
+    <g>
+      <path
+        d={pathD}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={isExt ? 2 : 1.5}
+        strokeDasharray={isExt ? '8 4' : 'none'}
+      />
+      {/* Name label */}
+      <text
+        x={textCenterX}
+        y={y + height / 2 - (element.properties.tech ? 6 : 0)}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill={colors.textPrimary}
+        fontSize={NAME_FONT_SIZE}
+        fontWeight="600"
+        fontFamily="system-ui, -apple-system, sans-serif"
+      >
+        {element.name}
+      </text>
+      {/* Tech badge */}
+      {element.properties.tech && (
+        <text
+          x={textCenterX}
+          y={y + height / 2 + 12}
+          textAnchor="middle"
+          fill={colors.textSecondary}
+          fontSize={TECH_FONT_SIZE}
+          fontFamily="system-ui, -apple-system, sans-serif"
+          opacity={0.8}
+        >
+          [{element.properties.tech}]
+        </text>
+      )}
+      {/* Description */}
+      {element.properties.description && (
+        <text
+          x={textCenterX}
+          y={y + height / 2 + (element.properties.tech ? 26 : 14)}
+          textAnchor="middle"
+          fill={colors.textSecondary}
+          fontSize={TECH_FONT_SIZE}
+          fontFamily="system-ui, -apple-system, sans-serif"
+          opacity={0.7}
+        >
+          {element.properties.description.length > 35
+            ? element.properties.description.slice(0, 32) + '...'
+            : element.properties.description}
         </text>
       )}
     </g>

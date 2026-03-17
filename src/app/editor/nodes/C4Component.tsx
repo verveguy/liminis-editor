@@ -148,20 +148,7 @@ function C4DiagramRenderer({
     svg.setAttribute('viewBox', `0 0 ${layout.width} ${layout.height}`);
     svg.style.fontFamily = 'system-ui, -apple-system, sans-serif';
 
-    // Use ReactDOMServer to render the React component to string, then parse
-    // For now, we'll use a simpler approach with inline SVG generation
-    // The full React-based rendering will be implemented in TASK 7
-
-    // Placeholder SVG content showing the diagram dimensions
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', String(layout.width / 2));
-    text.setAttribute('y', String(layout.height / 2));
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('fill', isDarkMode ? 'oklch(0.80 0.00 0)' : 'oklch(0.30 0.00 0)');
-    text.textContent = `C4 Diagram (${layout.nodes.length} elements)`;
-    svg.appendChild(text);
-
-    // Actually render the diagram by creating the SVG elements directly
+    // Render the diagram SVG elements
     renderC4ToSVG(svg, layout, isDarkMode);
 
     renderContainer.appendChild(svg);
@@ -392,6 +379,73 @@ function renderNodeToSVG(
       techText.setAttribute('opacity', '0.8');
       techText.textContent = `[${element.properties.tech}]`;
       g.appendChild(techText);
+    }
+  } else if (element.properties.shape === 'queue') {
+    // Queue shape — rectangle with wavy right edge
+    const fill = isExt ? colors.externalFill : colors.containerFill;
+    const stroke = isExt ? colors.externalStroke : colors.containerStroke;
+    const waveDepth = 10;
+    const r = 8;
+
+    // Path: rounded left corners, straight top/bottom, wavy right edge
+    const pathD = [
+      `M ${x + r} ${y}`,
+      `L ${x + width - waveDepth} ${y}`,
+      `C ${x + width + waveDepth * 0.3} ${y + height * 0.25}, ${x + width - waveDepth * 1.3} ${y + height * 0.5}, ${x + width - waveDepth} ${y + height * 0.5}`,
+      `C ${x + width - waveDepth * 0.7} ${y + height * 0.5}, ${x + width + waveDepth * 0.3} ${y + height * 0.75}, ${x + width - waveDepth} ${y + height}`,
+      `L ${x + r} ${y + height}`,
+      `Q ${x} ${y + height}, ${x} ${y + height - r}`,
+      `L ${x} ${y + r}`,
+      `Q ${x} ${y}, ${x + r} ${y}`,
+      'Z',
+    ].join(' ');
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', pathD);
+    path.setAttribute('fill', fill);
+    path.setAttribute('stroke', stroke);
+    path.setAttribute('stroke-width', isExt ? '2' : '1.5');
+    if (isExt) path.setAttribute('stroke-dasharray', '8 4');
+    g.appendChild(path);
+
+    // Name
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', String(x + (width - waveDepth) / 2));
+    text.setAttribute('y', String(y + height / 2 - (element.properties.tech ? 6 : 0)));
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dominant-baseline', 'middle');
+    text.setAttribute('fill', colors.textPrimary);
+    text.setAttribute('font-size', '14');
+    text.setAttribute('font-weight', '600');
+    text.textContent = element.name;
+    g.appendChild(text);
+
+    // Tech badge
+    if (element.properties.tech) {
+      const techText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      techText.setAttribute('x', String(x + (width - waveDepth) / 2));
+      techText.setAttribute('y', String(y + height / 2 + 12));
+      techText.setAttribute('text-anchor', 'middle');
+      techText.setAttribute('fill', colors.textSecondary);
+      techText.setAttribute('font-size', '11');
+      techText.setAttribute('opacity', '0.8');
+      techText.textContent = `[${element.properties.tech}]`;
+      g.appendChild(techText);
+    }
+
+    // Description
+    if (element.properties.description) {
+      const descY = y + height / 2 + (element.properties.tech ? 26 : 14);
+      const descText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      descText.setAttribute('x', String(x + (width - waveDepth) / 2));
+      descText.setAttribute('y', String(descY));
+      descText.setAttribute('text-anchor', 'middle');
+      descText.setAttribute('fill', colors.textSecondary);
+      descText.setAttribute('font-size', '11');
+      descText.setAttribute('opacity', '0.7');
+      const desc = element.properties.description;
+      descText.textContent = desc.length > 35 ? desc.slice(0, 32) + '...' : desc;
+      g.appendChild(descText);
     }
   } else {
     // Rectangle shapes (system, container, component)

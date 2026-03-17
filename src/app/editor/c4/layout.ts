@@ -87,6 +87,11 @@ function calculateNodeDimensions(
     height += 20;
   }
 
+  // Queue shapes need extra width for the wavy right edge
+  if (element.properties.shape === 'queue') {
+    width += 20;
+  }
+
   return { width, height };
 }
 

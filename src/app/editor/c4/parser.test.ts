@@ -1,446 +1,508 @@
 import { describe, it, expect } from 'vitest';
 import { parseC4, validateC4 } from './parser';
 
-describe('C4 Parser', () => {
+describe('C4-PlantUML Parser', () => {
   describe('basic parsing', () => {
     it('should parse empty input', () => {
       const result = parseC4('');
+      expect(result.errors).toHaveLength(0);
       expect(result.diagram).not.toBeNull();
       expect(result.diagram!.elements).toHaveLength(0);
       expect(result.diagram!.relationships).toHaveLength(0);
-      expect(result.errors).toHaveLength(0);
     });
 
-    it('should parse a simple system', () => {
-      const result = parseC4('system "My System" [mysys] {}');
+    it('should skip @startuml/@enduml wrappers', () => {
+      const result = parseC4(`
+@startuml
+Person(user, "User", "A user")
+@enduml
+      `);
       expect(result.errors).toHaveLength(0);
       expect(result.diagram!.elements).toHaveLength(1);
-
-      const system = result.diagram!.elements[0];
-      expect(system.type).toBe('system');
-      expect(system.name).toBe('My System');
-      expect(system.id).toBe('mysys');
     });
 
-    it('should generate id from name if not provided', () => {
-      const result = parseC4('system "My System" {}');
-      expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements[0].id).toBe('my_system');
-    });
-
-    it('should parse element without body braces', () => {
-      const result = parseC4('system "Email System" [email]');
+    it('should skip !include directives', () => {
+      const result = parseC4(`
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+Person(user, "User", "A user")
+      `);
       expect(result.errors).toHaveLength(0);
       expect(result.diagram!.elements).toHaveLength(1);
-      expect(result.diagram!.elements[0].name).toBe('Email System');
+    });
+
+    it('should skip SHOW_LEGEND and LAYOUT directives', () => {
+      const result = parseC4(`
+LAYOUT_TOP_DOWN()
+Person(user, "User")
+SHOW_LEGEND()
+      `);
+      expect(result.errors).toHaveLength(0);
+      expect(result.diagram!.elements).toHaveLength(1);
+    });
+
+    it('should skip title directives', () => {
+      const result = parseC4(`
+title System Context — My App
+Person(user, "User")
+      `);
+      expect(result.errors).toHaveLength(0);
+      expect(result.diagram!.elements).toHaveLength(1);
+    });
+
+    it('should handle single-line comments', () => {
+      const result = parseC4(`
+' This is a comment
+Person(user, "User", "A user")
+' Another comment
+      `);
+      expect(result.errors).toHaveLength(0);
+      expect(result.diagram!.elements).toHaveLength(1);
     });
   });
 
-  describe('element types', () => {
-    it('should parse system element', () => {
-      const result = parseC4('system "Banking System" [banking] {}');
-      expect(result.diagram!.elements[0].type).toBe('system');
+  describe('element macros', () => {
+    it('should parse Person', () => {
+      const result = parseC4('Person(user, "User", "A knowledge worker")');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.type).toBe('person');
+      expect(el.id).toBe('user');
+      expect(el.name).toBe('User');
+      expect(el.properties.description).toBe('A knowledge worker');
+      expect(el.properties.external).toBeUndefined();
     });
 
-    it('should parse container element', () => {
-      const result = parseC4('container "Web App" [webapp] {}');
-      expect(result.diagram!.elements[0].type).toBe('container');
+    it('should parse Person_Ext', () => {
+      const result = parseC4('Person_Ext(admin, "Admin", "External admin")');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.type).toBe('person');
+      expect(el.properties.external).toBe(true);
     });
 
-    it('should parse component element', () => {
-      const result = parseC4('component "Auth Service" [auth] {}');
-      expect(result.diagram!.elements[0].type).toBe('component');
+    it('should parse System', () => {
+      const result = parseC4('System(app, "My App", "The main application")');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.type).toBe('system');
+      expect(el.id).toBe('app');
+      expect(el.name).toBe('My App');
+      expect(el.properties.description).toBe('The main application');
     });
 
-    it('should parse person element', () => {
-      const result = parseC4('person "Customer" [customer] {}');
-      expect(result.diagram!.elements[0].type).toBe('person');
+    it('should parse System_Ext', () => {
+      const result = parseC4('System_Ext(email, "Email System", "Sends emails")');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.type).toBe('system');
+      expect(el.properties.external).toBe(true);
+    });
+
+    it('should parse SystemDb', () => {
+      const result = parseC4('SystemDb(db, "Database", "Stores data")');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.type).toBe('system');
+      expect(el.properties.shape).toBe('cylinder');
+    });
+
+    it('should parse Container with technology', () => {
+      const result = parseC4('Container(api, "API Server", "Java/Spring", "Handles requests")');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.type).toBe('container');
+      expect(el.id).toBe('api');
+      expect(el.name).toBe('API Server');
+      expect(el.properties.tech).toBe('Java/Spring');
+      expect(el.properties.description).toBe('Handles requests');
+    });
+
+    it('should parse ContainerDb', () => {
+      const result = parseC4('ContainerDb(db, "Database", "PostgreSQL", "Stores data")');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.type).toBe('container');
+      expect(el.properties.shape).toBe('cylinder');
+      expect(el.properties.tech).toBe('PostgreSQL');
+    });
+
+    it('should parse Container_Ext', () => {
+      const result = parseC4('Container_Ext(ext, "External API", "REST", "Third party")');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.type).toBe('container');
+      expect(el.properties.external).toBe(true);
+    });
+
+    it('should parse ContainerQueue', () => {
+      const result = parseC4('ContainerQueue(mq, "Message Queue", "RabbitMQ", "Async messaging")');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.type).toBe('container');
+      expect(el.properties.shape).toBe('queue');
+      expect(el.properties.tech).toBe('RabbitMQ');
+    });
+
+    it('should parse SystemQueue_Ext', () => {
+      const result = parseC4('SystemQueue_Ext(events, "Event Bus", "External event stream")');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.type).toBe('system');
+      expect(el.properties.shape).toBe('queue');
+      expect(el.properties.external).toBe(true);
+    });
+
+    it('should parse Component with technology', () => {
+      const result = parseC4('Component(ctrl, "Controller", "Spring MVC", "Handles HTTP requests")');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.type).toBe('component');
+      expect(el.properties.tech).toBe('Spring MVC');
+      expect(el.properties.description).toBe('Handles HTTP requests');
+    });
+
+    it('should handle minimal args (alias and label only)', () => {
+      const result = parseC4('Person(user, "User")');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.id).toBe('user');
+      expect(el.name).toBe('User');
+      expect(el.properties.description).toBeUndefined();
+    });
+
+    it('should use alias as name when label is missing', () => {
+      const result = parseC4('System(myapp)');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.id).toBe('myapp');
+      expect(el.name).toBe('myapp');
     });
   });
 
-  describe('properties', () => {
-    it('should parse tech property', () => {
+  describe('boundaries', () => {
+    it('should parse System_Boundary with children', () => {
       const result = parseC4(`
-        container "API" [api] {
-          tech: "Node.js, Express"
-        }
-      `);
-      expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements[0].properties.tech).toBe('Node.js, Express');
-    });
-
-    it('should parse description property', () => {
-      const result = parseC4(`
-        container "Database" [db] {
-          description: "Stores user data"
-        }
-      `);
-      expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements[0].properties.description).toBe('Stores user data');
-    });
-
-    it('should parse external property as true', () => {
-      const result = parseC4(`
-        system "Email" [email] {
-          external: true
-        }
-      `);
-      expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements[0].properties.external).toBe(true);
-    });
-
-    it('should parse external property as false', () => {
-      const result = parseC4(`
-        system "Internal" [internal] {
-          external: false
-        }
-      `);
-      expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements[0].properties.external).toBe(false);
-    });
-
-    it('should parse shape property', () => {
-      const result = parseC4(`
-        container "Database" [db] {
-          shape: cylinder
-        }
-      `);
-      expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements[0].properties.shape).toBe('cylinder');
-    });
-
-    it('should parse direction property', () => {
-      const result = parseC4(`
-        system "System" [sys] {
-          direction: down
-        }
-      `);
-      expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements[0].properties.direction).toBe('down');
-    });
-
-    it('should parse style property', () => {
-      const result = parseC4(`
-        system "Boundary" [boundary] {
-          style: boundary
-        }
-      `);
-      expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements[0].properties.style).toBe('boundary');
-    });
-
-    it('should parse multiple properties', () => {
-      const result = parseC4(`
-        container "API" [api] {
-          tech: "Node.js"
-          description: "Backend service"
-          direction: right
-        }
-      `);
-      expect(result.errors).toHaveLength(0);
-      const props = result.diagram!.elements[0].properties;
-      expect(props.tech).toBe('Node.js');
-      expect(props.description).toBe('Backend service');
-      expect(props.direction).toBe('right');
-    });
-  });
-
-  describe('nested elements', () => {
-    it('should parse container inside system', () => {
-      const result = parseC4(`
-        system "Banking" [banking] {
-          container "Web App" [webapp] {
-            tech: "React"
-          }
-        }
-      `);
-      expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements).toHaveLength(2);
-
-      const system = result.diagram!.elements.find((e) => e.id === 'banking');
-      const container = result.diagram!.elements.find((e) => e.id === 'webapp');
-
-      expect(system).toBeDefined();
-      expect(container).toBeDefined();
-      expect(container!.parent).toBe('banking');
-      expect(system!.children).toHaveLength(1);
-      expect(system!.children[0].id).toBe('webapp');
-    });
-
-    it('should parse deeply nested elements', () => {
-      const result = parseC4(`
-        system "System" [sys] {
-          container "Container" [cont] {
-            component "Component" [comp] {
-              tech: "Java"
-            }
-          }
-        }
+System_Boundary(app, "My Application") {
+  Container(web, "Web App", "React", "Delivers UI")
+  Container(api, "API", "Node.js", "Business logic")
+}
       `);
       expect(result.errors).toHaveLength(0);
       expect(result.diagram!.elements).toHaveLength(3);
 
-      const comp = result.diagram!.elements.find((e) => e.id === 'comp');
-      expect(comp!.parent).toBe('cont');
+      const boundary = result.diagram!.elements[0];
+      expect(boundary.type).toBe('system');
+      expect(boundary.properties.style).toBe('boundary');
+      expect(boundary.children).toHaveLength(2);
+      expect(boundary.children[0].id).toBe('web');
+      expect(boundary.children[1].id).toBe('api');
     });
 
-    it('should parse multiple siblings', () => {
+    it('should parse Container_Boundary', () => {
       const result = parseC4(`
-        system "System" [sys] {
-          container "A" [a] {}
-          container "B" [b] {}
-          container "C" [c] {}
-        }
+Container_Boundary(api, "API Layer") {
+  Component(ctrl, "Controller", "Spring MVC")
+  Component(svc, "Service", "Java")
+}
       `);
       expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements).toHaveLength(4);
+      const boundary = result.diagram!.elements[0];
+      expect(boundary.type).toBe('container');
+      expect(boundary.properties.style).toBe('boundary');
+      expect(boundary.children).toHaveLength(2);
+    });
 
-      const system = result.diagram!.elements.find((e) => e.id === 'sys');
-      expect(system!.children).toHaveLength(3);
+    it('should set parent references on children', () => {
+      const result = parseC4(`
+System_Boundary(app, "App") {
+  Container(web, "Web", "React")
+}
+      `);
+      expect(result.errors).toHaveLength(0);
+      const child = result.diagram!.elements.find((e) => e.id === 'web');
+      expect(child?.parent).toBe('app');
+    });
+
+    it('should handle nested boundaries', () => {
+      const result = parseC4(`
+System_Boundary(app, "App") {
+  Container_Boundary(backend, "Backend") {
+    Component(api, "API", "Express")
+  }
+}
+      `);
+      expect(result.errors).toHaveLength(0);
+      expect(result.diagram!.elements).toHaveLength(3);
+      const api = result.diagram!.elements.find((e) => e.id === 'api');
+      expect(api?.parent).toBe('backend');
+    });
+
+    it('should handle Enterprise_Boundary', () => {
+      const result = parseC4(`
+Enterprise_Boundary(corp, "Acme Corp") {
+  System(crm, "CRM", "Customer management")
+}
+      `);
+      expect(result.errors).toHaveLength(0);
+      const boundary = result.diagram!.elements[0];
+      expect(boundary.properties.style).toBe('boundary');
     });
   });
 
   describe('relationships', () => {
-    it('should parse simple relationship', () => {
+    it('should parse simple Rel', () => {
       const result = parseC4(`
-        container "A" [a] {}
-        container "B" [b] {}
-        a -> b: "Calls"
+Person(user, "User")
+System(app, "App")
+Rel(user, app, "Uses")
       `);
       expect(result.errors).toHaveLength(0);
       expect(result.diagram!.relationships).toHaveLength(1);
-
       const rel = result.diagram!.relationships[0];
-      expect(rel.sourceId).toBe('a');
-      expect(rel.targetId).toBe('b');
-      expect(rel.label).toBe('Calls');
+      expect(rel.sourceId).toBe('user');
+      expect(rel.targetId).toBe('app');
+      expect(rel.label).toBe('Uses');
     });
 
-    it('should parse relationship inside element body', () => {
+    it('should parse Rel with technology', () => {
       const result = parseC4(`
-        system "System" [sys] {
-          container "A" [a] {}
-          container "B" [b] {}
-          a -> b: "Uses"
-        }
+Person(user, "User")
+Container(api, "API", "REST")
+Rel(user, api, "Calls", "HTTPS")
+      `);
+      expect(result.errors).toHaveLength(0);
+      const rel = result.diagram!.relationships[0];
+      expect(rel.label).toBe('Calls [HTTPS]');
+    });
+
+    it('should parse directional relationships', () => {
+      const result = parseC4(`
+Person(user, "User")
+System(app, "App")
+Rel_D(user, app, "Uses")
       `);
       expect(result.errors).toHaveLength(0);
       expect(result.diagram!.relationships).toHaveLength(1);
+    });
+
+    it('should parse BiRel', () => {
+      const result = parseC4(`
+System(a, "A")
+System(b, "B")
+BiRel(a, b, "Syncs with")
+      `);
+      expect(result.errors).toHaveLength(0);
+      expect(result.diagram!.relationships).toHaveLength(1);
+      expect(result.diagram!.relationships[0].label).toBe('Syncs with');
     });
 
     it('should parse multiple relationships', () => {
       const result = parseC4(`
-        container "A" [a] {}
-        container "B" [b] {}
-        container "C" [c] {}
-        a -> b: "First"
-        b -> c: "Second"
-        a -> c: "Third"
+Person(user, "User")
+System(web, "Web")
+System(api, "API")
+Rel(user, web, "Browses")
+Rel(web, api, "Calls", "REST")
       `);
       expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.relationships).toHaveLength(3);
-    });
-
-    it('should parse relationship with protocol labels', () => {
-      const result = parseC4(`
-        container "Web" [web] {}
-        container "API" [api] {}
-        web -> api: "JSON/HTTPS"
-      `);
-      expect(result.diagram!.relationships[0].label).toBe('JSON/HTTPS');
+      expect(result.diagram!.relationships).toHaveLength(2);
     });
   });
 
-  describe('comments', () => {
-    it('should ignore single-line comments', () => {
+  describe('complete diagrams', () => {
+    it('should parse the system context example from issue #429 test doc', () => {
       const result = parseC4(`
-        // This is a comment
-        system "System" [sys] {}
-        // Another comment
+title System Context — Liminis Notes
+
+Person(user, "User", "Knowledge worker managing notes and projects")
+
+System(liminis, "Liminis", "Personal knowledge management system with AI assistance")
+
+System_Ext(confluence, "Confluence", "Team wiki for publishing and sharing docs")
+System_Ext(github, "GitHub", "Code and issue tracking")
+System_Ext(claude, "Claude API", "AI backbone for analysis and generation")
+
+Rel(user, liminis, "Writes notes, queries knowledge")
+Rel(liminis, confluence, "Publishes documents to")
+Rel(liminis, github, "Creates issues, reads PRs")
+Rel(liminis, claude, "Sends prompts, receives responses")
       `);
       expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements).toHaveLength(1);
-    });
-
-    it('should ignore multi-line comments', () => {
-      const result = parseC4(`
-        /* Multi-line
-           comment */
-        system "System" [sys] {}
-      `);
-      expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements).toHaveLength(1);
-    });
-  });
-
-  describe('complex example', () => {
-    it('should parse the full example from the spec', () => {
-      const code = `
-        system "Internet Banking" [banking] {
-          style: boundary
-
-          container "Web App" [webapp] {
-            tech: "React, TypeScript"
-            description: "Delivers the SPA"
-          }
-
-          container "API" [api] {
-            tech: "Node.js, Express"
-            description: "Provides banking API"
-          }
-
-          container "Database" [db] {
-            shape: cylinder
-            tech: "PostgreSQL"
-          }
-
-          webapp -> api: "JSON/HTTPS"
-          api -> db: "SQL/TCP"
-        }
-
-        system "Email System" [email] {
-          external: true
-        }
-
-        api -> email: "SMTP"
-      `;
-
-      const result = parseC4(code);
-      expect(result.errors).toHaveLength(0);
-
-      // Check elements
       expect(result.diagram!.elements).toHaveLength(5);
+      expect(result.diagram!.relationships).toHaveLength(4);
 
-      const banking = result.diagram!.elements.find((e) => e.id === 'banking');
-      expect(banking!.properties.style).toBe('boundary');
-      expect(banking!.children).toHaveLength(3);
+      const confluence = result.diagram!.elements.find((e) => e.id === 'confluence');
+      expect(confluence?.properties.external).toBe(true);
+    });
 
-      const webapp = result.diagram!.elements.find((e) => e.id === 'webapp');
-      expect(webapp!.properties.tech).toBe('React, TypeScript');
-      expect(webapp!.parent).toBe('banking');
+    it('should parse the container diagram example from issue #429 test doc', () => {
+      const result = parseC4(`
+Person(user, "User", "Knowledge worker")
 
-      const db = result.diagram!.elements.find((e) => e.id === 'db');
-      expect(db!.properties.shape).toBe('cylinder');
+System_Boundary(liminis, "Liminis") {
+  Container(app, "Electron App", "Electron + React", "Renders markdown, manages UI")
+  Container(framework, "Liminis Framework", "Node.js", "Orchestrates skills, tools, and agents")
+  ContainerDb(workspace, "Workspace", "File system", "Markdown notes, config, skills")
+  Container(graphiti, "Knowledge Graph", "Neo4j + Graphiti", "Temporal entity and relationship store")
+  Container(semantic, "Semantic Search", "Vector DB", "Embedding-based document search")
+}
 
-      const email = result.diagram!.elements.find((e) => e.id === 'email');
-      expect(email!.properties.external).toBe(true);
+Rel(user, app, "Reads and writes notes")
+Rel(app, framework, "Delegates AI tasks to")
+Rel(framework, workspace, "Reads/writes files")
+Rel(framework, graphiti, "Queries and updates entities")
+Rel(framework, semantic, "Indexes and searches documents")
+      `);
+      expect(result.errors).toHaveLength(0);
+      expect(result.diagram!.elements).toHaveLength(7);
+      expect(result.diagram!.relationships).toHaveLength(5);
 
-      // Check relationships
-      expect(result.diagram!.relationships).toHaveLength(3);
-      expect(result.diagram!.relationships.map((r) => r.label)).toContain('JSON/HTTPS');
-      expect(result.diagram!.relationships.map((r) => r.label)).toContain('SQL/TCP');
-      expect(result.diagram!.relationships.map((r) => r.label)).toContain('SMTP');
+      const boundary = result.diagram!.elements.find((e) => e.id === 'liminis');
+      expect(boundary?.properties.style).toBe('boundary');
+      expect(boundary?.children).toHaveLength(5);
+
+      const workspace = result.diagram!.elements.find((e) => e.id === 'workspace');
+      expect(workspace?.properties.shape).toBe('cylinder');
+      expect(workspace?.properties.tech).toBe('File system');
+    });
+
+    it('should parse a full diagram with wrappers and directives', () => {
+      const result = parseC4(`
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_TOP_DOWN()
+
+Person(customer, "Customer", "End user of the system")
+
+System_Boundary(app, "My Application") {
+  Container(web, "Web App", "Angular", "Delivers the SPA")
+  Container(api, "API Server", "Java/Spring", "Business logic")
+  ContainerDb(db, "Database", "PostgreSQL", "Stores data")
+}
+
+System_Ext(email, "Email System", "Sends emails")
+
+Rel(customer, web, "Uses", "HTTPS")
+Rel(web, api, "Calls", "REST/JSON")
+Rel(api, db, "Reads/Writes", "JDBC")
+Rel(api, email, "Sends via", "SMTP")
+
+SHOW_LEGEND()
+@enduml
+      `);
+      expect(result.errors).toHaveLength(0);
+      expect(result.diagram!.elements).toHaveLength(6);
+      expect(result.diagram!.relationships).toHaveLength(4);
     });
   });
 
   describe('error handling', () => {
-    it('should report missing closing brace', () => {
-      const result = parseC4(`
-        system "System" [sys] {
-          container "Container" [cont] {
-      `);
+    it('should report unrecognized syntax', () => {
+      const result = parseC4('this is not valid C4');
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors.some((e) => e.message.includes('}'))).toBe(true);
+      expect(result.errors[0].line).toBe(1);
     });
 
-    it('should report invalid property value', () => {
-      const result = parseC4(`
-        system "System" [sys] {
-          shape: invalid_shape
-        }
-      `);
+    it('should report missing closing paren', () => {
+      const result = parseC4('Person(user, "User"');
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors.some((e) => e.message.includes('shape'))).toBe(true);
+      expect(result.errors[0].message).toContain("missing closing ')'");
     });
 
-    it('should report invalid direction', () => {
-      const result = parseC4(`
-        system "System" [sys] {
-          direction: diagonal
-        }
-      `);
+    it('should report missing alias', () => {
+      const result = parseC4('Person()');
       expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.errors.some((e) => e.message.includes('direction'))).toBe(true);
+      expect(result.errors[0].message).toContain('missing alias');
     });
 
-    it('should report line numbers in errors', () => {
-      const result = parseC4(`system "System" [sys] {
-  shape: bad
-}`);
+    it('should report insufficient rel args', () => {
+      const result = parseC4('Rel(a, b)');
       expect(result.errors.length).toBeGreaterThan(0);
-      const error = result.errors[0];
-      expect(error.line).toBeGreaterThan(0);
-      expect(error.column).toBeGreaterThan(0);
+      expect(result.errors[0].message).toContain('at least 3 arguments');
     });
 
-    it('should continue parsing after error', () => {
+    it('should continue parsing after errors', () => {
       const result = parseC4(`
-        system "First" [first] {
-          shape: bad
-        }
-        system "Second" [second] {}
+this is invalid
+Person(user, "User")
+also invalid
+System(app, "App")
       `);
-      // Should have error for bad shape
-      expect(result.errors.length).toBeGreaterThan(0);
-      // But should still parse both systems
+      expect(result.errors.length).toBe(2);
+      expect(result.diagram!.elements).toHaveLength(2);
+    });
+
+    it('should report unknown macros', () => {
+      const result = parseC4('FooBar(x, "Y")');
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0].message).toContain('Unknown macro');
+    });
+
+    it('should not infinite loop on invalid input', () => {
+      const start = Date.now();
+      const result = parseC4(`
+title System Context — Liminis Notes
+Person(user, "User", "Knowledge worker")
+System(liminis, "Liminis", "Main system")
+Rel(user, liminis, "Uses")
+      `);
+      const elapsed = Date.now() - start;
+      expect(elapsed).toBeLessThan(100);
+      expect(result.diagram).not.toBeNull();
+    });
+  });
+
+  describe('edge cases', () => {
+    it('should handle commas inside quoted strings', () => {
+      const result = parseC4('Container(api, "API Server", "Java, Spring", "Handles requests, responses")');
+      expect(result.errors).toHaveLength(0);
+      const el = result.diagram!.elements[0];
+      expect(el.properties.tech).toBe('Java, Spring');
+      expect(el.properties.description).toBe('Handles requests, responses');
+    });
+
+    it('should handle inline comments', () => {
+      const result = parseC4("Person(user, \"User\") ' This is a user");
+      expect(result.errors).toHaveLength(0);
+      expect(result.diagram!.elements).toHaveLength(1);
+    });
+
+    it('should handle Windows line endings', () => {
+      const result = parseC4("Person(user, \"User\")\r\nSystem(app, \"App\")");
+      expect(result.errors).toHaveLength(0);
       expect(result.diagram!.elements).toHaveLength(2);
     });
   });
 
-  describe('escape sequences', () => {
-    it('should handle escaped quotes in strings', () => {
+  describe('validateC4', () => {
+    it('should detect duplicate IDs', () => {
       const result = parseC4(`
-        system "Say \\"Hello\\"" [hello] {}
+Person(user, "User")
+System(user, "System with same ID")
       `);
-      expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements[0].name).toBe('Say "Hello"');
+      const errors = validateC4(result.diagram!);
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].message).toContain('Duplicate element ID');
     });
 
-    it('should handle escaped newlines in strings', () => {
+    it('should detect missing relationship targets', () => {
       const result = parseC4(`
-        container "Multi\\nLine" [multi] {}
+Person(user, "User")
+Rel(user, nonexistent, "Uses")
       `);
-      expect(result.errors).toHaveLength(0);
-      expect(result.diagram!.elements[0].name).toBe('Multi\nLine');
+      const errors = validateC4(result.diagram!);
+      expect(errors.some((e) => e.message.includes("'nonexistent' not found"))).toBe(true);
     });
-  });
-});
 
-describe('C4 Validator', () => {
-  it('should detect duplicate element IDs', () => {
-    const result = parseC4(`
-      system "First" [dup] {}
-      system "Second" [dup] {}
-    `);
-    const validationErrors = validateC4(result.diagram!);
-    expect(validationErrors.some((e) => e.message.includes('Duplicate'))).toBe(true);
-  });
-
-  it('should detect missing relationship source', () => {
-    const result = parseC4(`
-      system "Target" [target] {}
-      missing -> target: "Bad"
-    `);
-    const validationErrors = validateC4(result.diagram!);
-    expect(validationErrors.some((e) => e.message.includes('missing'))).toBe(true);
-  });
-
-  it('should detect missing relationship target', () => {
-    const result = parseC4(`
-      system "Source" [source] {}
-      source -> missing: "Bad"
-    `);
-    const validationErrors = validateC4(result.diagram!);
-    expect(validationErrors.some((e) => e.message.includes('missing'))).toBe(true);
-  });
-
-  it('should pass valid diagram', () => {
-    const result = parseC4(`
-      system "A" [a] {}
-      system "B" [b] {}
-      a -> b: "Valid"
-    `);
-    const validationErrors = validateC4(result.diagram!);
-    expect(validationErrors).toHaveLength(0);
+    it('should pass for valid diagrams', () => {
+      const result = parseC4(`
+Person(user, "User")
+System(app, "App")
+Rel(user, app, "Uses")
+      `);
+      const errors = validateC4(result.diagram!);
+      expect(errors).toHaveLength(0);
+    });
   });
 });

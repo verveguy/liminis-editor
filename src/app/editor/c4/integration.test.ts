@@ -27,21 +27,22 @@ describe('C4 Integration Tests', () => {
       expect(slashMenuModule).toBeDefined();
     });
 
-    it('should recognize c4 and architecture keywords', () => {
-      // Test that C4 DSL keywords are recognized by the parser
-      // These keywords are expected for the C4 SlashMenu option
-      // We verify the parser handles these element types correctly
+    it('should recognize c4 element types', () => {
       const parseResult = parseC4(`
-        system "Test System" [test] {
-          container "Test Container" [cont] {}
-          component "Test Component" [comp] {}
-        }
+Person(user, "User", "A user")
+System(app, "App", "Main app")
+
+System_Boundary(backend, "Backend") {
+  Container(api, "API", "Node.js")
+  Component(ctrl, "Controller", "Express")
+}
       `);
 
       expect(parseResult.errors).toHaveLength(0);
-      expect(parseResult.diagram!.elements).toHaveLength(3);
+      expect(parseResult.diagram!.elements).toHaveLength(5);
 
       const types = parseResult.diagram!.elements.map(e => e.type);
+      expect(types).toContain('person');
       expect(types).toContain('system');
       expect(types).toContain('container');
       expect(types).toContain('component');
@@ -49,48 +50,38 @@ describe('C4 Integration Tests', () => {
 
     it('should parse the default template from SlashMenu', () => {
       // This is the default template that SlashMenu inserts
-      const defaultTemplate = `system "My System" {
-  style: boundary
+      const defaultTemplate = `Person(user, "User", "End user of the system")
 
-  container "Web App" [webapp] {
-    tech: "React"
-    description: "User interface"
-  }
+System_Boundary(mySystem, "My System") {
+  Container(web, "Web App", "React", "Delivers the UI")
+  Container(api, "API Server", "Node.js", "Business logic")
+  ContainerDb(db, "Database", "PostgreSQL", "Stores data")
+}
 
-  container "API" [api] {
-    tech: "Node.js"
-    description: "Backend services"
-  }
-
-  container "Database" [db] {
-    shape: cylinder
-    tech: "PostgreSQL"
-  }
-
-  webapp -> api: "REST/HTTPS"
-  api -> db: "SQL"
-}`;
+Rel(user, web, "Uses", "HTTPS")
+Rel(web, api, "Calls", "REST/JSON")
+Rel(api, db, "Reads/Writes", "SQL")`;
 
       const parseResult = parseC4(defaultTemplate);
       expect(parseResult.errors).toHaveLength(0);
       expect(parseResult.diagram).not.toBeNull();
 
-      // Should have 4 elements (1 system + 3 containers)
-      expect(parseResult.diagram!.elements).toHaveLength(4);
+      // Should have 5 elements (1 person + 1 boundary + 3 containers)
+      expect(parseResult.diagram!.elements).toHaveLength(5);
 
-      // Should have 2 relationships
-      expect(parseResult.diagram!.relationships).toHaveLength(2);
+      // Should have 3 relationships
+      expect(parseResult.diagram!.relationships).toHaveLength(3);
 
       // Layout should succeed
       const layoutResult = layoutC4Diagram(parseResult.diagram!);
-      expect(layoutResult.nodes.length).toBeGreaterThanOrEqual(4);
-      expect(layoutResult.edges).toHaveLength(2);
+      expect(layoutResult.nodes.length).toBeGreaterThanOrEqual(5);
+      expect(layoutResult.edges).toHaveLength(3);
     });
   });
 
   describe('Markdown round-trip', () => {
     it('should parse C4 code block from markdown', () => {
-      const markdown = '```c4\nsystem "Test" [test] {}\n```';
+      const markdown = '```c4\nPerson(user, "User")\n```';
       const parsed = parseMarkdown(markdown);
 
       expect(parsed.root.children).toHaveLength(1);
@@ -98,7 +89,7 @@ describe('C4 Integration Tests', () => {
       const codeNode = parsed.root.children[0] as Code;
       expect(codeNode.type).toBe('code');
       expect(codeNode.lang).toBe('c4');
-      expect(codeNode.value).toBe('system "Test" [test] {}');
+      expect(codeNode.value).toBe('Person(user, "User")');
     });
 
     it('should stringify C4 code block to markdown', () => {
@@ -108,19 +99,19 @@ describe('C4 Integration Tests', () => {
           {
             type: 'code',
             lang: 'c4',
-            value: 'system "Test" [test] {}',
+            value: 'Person(user, "User")',
           },
         ],
       };
 
       const stringified = stringifyMarkdown(root);
       expect(stringified).toContain('```c4');
-      expect(stringified).toContain('system "Test" [test] {}');
+      expect(stringified).toContain('Person(user, "User")');
       expect(stringified).toContain('```');
     });
 
     it('should round-trip simple C4 diagram', () => {
-      const markdown = '```c4\nsystem "Banking" [banking] {}\n```';
+      const markdown = '```c4\nSystem(banking, "Banking")\n```';
 
       const parsed = parseMarkdown(markdown);
       const stringified = stringifyMarkdown(parsed.root);
@@ -140,33 +131,20 @@ describe('C4 Integration Tests', () => {
     });
 
     it('should round-trip complex C4 diagram', () => {
-      const c4Code = `system "Internet Banking" [banking] {
-  style: boundary
+      const c4Code = `Person(customer, "Customer", "End user")
 
-  container "Web App" [webapp] {
-    tech: "React, TypeScript"
-    description: "Delivers the SPA"
-  }
-
-  container "API" [api] {
-    tech: "Node.js, Express"
-    description: "Provides banking API"
-  }
-
-  container "Database" [db] {
-    shape: cylinder
-    tech: "PostgreSQL"
-  }
-
-  webapp -> api: "JSON/HTTPS"
-  api -> db: "SQL/TCP"
+System_Boundary(banking, "Internet Banking") {
+  Container(webapp, "Web App", "React, TypeScript", "Delivers the SPA")
+  Container(api, "API", "Node.js, Express", "Provides banking API")
+  ContainerDb(db, "Database", "PostgreSQL", "Stores data")
 }
 
-system "Email System" [email] {
-  external: true
-}
+System_Ext(email, "Email System", "Sends emails")
 
-api -> email: "SMTP"`;
+Rel(customer, webapp, "Uses", "HTTPS")
+Rel(webapp, api, "Calls", "JSON/HTTPS")
+Rel(api, db, "Reads/Writes", "SQL/TCP")
+Rel(api, email, "Sends via", "SMTP")`;
 
       const markdown = '```c4\n' + c4Code + '\n```';
 
@@ -183,17 +161,12 @@ api -> email: "SMTP"`;
       // Verify it's still valid C4 that can be parsed
       const c4Result = parseC4(reparsedCode);
       expect(c4Result.errors).toHaveLength(0);
-      expect(c4Result.diagram!.elements).toHaveLength(5);
-      expect(c4Result.diagram!.relationships).toHaveLength(3);
+      expect(c4Result.diagram!.elements).toHaveLength(6);
+      expect(c4Result.diagram!.relationships).toHaveLength(4);
     });
 
     it('should preserve C4 code with special characters', () => {
-      const c4Code = `system "System with \\"quotes\\"" [sys] {
-  description: "Contains special chars: <>&"
-  container "API (v2)" [api] {
-    tech: "Node.js + Express"
-  }
-}`;
+      const c4Code = `Container(api, "API (v2)", "Node.js + Express", "Handles requests & responses")`;
 
       const markdown = '```c4\n' + c4Code + '\n```';
 
@@ -215,19 +188,15 @@ api -> email: "SMTP"`;
 Here is the system diagram:
 
 \`\`\`c4
-system "My App" [app] {
-  style: boundary
+Person(user, "User", "End user")
 
-  container "Frontend" [fe] {
-    tech: "React"
-  }
-
-  container "Backend" [be] {
-    tech: "Node.js"
-  }
-
-  fe -> be: "API calls"
+System_Boundary(app, "My App") {
+  Container(fe, "Frontend", "React")
+  Container(be, "Backend", "Node.js")
 }
+
+Rel(user, fe, "Uses", "HTTPS")
+Rel(fe, be, "API calls")
 \`\`\`
 
 End of document.`;
@@ -245,19 +214,19 @@ End of document.`;
       // Step 3: Parse C4 DSL
       const c4Result = parseC4(codeBlock!.value);
       expect(c4Result.errors).toHaveLength(0);
-      expect(c4Result.diagram!.elements).toHaveLength(3);
+      expect(c4Result.diagram!.elements).toHaveLength(4);
 
       // Step 4: Layout the diagram
       const layoutResult = layoutC4Diagram(c4Result.diagram!);
-      expect(layoutResult.nodes).toHaveLength(3);
-      expect(layoutResult.edges).toHaveLength(1);
+      expect(layoutResult.nodes).toHaveLength(4);
+      expect(layoutResult.edges).toHaveLength(2);
       expect(layoutResult.width).toBeGreaterThan(0);
       expect(layoutResult.height).toBeGreaterThan(0);
 
       // Step 5: Verify round-trip
       const stringified = stringifyMarkdown(parsed.root);
       expect(stringified).toContain('```c4');
-      expect(stringified).toContain('system "My App"');
+      expect(stringified).toContain('Person(user');
     });
 
     it('should handle multiple C4 diagrams in one document', () => {
@@ -266,22 +235,19 @@ End of document.`;
 ## Context Diagram
 
 \`\`\`c4
-system "Main System" [main] {}
-system "External System" [ext] {
-  external: true
-}
-main -> ext: "Uses"
+System(main, "Main System")
+System_Ext(ext, "External System", "Third party")
+Rel(main, ext, "Uses")
 \`\`\`
 
 ## Container Diagram
 
 \`\`\`c4
-system "Main System" [main] {
-  style: boundary
-  container "Web" [web] {}
-  container "API" [api] {}
-  web -> api: "Calls"
+System_Boundary(main, "Main System") {
+  Container(web, "Web", "React")
+  Container(api, "API", "Node.js")
 }
+Rel(web, api, "Calls")
 \`\`\`
 `;
 
