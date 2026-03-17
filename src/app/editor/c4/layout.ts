@@ -33,6 +33,9 @@ const DEFAULT_OPTIONS: Required<LayoutOptions> = {
 /** Padding around boundary group contents */
 const BOUNDARY_PADDING = 40;
 
+/** Gap between a boundary and external elements outside it */
+const EXTERNAL_GAP = 80;
+
 /** Space reserved for boundary header (title + optional tech badge) */
 const BOUNDARY_HEADER_HEIGHT = 55;
 
@@ -500,11 +503,11 @@ function alignCrossBoundaryElements(
         leaf.y < boundary.y + boundary.height + BOUNDARY_PADDING &&
         leaf.y + leaf.height + BOUNDARY_PADDING > boundary.y;
 
-      if (yOverlap && leafRight > boundary.x - BOUNDARY_PADDING && leafLeft < boundary.x + boundary.width + BOUNDARY_PADDING) {
+      if (yOverlap && leafRight > boundary.x - EXTERNAL_GAP && leafLeft < boundary.x + boundary.width + EXTERNAL_GAP) {
         if (originalCenterX < boundary.x + boundary.width / 2) {
-          leaf.x = boundary.x - leaf.width - BOUNDARY_PADDING;
+          leaf.x = boundary.x - leaf.width - EXTERNAL_GAP;
         } else {
-          leaf.x = boundary.x + boundary.width + BOUNDARY_PADDING;
+          leaf.x = boundary.x + boundary.width + EXTERNAL_GAP;
         }
       }
     }
@@ -549,7 +552,7 @@ function alignCrossBoundaryElements(
     if (rightPeers.length > 1) {
       const alignX = Math.min(...rightPeers.map((n) => n.x));
       // Ensure it's still outside the boundary
-      const minX = boundary.x + boundary.width + BOUNDARY_PADDING;
+      const minX = boundary.x + boundary.width + EXTERNAL_GAP;
       for (const peer of rightPeers) {
         peer.x = Math.max(alignX, minX);
       }
