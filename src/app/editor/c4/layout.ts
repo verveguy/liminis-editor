@@ -403,6 +403,86 @@ function calculateEdgePoint(node: LayoutNode, target: Point): Point {
 }
 
 // =============================================================================
+// CROSS-BOUNDARY ALIGNMENT
+// =============================================================================
+
+/**
+ * After layout, nudge non-boundary top-level elements toward their
+ * cross-boundary relationship targets, without overlapping boundaries.
+ *
+ * For example, if "Knowledge Worker" relates to "MCP Host" inside a boundary,
+ * shift "Knowledge Worker" toward "MCP Host"'s X position, but don't let it
+ * overlap the boundary rectangle.
+ */
+function alignCrossBoundaryElements(
+  topLevelNodes: LayoutNode[],
+  relationships: { sourceId: string; targetId: string; label: string }[],
+  nodeMap: Map<string, LayoutNode>
+): void {
+  const leafNodes = topLevelNodes.filter(
+    (n) => !n.children || n.children.length === 0
+  );
+  const boundaryNodes = topLevelNodes.filter(
+    (n) => n.children && n.children.length > 0
+  );
+
+  if (leafNodes.length === 0 || boundaryNodes.length === 0) return;
+
+  for (const leaf of leafNodes) {
+    const targetXPositions: number[] = [];
+
+    for (const rel of relationships) {
+      let partnerId: string | undefined;
+      if (rel.sourceId === leaf.id) partnerId = rel.targetId;
+      else if (rel.targetId === leaf.id) partnerId = rel.sourceId;
+      else continue;
+
+      const partner = nodeMap.get(partnerId);
+      if (!partner) continue;
+
+      if (partner.element.parent) {
+        targetXPositions.push(partner.x + partner.width / 2);
+      }
+    }
+
+    if (targetXPositions.length === 0) continue;
+
+    const avgTargetX =
+      targetXPositions.reduce((a, b) => a + b, 0) / targetXPositions.length;
+
+    const currentCenterX = leaf.x + leaf.width / 2;
+    let desiredX = avgTargetX - leaf.width / 2;
+
+    // Clamp: don't let the leaf overlap any boundary node
+    for (const boundary of boundaryNodes) {
+      const leafRight = desiredX + leaf.width;
+      const leafLeft = desiredX;
+
+      // Check if leaf Y range overlaps boundary Y range
+      const yOverlap =
+        leaf.y < boundary.y + boundary.height &&
+        leaf.y + leaf.height > boundary.y;
+
+      if (yOverlap) {
+        // If leaf would overlap boundary horizontally, push it outside
+        if (leafRight > boundary.x && leafLeft < boundary.x + boundary.width) {
+          // Determine which side the leaf was originally on
+          if (currentCenterX < boundary.x + boundary.width / 2) {
+            // Leaf is to the left — keep it to the left
+            desiredX = Math.min(desiredX, boundary.x - leaf.width - BOUNDARY_PADDING);
+          } else {
+            // Leaf is to the right — keep it to the right
+            desiredX = Math.max(desiredX, boundary.x + boundary.width + BOUNDARY_PADDING);
+          }
+        }
+      }
+    }
+
+    leaf.x = desiredX;
+  }
+}
+
+// =============================================================================
 // PUBLIC API
 // =============================================================================
 
@@ -441,6 +521,9 @@ export function layoutC4Diagram(
   for (const node of allNodes) {
     nodeMap.set(node.id, node);
   }
+
+  // Post-layout: align non-boundary elements with their cross-boundary targets
+  alignCrossBoundaryElements(layoutNodes, diagram.relationships, nodeMap);
 
   // Calculate edges
   const edges = calculateEdges(diagram.relationships, nodeMap);
