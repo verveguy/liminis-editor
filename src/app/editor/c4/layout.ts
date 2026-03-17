@@ -428,8 +428,10 @@ function alignCrossBoundaryElements(
 
   if (leafNodes.length === 0 || boundaryNodes.length === 0) return;
 
+  // Step 1: Align each leaf's Y with its primary cross-boundary target,
+  // and nudge X toward the boundary edge nearest to the target
   for (const leaf of leafNodes) {
-    const targetXPositions: number[] = [];
+    const targets: { x: number; y: number }[] = [];
 
     for (const rel of relationships) {
       let partnerId: string | undefined;
@@ -438,47 +440,90 @@ function alignCrossBoundaryElements(
       else continue;
 
       const partner = nodeMap.get(partnerId);
-      if (!partner) continue;
+      if (!partner || !partner.element.parent) continue;
 
-      if (partner.element.parent) {
-        targetXPositions.push(partner.x + partner.width / 2);
-      }
+      targets.push({
+        x: partner.x + partner.width / 2,
+        y: partner.y + partner.height / 2,
+      });
     }
 
-    if (targetXPositions.length === 0) continue;
+    if (targets.length === 0) continue;
 
-    const avgTargetX =
-      targetXPositions.reduce((a, b) => a + b, 0) / targetXPositions.length;
+    // Align Y with the average target Y (center the leaf vertically)
+    const avgTargetY = targets.reduce((s, t) => s + t.y, 0) / targets.length;
+    leaf.y = avgTargetY - leaf.height / 2;
 
+    // Nudge X: keep leaf outside boundaries but closer to its targets
+    const avgTargetX = targets.reduce((s, t) => s + t.x, 0) / targets.length;
     const currentCenterX = leaf.x + leaf.width / 2;
-    let desiredX = avgTargetX - leaf.width / 2;
+    const nudgedCenterX = currentCenterX + (avgTargetX - currentCenterX) * 0.3;
+    leaf.x = nudgedCenterX - leaf.width / 2;
+  }
 
-    // Clamp: don't let the leaf overlap any boundary node
+  // Step 2: Ensure leaves don't overlap boundaries
+  for (const leaf of leafNodes) {
+    const originalCenterX = leaf.x + leaf.width / 2;
+
     for (const boundary of boundaryNodes) {
-      const leafRight = desiredX + leaf.width;
-      const leafLeft = desiredX;
-
-      // Check if leaf Y range overlaps boundary Y range
+      const leafRight = leaf.x + leaf.width;
+      const leafLeft = leaf.x;
       const yOverlap =
-        leaf.y < boundary.y + boundary.height &&
-        leaf.y + leaf.height > boundary.y;
+        leaf.y < boundary.y + boundary.height + BOUNDARY_PADDING &&
+        leaf.y + leaf.height + BOUNDARY_PADDING > boundary.y;
 
-      if (yOverlap) {
-        // If leaf would overlap boundary horizontally, push it outside
-        if (leafRight > boundary.x && leafLeft < boundary.x + boundary.width) {
-          // Determine which side the leaf was originally on
-          if (currentCenterX < boundary.x + boundary.width / 2) {
-            // Leaf is to the left — keep it to the left
-            desiredX = Math.min(desiredX, boundary.x - leaf.width - BOUNDARY_PADDING);
-          } else {
-            // Leaf is to the right — keep it to the right
-            desiredX = Math.max(desiredX, boundary.x + boundary.width + BOUNDARY_PADDING);
-          }
+      if (yOverlap && leafRight > boundary.x - BOUNDARY_PADDING && leafLeft < boundary.x + boundary.width + BOUNDARY_PADDING) {
+        if (originalCenterX < boundary.x + boundary.width / 2) {
+          leaf.x = boundary.x - leaf.width - BOUNDARY_PADDING;
+        } else {
+          leaf.x = boundary.x + boundary.width + BOUNDARY_PADDING;
         }
       }
     }
+  }
 
-    leaf.x = desiredX;
+  // Step 3: Resolve leaf-to-leaf overlaps by pushing apart vertically
+  leafNodes.sort((a, b) => a.y - b.y || a.x - b.x);
+
+  for (let i = 0; i < leafNodes.length; i++) {
+    for (let j = i + 1; j < leafNodes.length; j++) {
+      const a = leafNodes[i];
+      const b = leafNodes[j];
+
+      const gap = BOUNDARY_PADDING;
+      const xOverlap = a.x < b.x + b.width + gap &&
+                        a.x + a.width + gap > b.x;
+      const yOverlap = a.y < b.y + b.height + gap &&
+                        a.y + a.height + gap > b.y;
+
+      if (xOverlap && yOverlap) {
+        b.y = a.y + a.height + gap;
+      }
+    }
+  }
+
+  // Step 4: Align peer leaves on the same side of a boundary to share X
+  // Group leaves by which side of which boundary they're on
+  for (const boundary of boundaryNodes) {
+    const boundaryCenterX = boundary.x + boundary.width / 2;
+    const leftPeers = leafNodes.filter((n) => n.x + n.width / 2 < boundaryCenterX);
+    const rightPeers = leafNodes.filter((n) => n.x + n.width / 2 >= boundaryCenterX);
+
+    // Align left peers to the same X (use the maximum X so none overlap boundary)
+    if (leftPeers.length > 1) {
+      const alignX = Math.min(...leftPeers.map((n) => n.x));
+      for (const peer of leftPeers) {
+        peer.x = alignX;
+      }
+    }
+
+    // Align right peers to the same X
+    if (rightPeers.length > 1) {
+      const alignX = Math.max(...rightPeers.map((n) => n.x));
+      for (const peer of rightPeers) {
+        peer.x = alignX;
+      }
+    }
   }
 }
 
