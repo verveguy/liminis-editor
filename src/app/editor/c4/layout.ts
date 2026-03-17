@@ -248,10 +248,14 @@ function layoutGroup(
   }
 
   // Add edges to graph (only those between elements in this group)
+  // Use label length to influence minimum edge length so labels have room
   const elementIds = new Set(elements.map((e) => e.id));
   for (const rel of relationships) {
     if (elementIds.has(rel.sourceId) && elementIds.has(rel.targetId)) {
-      g.setEdge(rel.sourceId, rel.targetId);
+      // Longer labels need more space between ranks
+      const labelLen = rel.label?.length ?? 0;
+      const minlen = labelLen > 30 ? 2 : 1;
+      g.setEdge(rel.sourceId, rel.targetId, { minlen });
     }
   }
 

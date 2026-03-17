@@ -246,8 +246,19 @@ function renderC4ToSVG(
     renderNodeToSVG(boundariesGroup, node, colors);
   }
 
+  // Classify edge labels: short labels inline, long labels go to legend
+  const LEGEND_THRESHOLD = 50;
+  const legendEntries: { index: number; label: string }[] = [];
+  const edgesWithLabels = layout.edges.map((edge) => {
+    if (edge.label && edge.label.length > LEGEND_THRESHOLD) {
+      legendEntries.push({ index: legendEntries.length + 1, label: edge.label });
+      return { ...edge, label: String(legendEntries.length), isLegendRef: true };
+    }
+    return { ...edge, isLegendRef: false };
+  });
+
   // Render edges
-  for (const edge of layout.edges) {
+  for (const edge of edgesWithLabels) {
     renderEdgeToSVG(edgesGroup, edge, colors);
   }
 
@@ -259,6 +270,29 @@ function renderC4ToSVG(
   svg.appendChild(boundariesGroup);
   svg.appendChild(nodesGroup);
   svg.appendChild(edgesGroup);
+
+  // Render legend if there are extracted labels
+  if (legendEntries.length > 0) {
+    const legendGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    legendGroup.setAttribute('class', 'legend-layer');
+
+    const legendX = 20;
+    let legendY = parseFloat(svg.getAttribute('height') || '0') - legendEntries.length * 18 - 10;
+
+    for (const entry of legendEntries) {
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', String(legendX));
+      text.setAttribute('y', String(legendY));
+      text.setAttribute('fill', colors.edgeLabel);
+      text.setAttribute('font-size', '11');
+      text.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
+      text.textContent = `${entry.index}. ${entry.label}`;
+      legendGroup.appendChild(text);
+      legendY += 18;
+    }
+
+    svg.appendChild(legendGroup);
+  }
 }
 
 function renderNodeToSVG(
@@ -530,8 +564,8 @@ function renderNodeToSVG(
 
 function renderEdgeToSVG(
   group: SVGGElement,
-  edge: ReturnType<typeof layoutC4Diagram>['edges'][0],
-  colors: Record<string, string>
+  edge: ReturnType<typeof layoutC4Diagram>['edges'][0] & { isLegendRef?: boolean },
+  colors: Record<string, string>,
 ): void {
   const { points, label } = edge;
   if (points.length < 2) return;
@@ -591,58 +625,96 @@ function renderEdgeToSVG(
       y: (points[0].y + points[points.length - 1].y) / 2,
     };
 
-    // Calculate edge angle for label rotation
     const edgeDx = points[points.length - 1].x - points[0].x;
     const edgeDy = points[points.length - 1].y - points[0].y;
     const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
 
-    // Angle in degrees, normalized so text is always readable (not upside-down)
-    // Only rotate for diagonal/horizontal edges — keep labels horizontal for
-    // mostly-vertical edges (within 25 degrees of vertical)
+    // Rotation: only for edges within 60° of horizontal
     let angleDeg = Math.atan2(edgeDy, edgeDx) * (180 / Math.PI);
     if (angleDeg > 90) angleDeg -= 180;
     if (angleDeg < -90) angleDeg += 180;
-    // Only rotate if edge is within 60° of horizontal
     if (Math.abs(angleDeg) > 60) angleDeg = 0;
 
-    // Offset label perpendicular to edge direction
+    // Offset perpendicular to edge
     let labelX = midpoint.x;
     let labelY = midpoint.y;
-
     if (edgeLen > 0) {
-      const perpX = (-edgeDy / edgeLen) * 14;
-      const perpY = (edgeDx / edgeLen) * 14;
-      labelX += perpX;
-      labelY += perpY;
+      labelX += (-edgeDy / edgeLen) * 14;
+      labelY += (edgeDx / edgeLen) * 14;
     }
 
-    const labelWidth = label.length * 7 + 16;
-    const labelHeight = 18;
     const transform = `rotate(${angleDeg}, ${labelX}, ${labelY})`;
 
-    // Background
-    const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    bgRect.setAttribute('x', String(labelX - labelWidth / 2));
-    bgRect.setAttribute('y', String(labelY - labelHeight / 2));
-    bgRect.setAttribute('width', String(labelWidth));
-    bgRect.setAttribute('height', String(labelHeight));
-    bgRect.setAttribute('rx', '3');
-    bgRect.setAttribute('ry', '3');
-    bgRect.setAttribute('fill', colors.edgeLabelBackground);
-    bgRect.setAttribute('fill-opacity', '0.9');
-    bgRect.setAttribute('transform', transform);
-    g.appendChild(bgRect);
+    // Legend references render as circled numbers
+    if (edge.isLegendRef) {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', String(labelX));
+      circle.setAttribute('cy', String(labelY));
+      circle.setAttribute('r', '10');
+      circle.setAttribute('fill', colors.edgeStroke);
+      g.appendChild(circle);
 
-    // Text
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', String(labelX));
-    text.setAttribute('y', String(labelY + 4));
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('fill', colors.edgeLabel);
-    text.setAttribute('transform', transform);
-    text.setAttribute('font-size', '11');
-    text.textContent = label;
-    g.appendChild(text);
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', String(labelX));
+      text.setAttribute('y', String(labelY + 4));
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('fill', colors.textPrimary);
+      text.setAttribute('font-size', '10');
+      text.setAttribute('font-weight', '600');
+      text.textContent = label;
+      g.appendChild(text);
+    } else {
+      // Split long labels into two lines at a natural break
+      const LINE_BREAK_THRESHOLD = 30;
+      let lines: string[];
+      if (label.length > LINE_BREAK_THRESHOLD) {
+        const mid = Math.floor(label.length / 2);
+        // Find nearest space to the middle
+        let breakIdx = label.lastIndexOf(' ', mid + 10);
+        if (breakIdx < mid - 15 || breakIdx === -1) breakIdx = label.indexOf(' ', mid - 5);
+        if (breakIdx === -1) breakIdx = mid;
+        lines = [label.slice(0, breakIdx).trim(), label.slice(breakIdx).trim()];
+      } else {
+        lines = [label];
+      }
+
+      const lineHeight = 14;
+      const maxLineLen = Math.max(...lines.map((l) => l.length));
+      const labelWidth = maxLineLen * 6.5 + 12;
+      const labelHeight = lines.length * lineHeight + 6;
+
+      // Render text lines
+      const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      textEl.setAttribute('x', String(labelX));
+      textEl.setAttribute('text-anchor', 'middle');
+      textEl.setAttribute('fill', colors.edgeLabel);
+      textEl.setAttribute('font-size', '11');
+      textEl.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
+      textEl.setAttribute('transform', transform);
+
+      const startY = labelY - ((lines.length - 1) * lineHeight) / 2;
+      for (let i = 0; i < lines.length; i++) {
+        const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+        tspan.setAttribute('x', String(labelX));
+        tspan.setAttribute('y', String(startY + i * lineHeight + 4));
+        tspan.textContent = lines[i];
+        textEl.appendChild(tspan);
+      }
+
+      // Minimal background — just enough to make text readable, very subtle
+      const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      bgRect.setAttribute('x', String(labelX - labelWidth / 2));
+      bgRect.setAttribute('y', String(startY - lineHeight / 2));
+      bgRect.setAttribute('width', String(labelWidth));
+      bgRect.setAttribute('height', String(labelHeight));
+      bgRect.setAttribute('rx', '3');
+      bgRect.setAttribute('fill', colors.edgeLabelBackground);
+      bgRect.setAttribute('fill-opacity', '0.75');
+      bgRect.setAttribute('transform', transform);
+      g.appendChild(bgRect);
+
+      g.appendChild(textEl);
+    }
   }
 
   group.appendChild(g);
