@@ -29,10 +29,8 @@ describe('C4 Integration Tests', () => {
 
     it('should recognize c4 and architecture keywords', () => {
       // Test that C4 DSL keywords are recognized by the parser
-      const c4Keywords = ['c4', 'architecture', 'diagram', 'system', 'container', 'component'];
-
-      // These are the expected keywords for the C4 SlashMenu option
-      // We can verify they make sense by checking the parser handles them
+      // These keywords are expected for the C4 SlashMenu option
+      // We verify the parser handles these element types correctly
       const parseResult = parseC4(`
         system "Test System" [test] {
           container "Test Container" [cont] {}
@@ -240,7 +238,7 @@ End of document.`;
 
       // Step 2: Find the C4 code block
       const codeBlock = parsed.root.children.find(
-        (node): node is Code => node.type === 'code' && (node as Code).lang === 'c4'
+        (node): node is Code => node.type === 'code' && node.lang === 'c4'
       );
       expect(codeBlock).toBeDefined();
 
@@ -291,7 +289,7 @@ system "Main System" [main] {
 
       // Find all C4 code blocks
       const c4Blocks = parsed.root.children.filter(
-        (node): node is Code => node.type === 'code' && (node as Code).lang === 'c4'
+        (node): node is Code => node.type === 'code' && node.lang === 'c4'
       );
 
       expect(c4Blocks).toHaveLength(2);

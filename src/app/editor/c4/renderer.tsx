@@ -34,6 +34,7 @@ const LIGHT_COLORS = {
   textSecondary: 'oklch(0.90 0.00 0)', // Slightly dimmer text
   textOnBoundary: 'oklch(0.25 0.00 0)', // Dark text on light boundary
   edgeLabel: 'oklch(0.30 0.00 0)', // Dark text for edge labels
+  edgeLabelBackground: 'oklch(1.00 0.00 0)', // White background for edge labels
 
   // Background
   background: 'transparent',
@@ -61,6 +62,7 @@ const DARK_COLORS = {
   textSecondary: 'oklch(0.85 0.00 0)', // Slightly dimmer
   textOnBoundary: 'oklch(0.90 0.00 0)', // Light text on dark boundary
   edgeLabel: 'oklch(0.85 0.00 0)', // Light text for edge labels
+  edgeLabelBackground: 'oklch(0.25 0.01 240)', // Dark background for edge labels
 
   // Background
   background: 'transparent',
@@ -570,7 +572,7 @@ function Edge({ edge, colors }: EdgeProps): JSX.Element {
             height={18}
             rx={3}
             ry={3}
-            fill={colors.background === 'transparent' ? 'white' : colors.background}
+            fill={colors.edgeLabelBackground}
             fillOpacity={0.9}
           />
           <text

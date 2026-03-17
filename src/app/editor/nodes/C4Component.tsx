@@ -157,7 +157,7 @@ function C4DiagramRenderer({
     text.setAttribute('x', String(layout.width / 2));
     text.setAttribute('y', String(layout.height / 2));
     text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('fill', isDarkMode ? '#ccc' : '#333');
+    text.setAttribute('fill', isDarkMode ? 'oklch(0.80 0.00 0)' : 'oklch(0.30 0.00 0)');
     text.textContent = `C4 Diagram (${layout.nodes.length} elements)`;
     svg.appendChild(text);
 
@@ -207,6 +207,7 @@ function renderC4ToSVG(
         textSecondary: 'oklch(0.85 0.00 0)',
         textOnBoundary: 'oklch(0.90 0.00 0)',
         edgeLabel: 'oklch(0.85 0.00 0)',
+        edgeLabelBackground: 'oklch(0.25 0.01 240)',
       }
     : {
         containerFill: 'oklch(0.62 0.15 240)',
@@ -224,6 +225,7 @@ function renderC4ToSVG(
         textSecondary: 'oklch(0.90 0.00 0)',
         textOnBoundary: 'oklch(0.25 0.00 0)',
         edgeLabel: 'oklch(0.30 0.00 0)',
+        edgeLabelBackground: 'oklch(1.00 0.00 0)',
       };
 
   // Render boundaries first (back layer)
@@ -543,7 +545,7 @@ function renderEdgeToSVG(
     bgRect.setAttribute('height', '18');
     bgRect.setAttribute('rx', '3');
     bgRect.setAttribute('ry', '3');
-    bgRect.setAttribute('fill', 'white');
+    bgRect.setAttribute('fill', colors.edgeLabelBackground);
     bgRect.setAttribute('fill-opacity', '0.9');
     g.appendChild(bgRect);
 
