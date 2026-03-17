@@ -553,6 +553,26 @@ function alignCrossBoundaryElements(
       }
     }
   }
+
+  // Step 5: Re-resolve overlaps after peer alignment may have re-introduced them
+  leafNodes.sort((a, b) => a.y - b.y || a.x - b.x);
+
+  for (let i = 0; i < leafNodes.length; i++) {
+    for (let j = i + 1; j < leafNodes.length; j++) {
+      const a = leafNodes[i];
+      const b = leafNodes[j];
+
+      const gap = BOUNDARY_PADDING;
+      const xOverlap = a.x < b.x + b.width + gap &&
+                        a.x + a.width + gap > b.x;
+      const yOverlap = a.y < b.y + b.height + gap &&
+                        a.y + a.height + gap > b.y;
+
+      if (xOverlap && yOverlap) {
+        b.y = a.y + a.height + gap;
+      }
+    }
+  }
 }
 
 // =============================================================================
