@@ -354,13 +354,23 @@ function renderC4ToSVG(
       return false;
     }
 
-    // Candidate corners: BL, BR, TL, TR (within existing diagram bounds)
-    const candidates = [
-      { x: margin, y: layout.height - legendH - margin, label: 'BL' },
-      { x: layout.width - legendW - margin, y: layout.height - legendH - margin, label: 'BR' },
-      { x: margin, y: margin, label: 'TL' },
-      { x: layout.width - legendW - margin, y: margin, label: 'TR' },
-    ];
+    // Try a grid of candidate positions to find open space
+    // Scan at intervals across the diagram area
+    const step = 40;
+    const candidates: { x: number; y: number }[] = [];
+
+    // Generate candidates at grid positions, prioritizing bottom-left area
+    for (let cy = layout.height - legendH - margin; cy >= margin; cy -= step) {
+      for (let cx = margin; cx <= layout.width - legendW - margin; cx += step) {
+        candidates.push({ x: cx, y: cy });
+      }
+    }
+    // Also try top area
+    for (let cy = margin; cy < layout.height / 2; cy += step) {
+      for (let cx = margin; cx <= layout.width - legendW - margin; cx += step) {
+        candidates.push({ x: cx, y: cy });
+      }
+    }
 
     let bestPlacement = { x: margin, y: layout.height + margin }; // fallback: below diagram
     let placed = false;
