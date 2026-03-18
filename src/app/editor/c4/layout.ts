@@ -288,10 +288,26 @@ function layoutGroup(
     mapDescendants(element, element.id);
   }
 
+  // Also track which IDs are direct group elements (for imbalanced Rels)
+  const groupElementIds = new Set(elements.map((e) => e.id));
+
   const virtualEdges = new Set<string>();
   for (const rel of relationships) {
-    const sourceParent = childToParent.get(rel.sourceId);
-    const targetParent = childToParent.get(rel.targetId);
+    let sourceParent = childToParent.get(rel.sourceId);
+    let targetParent = childToParent.get(rel.targetId);
+
+    // Handle imbalanced Rels: if one side is a boundary group element
+    // directly (peer to the other side's parent), use it as its own parent.
+    // Only for boundaries (elements with children) — not leaf elements.
+    if (!sourceParent && groupElementIds.has(rel.sourceId)) {
+      const el = elements.find((e) => e.id === rel.sourceId);
+      if (el && el.children.length > 0) sourceParent = rel.sourceId;
+    }
+    if (!targetParent && groupElementIds.has(rel.targetId)) {
+      const el = elements.find((e) => e.id === rel.targetId);
+      if (el && el.children.length > 0) targetParent = rel.targetId;
+    }
+
     if (sourceParent && targetParent && sourceParent !== targetParent) {
       const key = `${sourceParent}->${targetParent}`;
       if (!virtualEdges.has(key)) {
