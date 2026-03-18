@@ -235,13 +235,29 @@ function layoutGroup(
   }
 
   // Add edges to graph (only those between elements in this group)
-  // Use label length to influence minimum edge length so labels have room
+  // Use label width to set minimum edge length so labels have room to display.
+  // In TB layout, one rank ≈ nodeHeight + rankSep. We estimate label width in px
+  // and compute how many ranks the label needs to not overlap nodes.
   const elementIds = new Set(elements.map((e) => e.id));
+  const rankHeight = options.nodeHeight + options.rankSep; // ~180px per rank
+  const LABEL_CHAR_WIDTH = 6; // px per char at 11px font
+  const MAX_MINLEN = 4; // cap to avoid huge diagrams
+
   for (const rel of relationships) {
     if (elementIds.has(rel.sourceId) && elementIds.has(rel.targetId)) {
-      // Longer labels need more space between ranks
       const labelLen = rel.label?.length ?? 0;
-      const minlen = labelLen > 30 ? 2 : 1;
+      // Extract actual description from step-numbered labels "N [description]"
+      const stepMatch = rel.label?.match(/^\d+\s*\[(.+)\]$/);
+      const displayLen = stepMatch ? stepMatch[1].length : labelLen;
+
+      // Estimate label width in px, then how many ranks needed
+      const labelWidthPx = displayLen * LABEL_CHAR_WIDTH;
+      // For two-line labels (split at ~30 chars), halve the effective width
+      const effectiveWidth = displayLen > 30 ? labelWidthPx / 2 : labelWidthPx;
+      // minlen: need at least enough ranks for label to fit alongside the edge
+      // One rank gives ~rankHeight px of vertical space
+      const minlen = Math.min(MAX_MINLEN, Math.max(1, Math.ceil(effectiveWidth / rankHeight)));
+
       g.setEdge(rel.sourceId, rel.targetId, { minlen });
     }
   }
