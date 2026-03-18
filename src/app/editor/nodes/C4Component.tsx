@@ -140,12 +140,26 @@ function C4DiagramRenderer({
     const LEGEND_THRESHOLD = 50;
     const LEGEND_ROW_HEIGHT = 24;
     const STEP_NUMBER_PRE = /^(\d+)\s*\[(.+)\]$/;
+
+    // Count edges in multi-edge pairs (they'll all be promoted to legend)
+    const prePairCounts = new Map<string, number>();
+    for (const e of layout.edges) {
+      if (e.label) {
+        const key = [e.source, e.target].sort().join('::');
+        prePairCounts.set(key, (prePairCounts.get(key) ?? 0) + 1);
+      }
+    }
+
     const legendCount = layout.edges.filter((e) => {
       if (!e.label) return false;
       // Step-numbered labels always go to legend
       if (STEP_NUMBER_PRE.test(e.label)) return true;
       // Long labels go to legend
-      return e.label.length > LEGEND_THRESHOLD;
+      if (e.label.length > LEGEND_THRESHOLD) return true;
+      // Edges in multi-edge pairs go to legend
+      const key = [e.source, e.target].sort().join('::');
+      if ((prePairCounts.get(key) ?? 0) > 1) return true;
+      return false;
     }).length;
     const legendHeight = legendCount > 0 ? legendCount * LEGEND_ROW_HEIGHT + 40 : 0; // 40px gap
 
