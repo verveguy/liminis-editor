@@ -698,7 +698,7 @@ function renderNodeToSVG(
     } else {
       rect.setAttribute('fill', colors.componentFill);
       rect.setAttribute('stroke', colors.componentStroke);
-      rect.setAttribute('stroke-width', '1');
+      rect.setAttribute('stroke-width', '2.5');
     }
     g.appendChild(rect);
 
