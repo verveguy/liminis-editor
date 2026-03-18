@@ -173,37 +173,39 @@ function renderC4ToSVG(
 ): void {
   const colors = isDarkMode
     ? {
-        containerFill: 'oklch(0.50 0.15 240)',
-        componentFill: 'oklch(0.55 0.12 240)',
-        externalFill: 'oklch(0.45 0.02 240)',
+        // Dark mode: white fills, colored strokes
+        containerFill: 'oklch(0.20 0.01 240)',
+        componentFill: 'oklch(0.20 0.01 240)',
+        externalFill: 'oklch(0.18 0.00 0)',
         personFill: 'oklch(0.45 0.16 152)',
-        boundaryFill: 'oklch(0.20 0.01 240)',
+        boundaryFill: 'oklch(0.15 0.01 240)',
         containerStroke: 'oklch(0.65 0.15 240)',
-        componentStroke: 'oklch(0.70 0.12 240)',
-        externalStroke: 'oklch(0.60 0.02 240)',
+        componentStroke: 'oklch(0.60 0.12 240)',
+        externalStroke: 'oklch(0.55 0.02 240)',
         personStroke: 'oklch(0.60 0.16 152)',
         boundaryStroke: 'oklch(0.50 0.05 240)',
         edgeStroke: 'oklch(0.70 0.00 0)',
-        textPrimary: 'oklch(0.98 0.00 0)',
-        textSecondary: 'oklch(0.85 0.00 0)',
+        textPrimary: 'oklch(0.90 0.00 0)',
+        textSecondary: 'oklch(0.75 0.00 0)',
         textOnBoundary: 'oklch(0.90 0.00 0)',
-        edgeLabel: 'oklch(0.85 0.00 0)',
-        edgeLabelBackground: 'oklch(0.25 0.01 240)',
+        edgeLabel: 'oklch(0.80 0.00 0)',
+        edgeLabelBackground: 'oklch(0.20 0.01 240)',
       }
     : {
-        containerFill: 'oklch(0.62 0.15 240)',
-        componentFill: 'oklch(0.70 0.12 240)',
-        externalFill: 'oklch(0.75 0.02 240)',
-        personFill: 'oklch(0.55 0.16 152)',
-        boundaryFill: 'oklch(0.97 0.01 240)',
+        // Light mode: white fills, colored strokes, thicker borders
+        containerFill: 'oklch(1.00 0.00 0)',
+        componentFill: 'oklch(0.98 0.00 0)',
+        externalFill: 'oklch(0.96 0.01 240)',
+        personFill: 'oklch(0.45 0.16 152)',
+        boundaryFill: 'oklch(0.98 0.01 240)',
         containerStroke: 'oklch(0.45 0.15 240)',
-        componentStroke: 'oklch(0.55 0.12 240)',
+        componentStroke: 'oklch(0.50 0.12 240)',
         externalStroke: 'oklch(0.55 0.02 240)',
-        personStroke: 'oklch(0.40 0.16 152)',
+        personStroke: 'oklch(0.35 0.16 152)',
         boundaryStroke: 'oklch(0.60 0.05 240)',
-        edgeStroke: 'oklch(0.40 0.00 0)',
-        textPrimary: 'oklch(0.98 0.00 0)',
-        textSecondary: 'oklch(0.90 0.00 0)',
+        edgeStroke: 'oklch(0.35 0.00 0)',
+        textPrimary: 'oklch(0.20 0.00 0)',
+        textSecondary: 'oklch(0.40 0.00 0)',
         textOnBoundary: 'oklch(0.25 0.00 0)',
         edgeLabel: 'oklch(0.30 0.00 0)',
         edgeLabelBackground: 'oklch(1.00 0.00 0)',
@@ -522,7 +524,7 @@ function renderNodeToSVG(
     body.setAttribute('height', String(bodyHeight2));
     body.setAttribute('fill', isExt ? colors.externalFill : colors.containerFill);
     body.setAttribute('stroke', isExt ? colors.externalStroke : colors.containerStroke);
-    body.setAttribute('stroke-width', isExt ? '2' : '1.5');
+    body.setAttribute('stroke-width', isExt ? '2.5' : '2.5');
     if (isExt) body.setAttribute('stroke-dasharray', '8 4');
     g.appendChild(body);
 
@@ -534,7 +536,7 @@ function renderNodeToSVG(
     bottom.setAttribute('ry', String(ellipseRy));
     bottom.setAttribute('fill', isExt ? colors.externalFill : colors.containerFill);
     bottom.setAttribute('stroke', isExt ? colors.externalStroke : colors.containerStroke);
-    bottom.setAttribute('stroke-width', isExt ? '2' : '1.5');
+    bottom.setAttribute('stroke-width', isExt ? '2.5' : '2.5');
     if (isExt) bottom.setAttribute('stroke-dasharray', '8 4');
     g.appendChild(bottom);
 
@@ -546,7 +548,7 @@ function renderNodeToSVG(
     top.setAttribute('ry', String(ellipseRy));
     top.setAttribute('fill', isExt ? colors.externalFill : colors.containerFill);
     top.setAttribute('stroke', isExt ? colors.externalStroke : colors.containerStroke);
-    top.setAttribute('stroke-width', isExt ? '2' : '1.5');
+    top.setAttribute('stroke-width', isExt ? '2.5' : '2.5');
     if (isExt) top.setAttribute('stroke-dasharray', '8 4');
     g.appendChild(top);
 
@@ -575,36 +577,68 @@ function renderNodeToSVG(
       g.appendChild(techText);
     }
   } else if (element.properties.shape === 'queue') {
-    // Queue shape — rectangle with wavy right edge
+    // Queue/pipe shape — horizontal cylinder (database rotated 90°)
     const fill = isExt ? colors.externalFill : colors.containerFill;
     const stroke = isExt ? colors.externalStroke : colors.containerStroke;
-    const waveDepth = 10;
-    const r = 8;
+    const ellipseRx = 16;
+    const sw = '2.5';
 
-    // Path: rounded left corners, straight top/bottom, wavy right edge
-    const pathD = [
-      `M ${x + r} ${y}`,
-      `L ${x + width - waveDepth} ${y}`,
-      `C ${x + width + waveDepth * 0.3} ${y + height * 0.25}, ${x + width - waveDepth * 1.3} ${y + height * 0.5}, ${x + width - waveDepth} ${y + height * 0.5}`,
-      `C ${x + width - waveDepth * 0.7} ${y + height * 0.5}, ${x + width + waveDepth * 0.3} ${y + height * 0.75}, ${x + width - waveDepth} ${y + height}`,
-      `L ${x + r} ${y + height}`,
-      `Q ${x} ${y + height}, ${x} ${y + height - r}`,
-      `L ${x} ${y + r}`,
-      `Q ${x} ${y}, ${x + r} ${y}`,
-      'Z',
-    ].join(' ');
+    // Body rect (between the two ellipses)
+    const bodyRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bodyRect.setAttribute('x', String(x + ellipseRx));
+    bodyRect.setAttribute('y', String(y));
+    bodyRect.setAttribute('width', String(width - ellipseRx * 2));
+    bodyRect.setAttribute('height', String(height));
+    bodyRect.setAttribute('fill', fill);
+    bodyRect.setAttribute('stroke', fill); // no stroke on body — ellipses overlap
+    g.appendChild(bodyRect);
 
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', pathD);
-    path.setAttribute('fill', fill);
-    path.setAttribute('stroke', stroke);
-    path.setAttribute('stroke-width', isExt ? '2' : '1.5');
-    if (isExt) path.setAttribute('stroke-dasharray', '8 4');
-    g.appendChild(path);
+    // Left ellipse
+    const left = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    left.setAttribute('cx', String(x + ellipseRx));
+    left.setAttribute('cy', String(y + height / 2));
+    left.setAttribute('rx', String(ellipseRx));
+    left.setAttribute('ry', String(height / 2));
+    left.setAttribute('fill', fill);
+    left.setAttribute('stroke', stroke);
+    left.setAttribute('stroke-width', sw);
+    if (isExt) left.setAttribute('stroke-dasharray', '8 4');
+    g.appendChild(left);
+
+    // Right ellipse (front face)
+    const right = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    right.setAttribute('cx', String(x + width - ellipseRx));
+    right.setAttribute('cy', String(y + height / 2));
+    right.setAttribute('rx', String(ellipseRx));
+    right.setAttribute('ry', String(height / 2));
+    right.setAttribute('fill', fill);
+    right.setAttribute('stroke', stroke);
+    right.setAttribute('stroke-width', sw);
+    if (isExt) right.setAttribute('stroke-dasharray', '8 4');
+    g.appendChild(right);
+
+    // Top and bottom connecting lines
+    const topLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    topLine.setAttribute('x1', String(x + ellipseRx));
+    topLine.setAttribute('y1', String(y));
+    topLine.setAttribute('x2', String(x + width - ellipseRx));
+    topLine.setAttribute('y2', String(y));
+    topLine.setAttribute('stroke', stroke);
+    topLine.setAttribute('stroke-width', sw);
+    g.appendChild(topLine);
+
+    const bottomLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    bottomLine.setAttribute('x1', String(x + ellipseRx));
+    bottomLine.setAttribute('y1', String(y + height));
+    bottomLine.setAttribute('x2', String(x + width - ellipseRx));
+    bottomLine.setAttribute('y2', String(y + height));
+    bottomLine.setAttribute('stroke', stroke);
+    bottomLine.setAttribute('stroke-width', sw);
+    g.appendChild(bottomLine);
 
     // Name
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', String(x + (width - waveDepth) / 2));
+    text.setAttribute('x', String(x + width / 2));
     text.setAttribute('y', String(y + height / 2 - (element.properties.tech ? 6 : 0)));
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('dominant-baseline', 'middle');
@@ -617,7 +651,7 @@ function renderNodeToSVG(
     // Tech badge
     if (element.properties.tech) {
       const techText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      techText.setAttribute('x', String(x + (width - waveDepth) / 2));
+      techText.setAttribute('x', String(x + width / 2));
       techText.setAttribute('y', String(y + height / 2 + 12));
       techText.setAttribute('text-anchor', 'middle');
       techText.setAttribute('fill', colors.textSecondary);
@@ -631,7 +665,7 @@ function renderNodeToSVG(
     if (element.properties.description) {
       const descY = y + height / 2 + (element.properties.tech ? 26 : 14);
       const descText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      descText.setAttribute('x', String(x + (width - waveDepth) / 2));
+      descText.setAttribute('x', String(x + width / 2));
       descText.setAttribute('y', String(descY));
       descText.setAttribute('text-anchor', 'middle');
       descText.setAttribute('fill', colors.textSecondary);
@@ -654,12 +688,12 @@ function renderNodeToSVG(
     if (element.type === 'system') {
       rect.setAttribute('fill', isExt ? colors.externalFill : hasChildren ? colors.boundaryFill : colors.containerFill);
       rect.setAttribute('stroke', isExt ? colors.externalStroke : hasChildren ? colors.boundaryStroke : colors.containerStroke);
-      rect.setAttribute('stroke-width', isExt || hasChildren ? '2' : '1.5');
+      rect.setAttribute('stroke-width', isExt || hasChildren ? '2.5' : '2.5');
       if (isExt || hasChildren) rect.setAttribute('stroke-dasharray', '8 4');
     } else if (element.type === 'container') {
       rect.setAttribute('fill', isExt ? colors.externalFill : hasChildren ? colors.boundaryFill : colors.containerFill);
       rect.setAttribute('stroke', isExt ? colors.externalStroke : hasChildren ? colors.boundaryStroke : colors.containerStroke);
-      rect.setAttribute('stroke-width', isExt || hasChildren ? '2' : '1.5');
+      rect.setAttribute('stroke-width', isExt || hasChildren ? '2.5' : '2.5');
       if (isExt || hasChildren) rect.setAttribute('stroke-dasharray', '8 4');
     } else {
       rect.setAttribute('fill', colors.componentFill);
