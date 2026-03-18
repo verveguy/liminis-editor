@@ -139,7 +139,14 @@ function C4DiagramRenderer({
     // Pre-calculate legend entries to account for their height
     const LEGEND_THRESHOLD = 50;
     const LEGEND_ROW_HEIGHT = 24;
-    const legendCount = layout.edges.filter((e) => e.label && e.label.length > LEGEND_THRESHOLD).length;
+    const STEP_NUMBER_PRE = /^(\d+)\s*\[(.+)\]$/;
+    const legendCount = layout.edges.filter((e) => {
+      if (!e.label) return false;
+      // Step-numbered labels always go to legend
+      if (STEP_NUMBER_PRE.test(e.label)) return true;
+      // Long labels go to legend
+      return e.label.length > LEGEND_THRESHOLD;
+    }).length;
     const legendHeight = legendCount > 0 ? legendCount * LEGEND_ROW_HEIGHT + 40 : 0; // 40px gap
 
     const renderContainer = document.createElement('div');
@@ -729,7 +736,7 @@ function renderEdgeToSVG(
 
       // For step numbers with inline display label, show description centered on line
       // Circle sits to the left of the centered text
-      if (edge.isStepNumber && !edge.isLegendRef && edge.displayLabel) {
+      if (edge.isStepNumber && edge.displayLabel) {
         // Move circle to the left to make room for centered text
         circle.setAttribute('cx', String(labelX - 14));
         circle.setAttribute('cy', String(labelY));
