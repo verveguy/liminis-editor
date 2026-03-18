@@ -359,6 +359,14 @@ function calculateEdges(
 ): LayoutEdge[] {
   const edges: LayoutEdge[] = [];
 
+  // Count parallel edges between the same pair (in either direction)
+  const pairCounts = new Map<string, number>();
+  const pairIndex = new Map<string, number>();
+  for (const rel of relationships) {
+    const key = [rel.sourceId, rel.targetId].sort().join('::');
+    pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+  }
+
   for (const rel of relationships) {
     const sourceNode = nodeMap.get(rel.sourceId);
     const targetNode = nodeMap.get(rel.targetId);
@@ -366,6 +374,12 @@ function calculateEdges(
     if (!sourceNode || !targetNode) {
       continue;
     }
+
+    // Determine offset for parallel edges
+    const pairKey = [rel.sourceId, rel.targetId].sort().join('::');
+    const totalParallel = pairCounts.get(pairKey) ?? 1;
+    const currentIndex = pairIndex.get(pairKey) ?? 0;
+    pairIndex.set(pairKey, currentIndex + 1);
 
     // Calculate center points
     const sourceCenter: Point = {
@@ -378,9 +392,26 @@ function calculateEdges(
       y: targetNode.y + targetNode.height / 2,
     };
 
-    // Calculate edge points from node boundaries
+    // Calculate edge points from node boundaries (unoffset)
     const sourcePoint = calculateEdgePoint(sourceNode, targetCenter);
     const targetPoint = calculateEdgePoint(targetNode, sourceCenter);
+
+    // For parallel edges, offset both points perpendicular to the edge
+    if (totalParallel > 1) {
+      const dx = targetCenter.x - sourceCenter.x;
+      const dy = targetCenter.y - sourceCenter.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len > 0) {
+        const perpX = -dy / len;
+        const perpY = dx / len;
+        const spread = 25;
+        const offset = (currentIndex - (totalParallel - 1) / 2) * spread;
+        sourcePoint.x += perpX * offset;
+        sourcePoint.y += perpY * offset;
+        targetPoint.x += perpX * offset;
+        targetPoint.y += perpY * offset;
+      }
+    }
 
     edges.push({
       source: rel.sourceId,
