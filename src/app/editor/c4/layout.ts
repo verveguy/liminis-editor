@@ -571,11 +571,14 @@ function alignCrossBoundaryElements(
         leaf.y < boundary.y + boundary.height + BOUNDARY_PADDING &&
         leaf.y + leaf.height + BOUNDARY_PADDING > boundary.y;
 
-      if (yOverlap && leafRight > boundary.x - dynamicGap && leafLeft < boundary.x + boundary.width + dynamicGap) {
+      // Use base gap for left side (no long labels there), dynamic gap for right side
+      const leftGap = MIN_EXTERNAL_GAP;
+      const rightGap = dynamicGap;
+      if (yOverlap && leafRight > boundary.x - leftGap && leafLeft < boundary.x + boundary.width + rightGap) {
         if (originalCenterX < boundary.x + boundary.width / 2) {
-          leaf.x = boundary.x - leaf.width - dynamicGap;
+          leaf.x = boundary.x - leaf.width - leftGap;
         } else {
-          leaf.x = boundary.x + boundary.width + dynamicGap;
+          leaf.x = boundary.x + boundary.width + rightGap;
         }
       }
     }

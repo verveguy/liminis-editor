@@ -422,6 +422,30 @@ function renderC4ToSVG(
       totalHeight = bestPlacement.y + legendH + margin;
     }
 
+    // DEBUG: draw bounding boxes
+    const debugGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    for (const node of allNodes) {
+      const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      r.setAttribute('x', String(node.x - margin));
+      r.setAttribute('y', String(node.y - margin));
+      r.setAttribute('width', String(node.width + margin * 2));
+      r.setAttribute('height', String(node.height + margin * 2));
+      r.setAttribute('fill', 'none');
+      r.setAttribute('stroke', 'red');
+      r.setAttribute('stroke-width', '1');
+      r.setAttribute('stroke-dasharray', '4 2');
+      r.setAttribute('opacity', '0.4');
+      debugGroup.appendChild(r);
+    }
+    const db = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    db.setAttribute('x', '0'); db.setAttribute('y', '0');
+    db.setAttribute('width', String(layout.width));
+    db.setAttribute('height', String(layout.height));
+    db.setAttribute('fill', 'none'); db.setAttribute('stroke', 'blue');
+    db.setAttribute('stroke-width', '2'); db.setAttribute('opacity', '0.3');
+    debugGroup.appendChild(db);
+    svg.appendChild(debugGroup);
+
     let legendX = bestPlacement.x;
     let legendY = bestPlacement.y + circleR + 4; // offset for first row
 
