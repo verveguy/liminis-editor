@@ -253,15 +253,36 @@ function renderC4ToSVG(
     renderNodeToSVG(boundariesGroup, node, colors);
   }
 
-  // Classify edge labels: short labels inline, long labels go to legend
+  // Classify edge labels:
+  // - Step-numbered labels (e.g. "2 [Emits event]") get a white circled number
+  // - Long labels (>50 chars) get extracted to legend with circled number
+  // - Short labels render inline
   const LEGEND_THRESHOLD = 50;
-  const legendEntries: { index: number; label: string }[] = [];
+  const STEP_NUMBER_PATTERN = /^(\d+)\s*\[(.+)\]$/;
+  const legendEntries: { index: string; label: string; isStep: boolean }[] = [];
   const edgesWithLabels = layout.edges.map((edge) => {
-    if (edge.label && edge.label.length > LEGEND_THRESHOLD) {
-      legendEntries.push({ index: legendEntries.length + 1, label: edge.label });
-      return { ...edge, label: String(legendEntries.length), isLegendRef: true };
+    if (!edge.label) return { ...edge, isLegendRef: false, isStepNumber: false };
+
+    // Check for step-numbered label: "2 [description]"
+    const stepMatch = edge.label.match(STEP_NUMBER_PATTERN);
+    if (stepMatch) {
+      const stepNum = stepMatch[1];
+      const description = stepMatch[2];
+      if (description.length > LEGEND_THRESHOLD) {
+        // Extract to legend using the step number
+        legendEntries.push({ index: stepNum, label: description, isStep: true });
+        return { ...edge, label: stepNum, isLegendRef: true, isStepNumber: true };
+      }
+      // Inline: show step number in circle + description as text
+      return { ...edge, label: stepNum, displayLabel: description, isLegendRef: false, isStepNumber: true };
     }
-    return { ...edge, isLegendRef: false };
+
+    // Non-step labels: extract long ones to legend
+    if (edge.label.length > LEGEND_THRESHOLD) {
+      legendEntries.push({ index: String(legendEntries.length + 1), label: edge.label, isStep: false });
+      return { ...edge, label: String(legendEntries.length), isLegendRef: true, isStepNumber: false };
+    }
+    return { ...edge, isLegendRef: false, isStepNumber: false };
   });
 
   // Render edges
@@ -290,19 +311,21 @@ function renderC4ToSVG(
     let legendY = layout.height + 30;
 
     for (const entry of legendEntries) {
-      // Circled number
+      // Circled number — white fill for step numbers, dark for auto-generated
       const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
       circle.setAttribute('cx', String(legendX + circleR));
       circle.setAttribute('cy', String(legendY - 4));
       circle.setAttribute('r', String(circleR));
-      circle.setAttribute('fill', colors.edgeStroke);
+      circle.setAttribute('fill', entry.isStep ? colors.edgeLabelBackground : colors.edgeStroke);
+      circle.setAttribute('stroke', colors.edgeStroke);
+      circle.setAttribute('stroke-width', '1.5');
       legendGroup.appendChild(circle);
 
       const numText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       numText.setAttribute('x', String(legendX + circleR));
       numText.setAttribute('y', String(legendY));
       numText.setAttribute('text-anchor', 'middle');
-      numText.setAttribute('fill', colors.textPrimary);
+      numText.setAttribute('fill', entry.isStep ? colors.edgeStroke : colors.textPrimary);
       numText.setAttribute('font-size', '10');
       numText.setAttribute('font-weight', '600');
       numText.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
@@ -595,7 +618,11 @@ function renderNodeToSVG(
 
 function renderEdgeToSVG(
   group: SVGGElement,
-  edge: ReturnType<typeof layoutC4Diagram>['edges'][0] & { isLegendRef?: boolean },
+  edge: ReturnType<typeof layoutC4Diagram>['edges'][0] & {
+    isLegendRef?: boolean;
+    isStepNumber?: boolean;
+    displayLabel?: string;
+  },
   colors: Record<string, string>,
 ): void {
   const { points, label } = edge;
@@ -671,24 +698,45 @@ function renderEdgeToSVG(
 
     const transform = `rotate(${angleDeg}, ${labelX}, ${labelY})`;
 
-    // Legend references render as circled numbers
-    if (edge.isLegendRef) {
+    // Step numbers and legend refs render as circled numbers
+    if (edge.isStepNumber || edge.isLegendRef) {
+      // White fill for step numbers, dark fill for auto-generated legend refs
+      const circleFill = edge.isStepNumber ? colors.edgeLabelBackground : colors.edgeStroke;
+      const circleStroke = colors.edgeStroke;
+      const textFill = edge.isStepNumber ? colors.edgeStroke : colors.textPrimary;
+
       const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
       circle.setAttribute('cx', String(labelX));
       circle.setAttribute('cy', String(labelY));
       circle.setAttribute('r', '10');
-      circle.setAttribute('fill', colors.edgeStroke);
+      circle.setAttribute('fill', circleFill);
+      circle.setAttribute('stroke', circleStroke);
+      circle.setAttribute('stroke-width', '1.5');
       g.appendChild(circle);
 
-      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.setAttribute('x', String(labelX));
-      text.setAttribute('y', String(labelY + 4));
-      text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('fill', colors.textPrimary);
-      text.setAttribute('font-size', '10');
-      text.setAttribute('font-weight', '600');
-      text.textContent = label;
-      g.appendChild(text);
+      const numText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      numText.setAttribute('x', String(labelX));
+      numText.setAttribute('y', String(labelY + 4));
+      numText.setAttribute('text-anchor', 'middle');
+      numText.setAttribute('fill', textFill);
+      numText.setAttribute('font-size', '10');
+      numText.setAttribute('font-weight', '600');
+      numText.textContent = label;
+      g.appendChild(numText);
+
+      // For step numbers with inline display label, show description near the circle
+      if (edge.isStepNumber && !edge.isLegendRef && edge.displayLabel) {
+        const descText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        descText.setAttribute('x', String(labelX + 16));
+        descText.setAttribute('y', String(labelY - 6));
+        descText.setAttribute('text-anchor', 'start');
+        descText.setAttribute('fill', colors.edgeLabel);
+        descText.setAttribute('font-size', '11');
+        descText.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
+        descText.setAttribute('transform', transform);
+        descText.textContent = edge.displayLabel;
+        g.appendChild(descText);
+      }
     } else {
       // Split long labels into two lines at a natural break
       const LINE_BREAK_THRESHOLD = 30;
