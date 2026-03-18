@@ -178,10 +178,21 @@ function layoutGroup(
       // Get child direction from this element, or inherit from parent
       const childDirection = element.properties.direction || parentDirection;
 
-      // Filter relationships that are between children of this element
-      const childIds = new Set(element.children.map((c) => c.id));
+      // Filter relationships relevant to this element's children:
+      // Include relationships between direct children AND relationships
+      // between descendants of different children (for virtual edge creation)
+      const allDescendantIds = new Set<string>();
+      function collectDescendants(el: C4Element): void {
+        allDescendantIds.add(el.id);
+        for (const child of el.children) {
+          collectDescendants(child);
+        }
+      }
+      for (const child of element.children) {
+        collectDescendants(child);
+      }
       const childRelationships = relationships.filter(
-        (r) => childIds.has(r.sourceId) && childIds.has(r.targetId)
+        (r) => allDescendantIds.has(r.sourceId) || allDescendantIds.has(r.targetId)
       );
 
       childNodes = layoutGroup(
