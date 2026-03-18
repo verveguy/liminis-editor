@@ -157,7 +157,7 @@ class C4PlantUMLParser {
     };
 
     return {
-      diagram,
+      diagram: this.errors.length === 0 ? diagram : null,
       errors: this.errors,
     };
   }

@@ -1,8 +1,6 @@
 /**
  * C4Component - React component for rendering and editing C4 architecture diagrams
  * Uses Shadow DOM for style isolation (like MermaidComponent)
- *
- * TODO: Full implementation in TASK 7
  */
 
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';

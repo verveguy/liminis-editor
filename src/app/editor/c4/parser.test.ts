@@ -422,7 +422,7 @@ SHOW_LEGEND()
       expect(result.errors[0].message).toContain('at least 3 arguments');
     });
 
-    it('should continue parsing after errors', () => {
+    it('should return null diagram when there are parse errors', () => {
       const result = parseC4(`
 this is invalid
 Person(user, "User")
@@ -430,7 +430,8 @@ also invalid
 System(app, "App")
       `);
       expect(result.errors.length).toBe(2);
-      expect(result.diagram!.elements).toHaveLength(2);
+      // Diagram should be null when there are errors (per ParseResult contract)
+      expect(result.diagram).toBeNull();
     });
 
     it('should report unknown macros', () => {

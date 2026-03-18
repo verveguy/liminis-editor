@@ -361,7 +361,7 @@ describe('C4Renderer', () => {
       expect(labelText).toBeTruthy();
     });
 
-    it('should render edge label with background', () => {
+    it('should render edge label as text in edges layer', () => {
       const nodes = [
         createLayoutNode('container', 'a', 'A', { x: 0, y: 0 }),
         createLayoutNode('container', 'b', 'B', { x: 300, y: 0 }),
@@ -371,9 +371,11 @@ describe('C4Renderer', () => {
       const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
 
       const edgesLayer = container.querySelector('.edges-layer');
-      // Label background is a rect in the edges layer
-      const rects = edgesLayer?.querySelectorAll('rect');
-      expect(rects?.length).toBeGreaterThan(0);
+      // Edge label renders as text centered on the edge line
+      const texts = edgesLayer?.querySelectorAll('text');
+      expect(texts?.length).toBeGreaterThan(0);
+      const labelText = Array.from(texts ?? []).find((t) => t.textContent === 'API');
+      expect(labelText).toBeTruthy();
     });
   });
 

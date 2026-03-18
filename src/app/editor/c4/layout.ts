@@ -128,17 +128,6 @@ function mapDirection(direction: C4Direction | undefined): 'TB' | 'BT' | 'LR' | 
 // =============================================================================
 
 /**
- * Build element lookup map for quick access.
- */
-function buildElementMap(elements: C4Element[]): Map<string, C4Element> {
-  const map = new Map<string, C4Element>();
-  for (const element of elements) {
-    map.set(element.id, element);
-  }
-  return map;
-}
-
-/**
  * Get top-level elements (elements without parents).
  */
 function getTopLevelElements(elements: C4Element[]): C4Element[] {
@@ -153,7 +142,6 @@ function layoutGroup(
   elements: C4Element[],
   relationships: { sourceId: string; targetId: string; label: string }[],
   options: Required<LayoutOptions>,
-  elementMap: Map<string, C4Element>,
   parentDirection?: C4Direction
 ): LayoutNode[] {
   if (elements.length === 0) {
@@ -200,7 +188,6 @@ function layoutGroup(
         element.children,
         childRelationships,
         options,
-        elementMap,
         childDirection
       );
 
@@ -604,15 +591,13 @@ export function layoutC4Diagram(
     ...options,
   };
 
-  const elementMap = buildElementMap(diagram.elements);
   const topLevelElements = getTopLevelElements(diagram.elements);
 
   // Layout top-level elements
   const layoutNodes = layoutGroup(
     topLevelElements,
     diagram.relationships,
-    mergedOptions,
-    elementMap
+    mergedOptions
   );
 
   // Flatten all nodes for the result
