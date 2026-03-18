@@ -295,6 +295,26 @@ function renderC4ToSVG(
     return { ...edge, isLegendRef: false, isStepNumber: false };
   });
 
+  // If any edge in a pair (same two entities) is in the legend, move ALL to legend
+  const pairHasLegend = new Map<string, boolean>();
+  for (const edge of edgesWithLabels) {
+    if (edge.isLegendRef) {
+      const key = [edge.source, edge.target].sort().join('::');
+      pairHasLegend.set(key, true);
+    }
+  }
+  for (const edge of edgesWithLabels) {
+    if (!edge.isLegendRef && edge.label) {
+      const key = [edge.source, edge.target].sort().join('::');
+      if (pairHasLegend.get(key)) {
+        // Promote this edge to legend
+        legendEntries.push({ index: String(legendEntries.length + 1), label: edge.label, isStep: false });
+        edge.label = String(legendEntries.length);
+        edge.isLegendRef = true;
+      }
+    }
+  }
+
   // Render edges
   for (const edge of edgesWithLabels) {
     renderEdgeToSVG(edgesGroup, edge, colors);
