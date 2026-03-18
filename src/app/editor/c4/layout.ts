@@ -274,6 +274,8 @@ function layoutGroup(
     }
   }
   for (const element of elements) {
+    // Map the element itself so Rels targeting it directly are found
+    childToParent.set(element.id, element.id);
     mapDescendants(element, element.id);
   }
 
