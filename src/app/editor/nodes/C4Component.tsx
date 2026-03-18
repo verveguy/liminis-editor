@@ -362,13 +362,23 @@ function renderC4ToSVG(
     let bestPlacement: { x: number; y: number } | null = null;
     let bestScore = -Infinity;
 
-    // Scan grid strictly within diagram bounds
+    // Scan grid — allow slight overflow beyond diagram bounds (we'll expand)
+    const allowOverflow = legendW; // allow up to legendW overflow
     for (let cy = margin; cy <= layout.height - legendH - margin; cy += step) {
-      for (let cx = margin; cx <= layout.width - legendW - margin; cx += step) {
+      for (let cx = margin; cx <= layout.width + allowOverflow - legendW; cx += step) {
         if (!overlapsNodes(cx, cy, legendW, legendH)) {
-          // Score: prefer top-right corner
-          const score = (cx / (layout.width || 1)) * 30 +
-                        ((1 - cy / (layout.height || 1)) * 20);
+          // Score: strongly prefer within bounds, then top-right
+          const withinX = cx + legendW <= layout.width;
+          const withinY = cy + legendH <= layout.height;
+          const withinBonus = (withinX ? 50 : 0) + (withinY ? 50 : 0);
+          // Penalize overflow proportionally
+          const overflowX = Math.max(0, (cx + legendW) - layout.width);
+          const overflowY = Math.max(0, (cy + legendH) - layout.height);
+          const overflowPenalty = (overflowX + overflowY) * 0.5;
+          const score = withinBonus +
+                        (cx / (layout.width || 1)) * 30 +
+                        ((1 - cy / (layout.height || 1)) * 20) -
+                        overflowPenalty;
           if (score > bestScore) {
             bestScore = score;
             bestPlacement = { x: cx, y: cy };
@@ -377,15 +387,21 @@ function renderC4ToSVG(
       }
     }
 
-    // Also try positions right of each node (within bounds)
+    // Also try positions right of each node
     for (const node of allNodes) {
       const cx = node.x + node.width + margin;
       const cy = node.y;
-      if (cx + legendW + margin <= layout.width &&
-          cy + legendH + margin <= layout.height &&
-          !overlapsNodes(cx, cy, legendW, legendH)) {
-        const score = (cx / (layout.width || 1)) * 30 +
-                      ((1 - cy / (layout.height || 1)) * 20);
+      if (!overlapsNodes(cx, cy, legendW, legendH)) {
+        const withinX = cx + legendW <= layout.width;
+        const withinY = cy + legendH <= layout.height;
+        const withinBonus = (withinX ? 50 : 0) + (withinY ? 50 : 0);
+        const overflowX = Math.max(0, (cx + legendW) - layout.width);
+        const overflowY = Math.max(0, (cy + legendH) - layout.height);
+        const overflowPenalty = (overflowX + overflowY) * 0.5;
+        const score = withinBonus +
+                      (cx / (layout.width || 1)) * 30 +
+                      ((1 - cy / (layout.height || 1)) * 20) -
+                      overflowPenalty;
         if (score > bestScore) {
           bestScore = score;
           bestPlacement = { x: cx, y: cy };
@@ -394,8 +410,15 @@ function renderC4ToSVG(
     }
 
     if (!bestPlacement) {
-      // No space inside diagram — place below, bottom-left
+      // No space at all — place below, bottom-left
       bestPlacement = { x: margin, y: layout.height + margin };
+    }
+
+    // Expand diagram to fit legend if needed
+    if (bestPlacement.x + legendW + margin > totalWidth) {
+      totalWidth = bestPlacement.x + legendW + margin;
+    }
+    if (bestPlacement.y + legendH + margin > totalHeight) {
       totalHeight = bestPlacement.y + legendH + margin;
     }
 
