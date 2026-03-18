@@ -295,19 +295,26 @@ function renderC4ToSVG(
     return { ...edge, isLegendRef: false, isStepNumber: false };
   });
 
-  // If any edge in a pair (same two entities) is in the legend, move ALL to legend
-  const pairHasLegend = new Map<string, boolean>();
+  // If multiple edges exist between the same pair, or any one is in the legend,
+  // move ALL edges in that pair to legend (parallel labels always collide)
+  const pairCounts = new Map<string, number>();
   for (const edge of edgesWithLabels) {
-    if (edge.isLegendRef) {
+    if (edge.label) {
       const key = [edge.source, edge.target].sort().join('::');
-      pairHasLegend.set(key, true);
+      pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+    }
+  }
+  const pairNeedsLegend = new Map<string, boolean>();
+  for (const edge of edgesWithLabels) {
+    const key = [edge.source, edge.target].sort().join('::');
+    if (edge.isLegendRef || (pairCounts.get(key) ?? 0) > 1) {
+      pairNeedsLegend.set(key, true);
     }
   }
   for (const edge of edgesWithLabels) {
     if (!edge.isLegendRef && edge.label) {
       const key = [edge.source, edge.target].sort().join('::');
-      if (pairHasLegend.get(key)) {
-        // Promote this edge to legend
+      if (pairNeedsLegend.get(key)) {
         legendEntries.push({ index: String(legendEntries.length + 1), label: edge.label, isStep: false });
         edge.label = String(legendEntries.length);
         edge.isLegendRef = true;
