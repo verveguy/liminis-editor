@@ -494,6 +494,30 @@ function alignCrossBoundaryElements(
   relationships: { sourceId: string; targetId: string; label: string }[],
   nodeMap: Map<string, LayoutNode>
 ): void {
+  // Compute dynamic external gap based on longest cross-boundary label
+  // (horizontal edges need room for their labels between boundary and external element)
+  const LABEL_CHAR_WIDTH = 6;
+  const MIN_EXTERNAL_GAP = EXTERNAL_GAP;
+  const MAX_EXTERNAL_GAP = 400;
+  let maxCrossBoundaryLabelWidth = 0;
+
+  for (const rel of relationships) {
+    const source = nodeMap.get(rel.sourceId);
+    const target = nodeMap.get(rel.targetId);
+    if (!source || !target) continue;
+    // Cross-boundary: one has a parent, the other doesn't
+    const isCrossBoundary = (!!source.element.parent) !== (!!target.element.parent);
+    if (isCrossBoundary && rel.label) {
+      // Extract display length from step-numbered labels
+      const stepMatch = rel.label.match(/^\d+\s*\[(.+)\]$/);
+      const displayLen = stepMatch ? stepMatch[1].length : rel.label.length;
+      const labelWidth = displayLen * LABEL_CHAR_WIDTH + 40; // padding for circle + margin
+      maxCrossBoundaryLabelWidth = Math.max(maxCrossBoundaryLabelWidth, labelWidth);
+    }
+  }
+
+  const dynamicGap = Math.min(MAX_EXTERNAL_GAP,
+    Math.max(MIN_EXTERNAL_GAP, maxCrossBoundaryLabelWidth));
   const leafNodes = topLevelNodes.filter(
     (n) => !n.children || n.children.length === 0
   );
@@ -547,11 +571,11 @@ function alignCrossBoundaryElements(
         leaf.y < boundary.y + boundary.height + BOUNDARY_PADDING &&
         leaf.y + leaf.height + BOUNDARY_PADDING > boundary.y;
 
-      if (yOverlap && leafRight > boundary.x - EXTERNAL_GAP && leafLeft < boundary.x + boundary.width + EXTERNAL_GAP) {
+      if (yOverlap && leafRight > boundary.x - dynamicGap && leafLeft < boundary.x + boundary.width + dynamicGap) {
         if (originalCenterX < boundary.x + boundary.width / 2) {
-          leaf.x = boundary.x - leaf.width - EXTERNAL_GAP;
+          leaf.x = boundary.x - leaf.width - dynamicGap;
         } else {
-          leaf.x = boundary.x + boundary.width + EXTERNAL_GAP;
+          leaf.x = boundary.x + boundary.width + dynamicGap;
         }
       }
     }
@@ -596,7 +620,7 @@ function alignCrossBoundaryElements(
     if (rightPeers.length > 1) {
       const alignX = Math.min(...rightPeers.map((n) => n.x));
       // Ensure it's still outside the boundary
-      const minX = boundary.x + boundary.width + EXTERNAL_GAP;
+      const minX = boundary.x + boundary.width + dynamicGap;
       for (const peer of rightPeers) {
         peer.x = Math.max(alignX, minX);
       }
