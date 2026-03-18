@@ -45,7 +45,7 @@ const DESCRIPTION_HEIGHT = 14;
 
 /** Person element dimensions */
 const PERSON_WIDTH = 120;
-const PERSON_HEIGHT = 100;
+const PERSON_HEIGHT = 120;
 
 // =============================================================================
 // DIMENSION CALCULATIONS
