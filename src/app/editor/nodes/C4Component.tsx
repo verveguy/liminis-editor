@@ -336,7 +336,7 @@ function renderC4ToSVG(
     const circleR = 9;
     const rowHeight = LEGEND_ROW_HEIGHT;
     const longestLabel = Math.max(...legendEntries.map((e) => e.label.length), 0);
-    const legendW = longestLabel * 7 + 50;
+    const legendW = Math.min(longestLabel * 6 + 40, 400); // cap width, 6px/char at 11px font
     const legendH = legendEntries.length * rowHeight + LEGEND_MARGIN;
 
     // Find best placement for legend within or adjacent to the diagram
