@@ -239,7 +239,7 @@ function renderC4ToSVG(
 
   // Render boundary nodes
   for (const node of boundaryNodes) {
-    renderNodeToSVG(boundariesGroup, node, colors);
+    renderNodeToSVG(boundariesGroup, node, colors, layout.nodes);
   }
 
   // Classify edge labels:
@@ -321,37 +321,13 @@ function renderC4ToSVG(
 
   // Render regular nodes
   for (const node of regularNodes) {
-    renderNodeToSVG(nodesGroup, node, colors);
+    renderNodeToSVG(nodesGroup, node, colors, layout.nodes);
   }
 
   svg.appendChild(boundariesGroup);
   svg.appendChild(nodesGroup);
   svg.appendChild(edgesGroup);
 
-  // DEBUG: draw bounding boxes for all nodes
-  const debugGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-  const debugMargin = LEGEND_MARGIN;
-  for (const node of layout.nodes) {
-    const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    r.setAttribute('x', String(node.x - debugMargin));
-    r.setAttribute('y', String(node.y - debugMargin));
-    r.setAttribute('width', String(node.width + debugMargin * 2));
-    r.setAttribute('height', String(node.height + debugMargin * 2));
-    r.setAttribute('fill', 'none');
-    r.setAttribute('stroke', 'red');
-    r.setAttribute('stroke-width', '1');
-    r.setAttribute('stroke-dasharray', '4 2');
-    r.setAttribute('opacity', '0.4');
-    debugGroup.appendChild(r);
-  }
-  const db = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-  db.setAttribute('x', '0'); db.setAttribute('y', '0');
-  db.setAttribute('width', String(layout.width));
-  db.setAttribute('height', String(layout.height));
-  db.setAttribute('fill', 'none'); db.setAttribute('stroke', 'blue');
-  db.setAttribute('stroke-width', '2'); db.setAttribute('opacity', '0.3');
-  debugGroup.appendChild(db);
-  svg.appendChild(debugGroup);
 
   // Render legend if there are extracted labels — smart placement
   if (legendEntries.length > 0) {
@@ -512,10 +488,13 @@ function renderC4ToSVG(
   svg.setAttribute('viewBox', `0 0 ${totalWidth} ${totalHeight}`);
 }
 
+type LayoutNodeType = ReturnType<typeof layoutC4Diagram>['nodes'][0];
+
 function renderNodeToSVG(
   group: SVGGElement,
-  node: ReturnType<typeof layoutC4Diagram>['nodes'][0],
-  colors: Record<string, string>
+  node: LayoutNodeType,
+  colors: Record<string, string>,
+  allNodes?: LayoutNodeType[]
 ): void {
   const { x, y, width, height, element } = node;
   const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -523,6 +502,17 @@ function renderNodeToSVG(
   const isExt = element.properties.external === true;
   const isBoundaryStyle = element.properties.style === 'boundary';
   const hasChildren = (node.children?.length ?? 0) > 0 || isBoundaryStyle;
+
+  // Compute nesting depth for alternating boundary fills
+  let depth = 0;
+  let parentId = element.parent;
+  while (parentId && allNodes) {
+    depth++;
+    const parentNode = allNodes.find((n) => n.id === parentId);
+    parentId = parentNode?.element.parent;
+  }
+  // Alternate: even depth = boundary fill (light blue), odd = white
+  const boundaryFillColor = depth % 2 === 0 ? colors.boundaryFill : colors.containerFill;
 
   if (element.type === 'person') {
     // Person icon
@@ -741,12 +731,12 @@ function renderNodeToSVG(
     rect.setAttribute('ry', element.type === 'component' ? '4' : '8');
 
     if (element.type === 'system') {
-      rect.setAttribute('fill', isExt ? colors.externalFill : hasChildren ? colors.boundaryFill : colors.containerFill);
+      rect.setAttribute('fill', isExt ? colors.externalFill : hasChildren ? boundaryFillColor : colors.containerFill);
       rect.setAttribute('stroke', isExt ? colors.externalStroke : hasChildren ? colors.boundaryStroke : colors.containerStroke);
       rect.setAttribute('stroke-width', isExt || hasChildren ? '2.5' : '2.5');
       if (isExt || hasChildren) rect.setAttribute('stroke-dasharray', '8 4');
     } else if (element.type === 'container') {
-      rect.setAttribute('fill', isExt ? colors.externalFill : hasChildren ? colors.boundaryFill : colors.containerFill);
+      rect.setAttribute('fill', isExt ? colors.externalFill : hasChildren ? boundaryFillColor : colors.containerFill);
       rect.setAttribute('stroke', isExt ? colors.externalStroke : hasChildren ? colors.boundaryStroke : colors.containerStroke);
       rect.setAttribute('stroke-width', isExt || hasChildren ? '2.5' : '2.5');
       if (isExt || hasChildren) rect.setAttribute('stroke-dasharray', '8 4');
