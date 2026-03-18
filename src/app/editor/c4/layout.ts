@@ -673,11 +673,12 @@ export function layoutC4Diagram(
 
   const topLevelElements = getTopLevelElements(diagram.elements);
 
-  // Layout top-level elements
+  // Layout top-level elements, using diagram direction if specified
   const layoutNodes = layoutGroup(
     topLevelElements,
     diagram.relationships,
-    mergedOptions
+    mergedOptions,
+    diagram.direction
   );
 
   // Flatten all nodes for the result

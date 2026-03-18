@@ -84,6 +84,8 @@ export interface C4Diagram {
   elements: C4Element[];
   /** All relationships between elements */
   relationships: C4Relationship[];
+  /** Layout direction from LAYOUT_* directive */
+  direction?: C4Direction;
 }
 
 // =============================================================================

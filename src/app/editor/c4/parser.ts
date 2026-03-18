@@ -10,6 +10,7 @@
 
 import type {
   C4Diagram,
+  C4Direction,
   C4Element,
   C4ElementType,
   C4Properties,
@@ -84,7 +85,7 @@ const REL_MACROS = new Set([
 ]);
 
 /** Directives and macros to silently skip */
-const SKIP_PREFIXES = ['@startuml', '@enduml', '!include', '!define', 'SHOW_', 'LAYOUT_', 'HIDE_', 'title '];
+const SKIP_PREFIXES = ['@startuml', '@enduml', '!include', '!define', 'SHOW_', 'HIDE_', 'title '];
 
 // =============================================================================
 // LINE-BASED PARSER
@@ -143,6 +144,7 @@ class C4PlantUMLParser {
   private elements: C4Element[] = [];
   private relationships: C4Relationship[] = [];
   private errors: ParseError[] = [];
+  private direction: C4Direction | undefined;
 
   constructor(code: string) {
     this.lines = code.split('\n');
@@ -154,6 +156,7 @@ class C4PlantUMLParser {
     const diagram: C4Diagram = {
       elements: this.elements,
       relationships: this.relationships,
+      direction: this.direction,
     };
 
     return {
@@ -183,7 +186,19 @@ class C4PlantUMLParser {
         return;
       }
 
-      // Skip directives
+      // Parse LAYOUT directives
+      if (line.startsWith('LAYOUT_TOP_DOWN')) {
+        this.direction = 'down';
+        this.lineNum++;
+        continue;
+      }
+      if (line.startsWith('LAYOUT_LEFT_RIGHT')) {
+        this.direction = 'right';
+        this.lineNum++;
+        continue;
+      }
+
+      // Skip other directives
       if (this.isSkippable(line)) {
         this.lineNum++;
         continue;
