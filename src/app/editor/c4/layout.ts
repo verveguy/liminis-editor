@@ -404,7 +404,9 @@ function calculateEdges(
       if (len > 0) {
         const perpX = -dy / len;
         const perpY = dx / len;
-        const spread = 25;
+        // Use larger spread for more horizontal edges where labels stack vertically
+        const isHorizontal = Math.abs(dx) > Math.abs(dy);
+        const spread = isHorizontal ? 35 : 25;
         const offset = (currentIndex - (totalParallel - 1) / 2) * spread;
         sourcePoint.x += perpX * offset;
         sourcePoint.y += perpY * offset;
