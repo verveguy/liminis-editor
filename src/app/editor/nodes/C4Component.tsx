@@ -627,7 +627,6 @@ function renderEdgeToSVG(
 
     const edgeDx = points[points.length - 1].x - points[0].x;
     const edgeDy = points[points.length - 1].y - points[0].y;
-    const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
 
     // Rotation: only for edges within 60° of horizontal
     let angleDeg = Math.atan2(edgeDy, edgeDx) * (180 / Math.PI);
@@ -635,13 +634,9 @@ function renderEdgeToSVG(
     if (angleDeg < -90) angleDeg += 180;
     if (Math.abs(angleDeg) > 60) angleDeg = 0;
 
-    // Offset perpendicular to edge
-    let labelX = midpoint.x;
-    let labelY = midpoint.y;
-    if (edgeLen > 0) {
-      labelX += (-edgeDy / edgeLen) * 14;
-      labelY += (edgeDx / edgeLen) * 14;
-    }
+    // Place label centered on the line (no perpendicular offset)
+    const labelX = midpoint.x;
+    const labelY = midpoint.y;
 
     const transform = `rotate(${angleDeg}, ${labelX}, ${labelY})`;
 
@@ -679,9 +674,6 @@ function renderEdgeToSVG(
       }
 
       const lineHeight = 14;
-      const maxLineLen = Math.max(...lines.map((l) => l.length));
-      const labelWidth = maxLineLen * 6.5 + 12;
-      const labelHeight = lines.length * lineHeight + 6;
 
       // Render text lines
       const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -692,26 +684,17 @@ function renderEdgeToSVG(
       textEl.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
       textEl.setAttribute('transform', transform);
 
-      const startY = labelY - ((lines.length - 1) * lineHeight) / 2;
+      // Single line: position above the line; multi-line: straddle
+      const startY = lines.length === 1
+        ? labelY - 6  // above the line
+        : labelY - ((lines.length - 1) * lineHeight) / 2;
       for (let i = 0; i < lines.length; i++) {
         const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
         tspan.setAttribute('x', String(labelX));
-        tspan.setAttribute('y', String(startY + i * lineHeight + 4));
+        tspan.setAttribute('y', String(startY + i * lineHeight));
         tspan.textContent = lines[i];
         textEl.appendChild(tspan);
       }
-
-      // Minimal background — just enough to make text readable, very subtle
-      const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      bgRect.setAttribute('x', String(labelX - labelWidth / 2));
-      bgRect.setAttribute('y', String(startY - lineHeight / 2));
-      bgRect.setAttribute('width', String(labelWidth));
-      bgRect.setAttribute('height', String(labelHeight));
-      bgRect.setAttribute('rx', '3');
-      bgRect.setAttribute('fill', colors.edgeLabelBackground);
-      bgRect.setAttribute('fill-opacity', '0.75');
-      bgRect.setAttribute('transform', transform);
-      g.appendChild(bgRect);
 
       g.appendChild(textEl);
     }

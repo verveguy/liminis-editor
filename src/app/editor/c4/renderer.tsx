@@ -642,14 +642,10 @@ function Edge({ edge, colors }: EdgeProps): JSX.Element {
   const midpoint = getEdgeMidpoint(points);
   const edgeDx = points[points.length - 1].x - points[0].x;
   const edgeDy = points[points.length - 1].y - points[0].y;
-  const edgeLen = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
 
-  let labelX = midpoint.x;
-  let labelY = midpoint.y;
-  if (edgeLen > 0) {
-    labelX += (-edgeDy / edgeLen) * 14;
-    labelY += (edgeDx / edgeLen) * 14;
-  }
+  // Place label centered on the line
+  const labelX = midpoint.x;
+  const labelY = midpoint.y;
 
   // Angle in degrees — only rotate for clearly horizontal edges (within 30°)
   let angleDeg = Math.atan2(edgeDy, edgeDx) * (180 / Math.PI);
@@ -657,8 +653,6 @@ function Edge({ edge, colors }: EdgeProps): JSX.Element {
   if (angleDeg < -90) angleDeg += 180;
   if (Math.abs(angleDeg) > 60) angleDeg = 0;
 
-  const labelWidth = label ? label.length * 7 + 16 : 0;
-  const labelHeight = 18;
   const labelTransform = `rotate(${angleDeg}, ${labelX}, ${labelY})`;
 
   return (
@@ -677,20 +671,9 @@ function Edge({ edge, colors }: EdgeProps): JSX.Element {
           fill={colors.edgeStroke}
         />
       )}
-      {/* Label background */}
+      {/* Label */}
       {label && (
         <>
-          <rect
-            x={labelX - labelWidth / 2}
-            y={labelY - labelHeight / 2}
-            width={labelWidth}
-            height={labelHeight}
-            rx={3}
-            ry={3}
-            fill={colors.edgeLabelBackground}
-            fillOpacity={0.9}
-            transform={labelTransform}
-          />
           <text
             x={labelX}
             y={labelY + 4}
