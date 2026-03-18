@@ -136,45 +136,13 @@ function C4DiagramRenderer({
     // Layout and render the diagram
     const layout = layoutC4Diagram(parseResult.diagram);
 
-    // Pre-calculate legend entries to account for their height
-    const LEGEND_THRESHOLD = 50;
-    const LEGEND_ROW_HEIGHT = 24;
-    const STEP_NUMBER_PRE = /^(\d+)\s*\[(.+)\]$/;
-
-    // Count edges in multi-edge pairs (they'll all be promoted to legend)
-    const prePairCounts = new Map<string, number>();
-    for (const e of layout.edges) {
-      if (e.label) {
-        const key = [e.source, e.target].sort().join('::');
-        prePairCounts.set(key, (prePairCounts.get(key) ?? 0) + 1);
-      }
-    }
-
-    const legendCount = layout.edges.filter((e) => {
-      if (!e.label) return false;
-      // Step-numbered labels always go to legend
-      if (STEP_NUMBER_PRE.test(e.label)) return true;
-      // Long labels go to legend
-      if (e.label.length > LEGEND_THRESHOLD) return true;
-      // Edges in multi-edge pairs go to legend
-      const key = [e.source, e.target].sort().join('::');
-      if ((prePairCounts.get(key) ?? 0) > 1) return true;
-      return false;
-    }).length;
-    const legendHeight = legendCount > 0 ? legendCount * LEGEND_ROW_HEIGHT + 40 : 0; // 40px gap
-
     const renderContainer = document.createElement('div');
     renderContainer.className = 'c4-container';
 
-    // Create SVG element with extra height for legend
-    const totalHeight = layout.height + legendHeight;
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('width', String(layout.width));
-    svg.setAttribute('height', String(totalHeight));
-    svg.setAttribute('viewBox', `0 0 ${layout.width} ${totalHeight}`);
     svg.style.fontFamily = 'system-ui, -apple-system, sans-serif';
 
-    // Render the diagram SVG elements
+    // Render diagram and legend — SVG dimensions set inside
     renderC4ToSVG(svg, layout, isDarkMode);
 
     renderContainer.appendChild(svg);
@@ -277,7 +245,11 @@ function renderC4ToSVG(
   // - Long labels (>50 chars) get extracted to legend with circled number
   // - Short labels render inline
   const LEGEND_THRESHOLD = 50;
+  const LEGEND_ROW_HEIGHT = 24;
+  const LEGEND_MARGIN = 20;
   const STEP_NUMBER_PATTERN = /^(\d+)\s*\[(.+)\]$/;
+  let totalWidth = layout.width;
+  let totalHeight = layout.height;
   const legendEntries: { index: string; label: string; isStep: boolean }[] = [];
   let nextLetterIndex = 0;
   const nextLetter = () => String.fromCharCode(65 + (nextLetterIndex++ % 26)); // A, B, C...
@@ -354,16 +326,62 @@ function renderC4ToSVG(
   svg.appendChild(nodesGroup);
   svg.appendChild(edgesGroup);
 
-  // Render legend if there are extracted labels
+  // Render legend if there are extracted labels — smart placement
   if (legendEntries.length > 0) {
     const legendGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     legendGroup.setAttribute('class', 'legend-layer');
 
-    const legendX = 20;
     const circleR = 9;
-    const rowHeight = 24;
-    // Place legend below all diagram content with a gap
-    let legendY = layout.height + 30;
+    const rowHeight = LEGEND_ROW_HEIGHT;
+    const longestLabel = Math.max(...legendEntries.map((e) => e.label.length), 0);
+    const legendW = longestLabel * 7 + 50;
+    const legendH = legendEntries.length * rowHeight + LEGEND_MARGIN;
+
+    // Find best placement for legend within or adjacent to the diagram
+    const allNodes = layout.nodes;
+    const margin = LEGEND_MARGIN;
+
+    // Check if a rectangle overlaps any node
+    function overlapsNodes(rx: number, ry: number, rw: number, rh: number): boolean {
+      for (const node of allNodes) {
+        if (rx < node.x + node.width + margin &&
+            rx + rw + margin > node.x &&
+            ry < node.y + node.height + margin &&
+            ry + rh + margin > node.y) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Candidate corners: BL, BR, TL, TR (within existing diagram bounds)
+    const candidates = [
+      { x: margin, y: layout.height - legendH - margin, label: 'BL' },
+      { x: layout.width - legendW - margin, y: layout.height - legendH - margin, label: 'BR' },
+      { x: margin, y: margin, label: 'TL' },
+      { x: layout.width - legendW - margin, y: margin, label: 'TR' },
+    ];
+
+    let bestPlacement = { x: margin, y: layout.height + margin }; // fallback: below diagram
+    let placed = false;
+
+    for (const candidate of candidates) {
+      if (candidate.x >= 0 && candidate.y >= 0 &&
+          !overlapsNodes(candidate.x, candidate.y, legendW, legendH)) {
+        bestPlacement = { x: candidate.x, y: candidate.y };
+        placed = true;
+        break;
+      }
+    }
+
+    if (!placed) {
+      // No space inside diagram — extend downward
+      bestPlacement = { x: margin, y: layout.height + margin };
+      totalHeight = bestPlacement.y + legendH + margin;
+    }
+
+    let legendX = bestPlacement.x;
+    let legendY = bestPlacement.y + circleR + 4; // offset for first row
 
     for (const entry of legendEntries) {
       const symbolCenterX = legendX + circleR;
@@ -420,6 +438,11 @@ function renderC4ToSVG(
 
     svg.appendChild(legendGroup);
   }
+
+  // Finalize SVG dimensions (may have been expanded for legend)
+  svg.setAttribute('width', String(totalWidth));
+  svg.setAttribute('height', String(totalHeight));
+  svg.setAttribute('viewBox', `0 0 ${totalWidth} ${totalHeight}`);
 }
 
 function renderNodeToSVG(
