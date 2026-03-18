@@ -399,6 +399,55 @@ function renderC4ToSVG(
       totalHeight = bestPlacement.y + legendH + margin;
     }
 
+    // DEBUG: draw bounding boxes for all nodes (red) and legend area (green)
+    const debugGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    debugGroup.setAttribute('class', 'debug-layer');
+    for (const node of allNodes) {
+      const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      r.setAttribute('x', String(node.x - margin));
+      r.setAttribute('y', String(node.y - margin));
+      r.setAttribute('width', String(node.width + margin * 2));
+      r.setAttribute('height', String(node.height + margin * 2));
+      r.setAttribute('fill', 'none');
+      r.setAttribute('stroke', 'red');
+      r.setAttribute('stroke-width', '1');
+      r.setAttribute('stroke-dasharray', '4 2');
+      r.setAttribute('opacity', '0.5');
+      debugGroup.appendChild(r);
+      // Label with node id
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', String(node.x - margin + 2));
+      t.setAttribute('y', String(node.y - margin + 10));
+      t.setAttribute('fill', 'red');
+      t.setAttribute('font-size', '8');
+      t.setAttribute('opacity', '0.7');
+      t.textContent = node.id;
+      debugGroup.appendChild(t);
+    }
+    // Legend placement area (green)
+    const lr = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    lr.setAttribute('x', String(bestPlacement.x));
+    lr.setAttribute('y', String(bestPlacement.y));
+    lr.setAttribute('width', String(legendW));
+    lr.setAttribute('height', String(legendH));
+    lr.setAttribute('fill', 'none');
+    lr.setAttribute('stroke', 'green');
+    lr.setAttribute('stroke-width', '2');
+    lr.setAttribute('opacity', '0.7');
+    debugGroup.appendChild(lr);
+    // Diagram bounds (blue)
+    const db = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    db.setAttribute('x', '0');
+    db.setAttribute('y', '0');
+    db.setAttribute('width', String(layout.width));
+    db.setAttribute('height', String(layout.height));
+    db.setAttribute('fill', 'none');
+    db.setAttribute('stroke', 'blue');
+    db.setAttribute('stroke-width', '2');
+    db.setAttribute('opacity', '0.3');
+    debugGroup.appendChild(db);
+    svg.appendChild(debugGroup);
+
     let legendX = bestPlacement.x;
     let legendY = bestPlacement.y + circleR + 4; // offset for first row
 
