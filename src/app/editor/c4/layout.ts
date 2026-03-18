@@ -398,13 +398,17 @@ function calculateEdges(
 
     // For parallel edges, offset both points perpendicular to the edge
     if (totalParallel > 1) {
-      const dx = targetCenter.x - sourceCenter.x;
-      const dy = targetCenter.y - sourceCenter.y;
+      // Use a consistent direction for the pair regardless of A→B vs B→A
+      // Sort the IDs and always compute the vector from the "lesser" to "greater" ID
+      const [sortedFirst, sortedSecond] = [rel.sourceId, rel.targetId].sort();
+      const firstNode = nodeMap.get(sortedFirst)!;
+      const secondNode = nodeMap.get(sortedSecond)!;
+      const dx = (secondNode.x + secondNode.width / 2) - (firstNode.x + firstNode.width / 2);
+      const dy = (secondNode.y + secondNode.height / 2) - (firstNode.y + firstNode.height / 2);
       const len = Math.sqrt(dx * dx + dy * dy);
       if (len > 0) {
         const perpX = -dy / len;
         const perpY = dx / len;
-        // Use larger spread for more horizontal edges where labels stack vertically
         const isHorizontal = Math.abs(dx) > Math.abs(dy);
         const spread = isHorizontal ? 35 : 25;
         const offset = (currentIndex - (totalParallel - 1) / 2) * spread;
