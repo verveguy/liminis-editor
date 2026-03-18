@@ -277,18 +277,41 @@ function renderC4ToSVG(
     legendGroup.setAttribute('class', 'legend-layer');
 
     const legendX = 20;
-    let legendY = parseFloat(svg.getAttribute('height') || '0') - legendEntries.length * 18 - 10;
+    const circleR = 9;
+    const rowHeight = 24;
+    let legendY = parseFloat(svg.getAttribute('height') || '0') - legendEntries.length * rowHeight - 10;
 
     for (const entry of legendEntries) {
+      // Circled number
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', String(legendX + circleR));
+      circle.setAttribute('cy', String(legendY - 4));
+      circle.setAttribute('r', String(circleR));
+      circle.setAttribute('fill', colors.edgeStroke);
+      legendGroup.appendChild(circle);
+
+      const numText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      numText.setAttribute('x', String(legendX + circleR));
+      numText.setAttribute('y', String(legendY));
+      numText.setAttribute('text-anchor', 'middle');
+      numText.setAttribute('fill', colors.textPrimary);
+      numText.setAttribute('font-size', '10');
+      numText.setAttribute('font-weight', '600');
+      numText.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
+      numText.textContent = String(entry.index);
+      legendGroup.appendChild(numText);
+
+      // Label text
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.setAttribute('x', String(legendX));
+      text.setAttribute('x', String(legendX + circleR * 2 + 8));
       text.setAttribute('y', String(legendY));
       text.setAttribute('fill', colors.edgeLabel);
       text.setAttribute('font-size', '11');
       text.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
-      text.textContent = `${entry.index}. ${entry.label}`;
+      text.textContent = entry.label;
       legendGroup.appendChild(text);
-      legendY += 18;
+
+      legendY += rowHeight;
     }
 
     svg.appendChild(legendGroup);
