@@ -734,18 +734,12 @@ function renderEdgeToSVG(
       numText.textContent = label;
       g.appendChild(numText);
 
-      // For step numbers with inline display label, show description centered on line
-      // Circle sits to the left of the centered text
+      // For step numbers with inline display label, show description above the circle
+      // Circle stays centered on line, text goes above
       if (edge.isStepNumber && edge.displayLabel) {
-        // Move circle to the left to make room for centered text
-        circle.setAttribute('cx', String(labelX - 14));
-        circle.setAttribute('cy', String(labelY));
-        numText.setAttribute('x', String(labelX - 14));
-        numText.setAttribute('y', String(labelY + 4));
-
         const descText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         descText.setAttribute('x', String(labelX));
-        descText.setAttribute('y', String(labelY - 8));
+        descText.setAttribute('y', String(labelY - 16));
         descText.setAttribute('text-anchor', 'middle');
         descText.setAttribute('fill', colors.edgeLabel);
         descText.setAttribute('font-size', '11');
