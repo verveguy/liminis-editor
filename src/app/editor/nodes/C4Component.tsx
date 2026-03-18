@@ -262,17 +262,22 @@ function renderC4ToSVG(
     if (!edge.label) return { ...edge, isLegendRef: false, isStepNumber: false };
 
     // Check for step-numbered label: "2 [description]"
+    // Always add step-numbered labels to legend; also show inline if short enough
     const stepMatch = edge.label.match(STEP_NUMBER_PATTERN);
     if (stepMatch) {
       const stepNum = stepMatch[1];
       const description = stepMatch[2];
-      if (description.length > LEGEND_THRESHOLD) {
-        // Extract to legend using the step number
-        legendEntries.push({ index: stepNum, label: description, isStep: true });
-        return { ...edge, label: stepNum, isLegendRef: true, isStepNumber: true };
-      }
-      // Inline: show step number in circle + description as text
-      return { ...edge, label: stepNum, displayLabel: description, isLegendRef: false, isStepNumber: true };
+      // Always add to legend
+      legendEntries.push({ index: stepNum, label: description, isStep: true });
+      // Show description inline if it fits, otherwise just the circled number
+      const showInline = description.length <= LEGEND_THRESHOLD;
+      return {
+        ...edge,
+        label: stepNum,
+        displayLabel: showInline ? description : undefined,
+        isLegendRef: true,
+        isStepNumber: true,
+      };
     }
 
     // Non-step labels: extract long ones to legend
