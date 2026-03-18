@@ -356,38 +356,61 @@ function renderC4ToSVG(
       return false;
     }
 
-    // Try a grid of candidate positions to find open space
-    // Scan at intervals across the diagram area
-    const step = 40;
-    const candidates: { x: number; y: number }[] = [];
+    // Smart legend placement: find the largest open rectangle
+    // Strategy: try positions at each node's edges (right-of, below) plus corners
+    const step = 30;
+    const candidates: { x: number; y: number; score: number }[] = [];
 
-    // Generate candidates at grid positions, prioritizing bottom-left area
-    for (let cy = layout.height - legendH - margin; cy >= margin; cy -= step) {
-      for (let cx = margin; cx <= layout.width - legendW - margin; cx += step) {
-        candidates.push({ x: cx, y: cy });
-      }
-    }
-    // Also try top area
-    for (let cy = margin; cy < layout.height / 2; cy += step) {
-      for (let cx = margin; cx <= layout.width - legendW - margin; cx += step) {
-        candidates.push({ x: cx, y: cy });
-      }
+    // Generate candidates from node edges — right side and below each node
+    for (const node of allNodes) {
+      // Right of node
+      candidates.push({ x: node.x + node.width + margin, y: node.y, score: 0 });
+      // Below node
+      candidates.push({ x: node.x, y: node.y + node.height + margin, score: 0 });
     }
 
-    let bestPlacement = { x: margin, y: layout.height + margin }; // fallback: below diagram
+    // Grid scan within diagram bounds (extended to allow pushing right)
+    const maxScanX = Math.max(layout.width, layout.width + legendW);
+    for (let cy = margin; cy <= layout.height - legendH; cy += step) {
+      for (let cx = margin; cx <= maxScanX; cx += step) {
+        candidates.push({ x: cx, y: cy, score: 0 });
+      }
+    }
+
+    // Score each candidate: prefer top-right, penalize extending diagram
+    for (const c of candidates) {
+      if (c.x < 0 || c.y < 0) { c.score = -Infinity; continue; }
+      if (overlapsNodes(c.x, c.y, legendW, legendH)) { c.score = -Infinity; continue; }
+      // Prefer positions within existing bounds
+      const withinBounds = (c.x + legendW <= layout.width && c.y + legendH <= layout.height) ? 100 : 0;
+      // Prefer top-right (higher y penalty, reward right x)
+      const rightScore = c.x / (layout.width || 1) * 30;
+      const topScore = (1 - c.y / (layout.height || 1)) * 20;
+      c.score = withinBounds + rightScore + topScore;
+    }
+
+    // Sort by score descending
+    candidates.sort((a, b) => b.score - a.score);
+
+    let bestPlacement = { x: margin, y: layout.height + margin };
     let placed = false;
 
     for (const candidate of candidates) {
-      if (candidate.x >= 0 && candidate.y >= 0 &&
-          !overlapsNodes(candidate.x, candidate.y, legendW, legendH)) {
+      if (candidate.score > -Infinity) {
         bestPlacement = { x: candidate.x, y: candidate.y };
         placed = true;
+        // Expand diagram if legend extends beyond bounds
+        if (bestPlacement.x + legendW + margin > totalWidth) {
+          totalWidth = bestPlacement.x + legendW + margin;
+        }
+        if (bestPlacement.y + legendH + margin > totalHeight) {
+          totalHeight = bestPlacement.y + legendH + margin;
+        }
         break;
       }
     }
 
     if (!placed) {
-      // No space inside diagram — extend downward
       bestPlacement = { x: margin, y: layout.height + margin };
       totalHeight = bestPlacement.y + legendH + margin;
     }
