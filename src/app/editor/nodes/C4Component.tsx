@@ -138,14 +138,21 @@ function C4DiagramRenderer({
     // Layout and render the diagram
     const layout = layoutC4Diagram(parseResult.diagram);
 
+    // Pre-calculate legend entries to account for their height
+    const LEGEND_THRESHOLD = 50;
+    const LEGEND_ROW_HEIGHT = 24;
+    const legendCount = layout.edges.filter((e) => e.label && e.label.length > LEGEND_THRESHOLD).length;
+    const legendHeight = legendCount > 0 ? legendCount * LEGEND_ROW_HEIGHT + 40 : 0; // 40px gap
+
     const renderContainer = document.createElement('div');
     renderContainer.className = 'c4-container';
 
-    // Create SVG element
+    // Create SVG element with extra height for legend
+    const totalHeight = layout.height + legendHeight;
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', String(layout.width));
-    svg.setAttribute('height', String(layout.height));
-    svg.setAttribute('viewBox', `0 0 ${layout.width} ${layout.height}`);
+    svg.setAttribute('height', String(totalHeight));
+    svg.setAttribute('viewBox', `0 0 ${layout.width} ${totalHeight}`);
     svg.style.fontFamily = 'system-ui, -apple-system, sans-serif';
 
     // Render the diagram SVG elements
@@ -279,7 +286,8 @@ function renderC4ToSVG(
     const legendX = 20;
     const circleR = 9;
     const rowHeight = 24;
-    let legendY = parseFloat(svg.getAttribute('height') || '0') - legendEntries.length * rowHeight - 10;
+    // Place legend below all diagram content with a gap
+    let legendY = layout.height + 30;
 
     for (const entry of legendEntries) {
       // Circled number
