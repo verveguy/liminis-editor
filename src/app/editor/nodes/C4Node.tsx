@@ -99,6 +99,10 @@ export class C4Node extends DecoratorNode<JSX.Element> {
     return false;
   }
 
+  isInline(): boolean {
+    return false;
+  }
+
   getTextContent(): string {
     return this.__code;
   }
