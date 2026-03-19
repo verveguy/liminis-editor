@@ -539,6 +539,30 @@ export function Editor({
     [assetBaseUri, documentDirUri, imagePathResolution]
   );
 
+  // Keep a ref to onChange so the unmount flush always calls the latest handler
+  // without causing the effect to re-run (and spuriously flush) on re-renders.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  // Export pending editor state and propagate if changed.
+  // Shared by the debounce timer callback and unmount flush.
+  const flushPendingChange = useCallback(() => {
+    const pendingEditor = pendingEditorRef.current;
+    if (!pendingEditor) return;
+
+    const timeSinceLoad = Date.now() - lastExternalLoadRef.current;
+    if (timeSinceLoad < 500) return;
+
+    const mdast = exportLexicalToMdast(pendingEditor);
+    const markdown = stringifyMarkdown(mdast);
+
+    if (markdown !== currentContentRef.current) {
+      currentContentRef.current = markdown;
+      lastEditorChangeRef.current = Date.now();
+      onChangeRef.current(markdown);
+    }
+  }, []);
+
   // Flush pending debounced change on unmount so we don't lose edits
   // (e.g. when switching from WYSIWYG to raw text view)
   useEffect(() => {
@@ -546,24 +570,10 @@ export function Editor({
       if (debounceTimerRef.current !== null) {
         clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;
-
-        // Flush: export and propagate the pending editor state now
-        const pendingEditor = pendingEditorRef.current;
-        if (pendingEditor) {
-          const timeSinceLoad = Date.now() - lastExternalLoadRef.current;
-          if (timeSinceLoad >= 500) {
-            const mdast = exportLexicalToMdast(pendingEditor);
-            const markdown = stringifyMarkdown(mdast);
-            if (markdown !== currentContentRef.current) {
-              currentContentRef.current = markdown;
-              lastEditorChangeRef.current = Date.now();
-              onChange(markdown);
-            }
-          }
-        }
+        flushPendingChange();
       }
     };
-  }, [onChange]);
+  }, [flushPendingChange]);
 
   const handleChange = useCallback(
     (editorState: EditorState, editor: LexicalEditor) => {
@@ -586,28 +596,10 @@ export function Editor({
       // Debounce the expensive mdast conversion
       debounceTimerRef.current = window.setTimeout(() => {
         debounceTimerRef.current = null;
-        const pendingEditor = pendingEditorRef.current;
-        if (!pendingEditor) return;
-
-        // Double-check we're not in the post-load window
-        const timeSinceLoad = Date.now() - lastExternalLoadRef.current;
-        if (timeSinceLoad < 500) {
-          return;
-        }
-
-        const mdast = exportLexicalToMdast(pendingEditor);
-        const markdown = stringifyMarkdown(mdast);
-
-        // Only notify if content actually changed
-        if (markdown !== currentContentRef.current) {
-          currentContentRef.current = markdown;
-          // Mark this as an editor-initiated change so ExternalUpdatePlugin skips it
-          lastEditorChangeRef.current = Date.now();
-          onChange(markdown);
-        }
+        flushPendingChange();
       }, DEBOUNCE_DELAY);
     },
-    [onChange]
+    [flushPendingChange]
   );
 
   const initialConfig = {
