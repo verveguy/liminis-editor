@@ -505,7 +505,7 @@ describe('round-trip fidelity', () => {
     },
     {
       name: 'c4 diagram',
-      markdown: '```c4\nsystem "Test" [test] {}\n```',
+      markdown: '```c4\nSystem(test, "Test")\n```',
     },
     {
       name: 'mermaid diagram',

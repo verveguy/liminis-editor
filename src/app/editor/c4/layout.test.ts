@@ -305,11 +305,11 @@ describe('C4 Layout Engine', () => {
       ];
       const relationships = [{ sourceId: 'a', targetId: 'b', label: 'Flow' }];
 
-      // Default is right (LR)
+      // Default is top-to-bottom (TB)
       const rightDiagram = createDiagram(elements, relationships);
       const rightResult = layoutC4Diagram(rightDiagram);
 
-      // The two layouts may be similar since default is LR
+      // The two layouts may be similar since default is TB
       // Just verify that layout completes without error
       expect(rightResult.nodes).toHaveLength(2);
     });

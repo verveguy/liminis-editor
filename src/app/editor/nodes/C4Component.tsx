@@ -15,7 +15,7 @@ import {
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { parseC4 } from '../c4/parser';
+import { parseC4, validateC4 } from '../c4/parser';
 import { layoutC4Diagram } from '../c4/layout';
 import { $isC4Node } from './C4Node';
 
@@ -96,8 +96,12 @@ function C4DiagramRenderer({
       existingContainer.remove();
     }
 
-    // Parse and render the diagram
+    // Parse and validate the diagram
     const parseResult = parseC4(code);
+    if (parseResult.diagram) {
+      const validationErrors = validateC4(parseResult.diagram);
+      parseResult.errors.push(...validationErrors);
+    }
 
     if (parseResult.errors.length > 0 || !parseResult.diagram) {
       // Show errors
@@ -152,8 +156,14 @@ function C4DiagramRenderer({
   return (
     <div
       role="button"
-      tabIndex={-1}
+      tabIndex={0}
       onDoubleClick={onDoubleClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onDoubleClick();
+        }
+      }}
       ref={containerRef}
       className="c4-renderer"
       style={{

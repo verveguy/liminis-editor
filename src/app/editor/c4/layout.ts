@@ -638,7 +638,7 @@ function alignCrossBoundaryElements(
     const leftPeers = leafNodes.filter((n) => n.x + n.width / 2 < boundaryCenterX);
     const rightPeers = leafNodes.filter((n) => n.x + n.width / 2 >= boundaryCenterX);
 
-    // Align left peers to the same X (use the maximum X so none overlap boundary)
+    // Align left peers to the same X (use the minimum X so none overlap boundary)
     if (leftPeers.length > 1) {
       const alignX = Math.min(...leftPeers.map((n) => n.x));
       for (const peer of leftPeers) {
