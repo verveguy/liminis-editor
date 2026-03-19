@@ -212,10 +212,16 @@ body {
 }
 
 /* Lists - Loop-inspired spacing */
-.editor-list-ul,
+.editor-list-ul {
+  margin: 16px 0;  /* More space around lists */
+  padding-left: 28px;
+  list-style-type: disc;
+}
+
 .editor-list-ol {
   margin: 16px 0;  /* More space around lists */
   padding-left: 28px;
+  list-style-type: decimal;
 }
 
 .editor-listitem {
