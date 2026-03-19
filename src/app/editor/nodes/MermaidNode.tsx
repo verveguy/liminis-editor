@@ -99,6 +99,10 @@ export class MermaidNode extends DecoratorNode<JSX.Element> {
     return false;
   }
 
+  isInline(): boolean {
+    return false;
+  }
+
   getTextContent(): string {
     return this.__code;
   }

@@ -199,11 +199,11 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
       });
       lastDocumentContent.current = markdown;
       applyTextEdits(edits, 'typing');
-      
+
       // Mark this as an editor-initiated change BEFORE calling propOnChange
       // This prevents the prop change from triggering cursor restoration
       lastEditorChangeTime.current = Date.now();
-      
+
       // Call prop onChange if provided
       propOnChange?.(markdown);
     }

@@ -539,14 +539,31 @@ export function Editor({
     [assetBaseUri, documentDirUri, imagePathResolution]
   );
 
-  // Cleanup debounce timer on unmount
+  // Flush pending debounced change on unmount so we don't lose edits
+  // (e.g. when switching from WYSIWYG to raw text view)
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current !== null) {
         clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+
+        // Flush: export and propagate the pending editor state now
+        const pendingEditor = pendingEditorRef.current;
+        if (pendingEditor) {
+          const timeSinceLoad = Date.now() - lastExternalLoadRef.current;
+          if (timeSinceLoad >= 500) {
+            const mdast = exportLexicalToMdast(pendingEditor);
+            const markdown = stringifyMarkdown(mdast);
+            if (markdown !== currentContentRef.current) {
+              currentContentRef.current = markdown;
+              lastEditorChangeRef.current = Date.now();
+              onChange(markdown);
+            }
+          }
+        }
       }
     };
-  }, []);
+  }, [onChange]);
 
   const handleChange = useCallback(
     (editorState: EditorState, editor: LexicalEditor) => {
