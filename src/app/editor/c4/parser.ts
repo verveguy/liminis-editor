@@ -205,7 +205,7 @@ class C4PlantUMLParser {
       }
 
       // Extract the macro name (first word before '(')
-      const macroMatch = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
+      const macroMatch = /^([A-Za-z_][A-Za-z0-9_]*)\s*\(/.exec(line);
       if (!macroMatch) {
         // Unknown line
         this.errors.push({

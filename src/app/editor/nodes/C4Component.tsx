@@ -270,7 +270,7 @@ function renderC4ToSVG(
 
     // Check for step-numbered label: "2 [description]"
     // Always add step-numbered labels to legend; also show inline if short enough
-    const stepMatch = edge.label.match(STEP_NUMBER_PATTERN);
+    const stepMatch = STEP_NUMBER_PATTERN.exec(edge.label);
     if (stepMatch) {
       const stepNum = stepMatch[1];
       const description = stepMatch[2];
@@ -433,7 +433,7 @@ function renderC4ToSVG(
       totalHeight = bestPlacement.y + legendH + margin;
     }
 
-    let legendX = bestPlacement.x;
+    const legendX = bestPlacement.x;
     let legendY = bestPlacement.y + circleR + 4; // offset for first row
 
     for (const entry of legendEntries) {

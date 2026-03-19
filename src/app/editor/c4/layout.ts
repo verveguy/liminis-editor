@@ -258,7 +258,7 @@ function layoutGroup(
     if (elementIds.has(rel.sourceId) && elementIds.has(rel.targetId)) {
       const labelLen = rel.label?.length ?? 0;
       // Extract actual description from step-numbered labels "N [description]"
-      const stepMatch = rel.label?.match(/^\d+\s*\[(.+)\]$/);
+      const stepMatch = rel.label ? /^\d+\s*\[(.+)\]$/.exec(rel.label) : null;
       const displayLen = stepMatch ? stepMatch[1].length : labelLen;
 
       // Estimate label width in px, then how many ranks needed
@@ -536,7 +536,7 @@ function alignCrossBoundaryElements(
     const isCrossBoundary = (!!source.element.parent) !== (!!target.element.parent);
     if (isCrossBoundary && rel.label) {
       // Extract display length from step-numbered labels
-      const stepMatch = rel.label.match(/^\d+\s*\[(.+)\]$/);
+      const stepMatch = /^\d+\s*\[(.+)\]$/.exec(rel.label);
       const displayLen = stepMatch ? stepMatch[1].length : rel.label.length;
       const labelWidth = displayLen * LABEL_CHAR_WIDTH + 40; // padding for circle + margin
       maxCrossBoundaryLabelWidth = Math.max(maxCrossBoundaryLabelWidth, labelWidth);
@@ -566,7 +566,7 @@ function alignCrossBoundaryElements(
       else continue;
 
       const partner = nodeMap.get(partnerId);
-      if (!partner || !partner.element.parent) continue;
+      if (!partner?.element.parent) continue;
 
       targets.push({
         x: partner.x + partner.width / 2,

@@ -479,7 +479,7 @@ function convertCode(node: Code): CodeNode | MermaidNode | C4Node {
 }
 
 /** Detect C4-PlantUML content inside a plantuml code block */
-const C4_MACRO_PATTERN = /\b(?:Person|System|Container|Component|Boundary|Rel|BiRel)(?:_Ext|Db|Queue|_Boundary)?\s*[\(_]/;
+const C4_MACRO_PATTERN = /\b(?:Person|System|Container|Component|Boundary|Rel|BiRel)(?:_Ext|Db|Queue|_Boundary)?\s*[(_]/;
 function isC4PlantUML(code: string): boolean {
   return C4_MACRO_PATTERN.test(code);
 }
