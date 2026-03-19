@@ -406,7 +406,7 @@ function ExternalUpdatePlugin({
     // Skip if this change likely came from the editor itself (via onChange callback)
     // This prevents the feedback loop: type -> onChange -> prop change -> reload
     const timeSinceEditorChange = Date.now() - lastEditorChangeRef.current;
-    if (timeSinceEditorChange < 500) {
+    if (timeSinceEditorChange < POST_LOAD_SUPPRESS_MS) {
       // Still update the ref so we don't reload on next render either
       currentContentRef.current = content;
       return;
@@ -512,6 +512,10 @@ function findTextPointAtOffset(
 // Debounce delay in ms - balances responsiveness with performance
 const DEBOUNCE_DELAY = 100;
 
+// Window after an external content load (file open/reload) or editor-initiated change
+// during which we suppress onChange/reload to avoid feedback loops and normalization noise.
+const POST_LOAD_SUPPRESS_MS = 500;
+
 export function Editor({
   initialContent,
   contentVersion = 0,
@@ -551,7 +555,7 @@ export function Editor({
     if (!pendingEditor) return;
 
     const timeSinceLoad = Date.now() - lastExternalLoadRef.current;
-    if (timeSinceLoad < 500) return;
+    if (timeSinceLoad < POST_LOAD_SUPPRESS_MS) return;
 
     const mdast = exportLexicalToMdast(pendingEditor);
     const markdown = stringifyMarkdown(mdast);
@@ -581,7 +585,7 @@ export function Editor({
       // Skip changes that happen right after external content load
       // These are normalization diffs, not user edits
       const timeSinceExternalLoad = Date.now() - lastExternalLoadRef.current;
-      if (timeSinceExternalLoad < 500) {
+      if (timeSinceExternalLoad < POST_LOAD_SUPPRESS_MS) {
         return;
       }
 
