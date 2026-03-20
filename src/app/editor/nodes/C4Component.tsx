@@ -83,13 +83,14 @@ function C4DiagramDisplay({
           onDoubleClick();
         }
       }}
-      className="c4-renderer"
+      className="c4-renderer c4-diagram-container"
       style={{
         display: 'flex',
         justifyContent: 'center',
         padding: '1rem',
         cursor: 'pointer',
         minHeight: '100px',
+        overflowX: 'auto',
       }}
     >
       <C4Renderer layout={layout} isDarkMode={isDarkMode} />
