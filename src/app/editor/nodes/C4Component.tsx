@@ -871,7 +871,7 @@ function renderEdgeToSVG(
 
   // Compute label position/size for line clipping
   let labelClipInfo: { center: { x: number; y: number }; halfW: number; halfH: number; angleDeg: number } | null = null;
-  if (label && !edge.isStepNumber && !edge.isLegendRef) {
+  if (label) {
     const midpoint = {
       x: (points[0].x + points[points.length - 1].x) / 2,
       y: (points[0].y + points[points.length - 1].y) / 2,
@@ -883,35 +883,42 @@ function renderEdgeToSVG(
     if (angleDeg < -90) angleDeg += 180;
     if (Math.abs(angleDeg) > 60) angleDeg = 0;
 
-    const lines = splitEdgeLabel(label);
-    const longestLine = lines.reduce((a, b) => (a.length > b.length ? a : b), '');
-    const edgeLabelFontSize = 11;
-    const avgCharWidth = edgeLabelFontSize * 0.62;
-    const halfW = (longestLine.length * avgCharWidth) / 2 + 6;
-    const lineHeight = 14;
-
-    // Clip box centered on the text (which is now centered on the line).
-    const ascent = edgeLabelFontSize * 0.8;
-    const descent = edgeLabelFontSize * 0.2;
-    const pad = 3;
-
-    let clipTop: number;
-    let clipBottom: number;
-    if (lines.length === 1) {
-      const baseline = midpoint.y + 4; // matches text rendering baseline
-      clipTop = baseline - ascent - pad;
-      clipBottom = baseline + descent + pad;
+    if (edge.isStepNumber || edge.isLegendRef) {
+      // Step numbers use circle r=10, legend refs use square 20x20 — clip around shape
+      const shapeR = 10;
+      const pad = 2;
+      labelClipInfo = { center: { x: midpoint.x, y: midpoint.y }, halfW: shapeR + pad, halfH: shapeR + pad, angleDeg: 0 };
     } else {
-      const firstBaseline = midpoint.y - ((lines.length - 1) * lineHeight) / 2;
-      const lastBaseline = firstBaseline + (lines.length - 1) * lineHeight;
-      clipTop = firstBaseline - ascent - pad;
-      clipBottom = lastBaseline + descent + pad;
+      const lines = splitEdgeLabel(label);
+      const longestLine = lines.reduce((a, b) => (a.length > b.length ? a : b), '');
+      const edgeLabelFontSize = 11;
+      const avgCharWidth = edgeLabelFontSize * 0.62;
+      const halfW = (longestLine.length * avgCharWidth) / 2 + 6;
+      const lineHeight = 14;
+
+      // Clip box centered on the text (which is now centered on the line).
+      const ascent = edgeLabelFontSize * 0.8;
+      const descent = edgeLabelFontSize * 0.2;
+      const pad = 3;
+
+      let clipTop: number;
+      let clipBottom: number;
+      if (lines.length === 1) {
+        const baseline = midpoint.y + 4; // matches text rendering baseline
+        clipTop = baseline - ascent - pad;
+        clipBottom = baseline + descent + pad;
+      } else {
+        const firstBaseline = midpoint.y - ((lines.length - 1) * lineHeight) / 2;
+        const lastBaseline = firstBaseline + (lines.length - 1) * lineHeight;
+        clipTop = firstBaseline - ascent - pad;
+        clipBottom = lastBaseline + descent + pad;
+      }
+
+      const clipCenterY = (clipTop + clipBottom) / 2;
+      const halfH = (clipBottom - clipTop) / 2;
+
+      labelClipInfo = { center: { x: midpoint.x, y: clipCenterY }, halfW, halfH, angleDeg };
     }
-
-    const clipCenterY = (clipTop + clipBottom) / 2;
-    const halfH = (clipBottom - clipTop) / 2;
-
-    labelClipInfo = { center: { x: midpoint.x, y: clipCenterY }, halfW, halfH, angleDeg };
   }
 
   // Path — clip around label if present, otherwise draw full path
