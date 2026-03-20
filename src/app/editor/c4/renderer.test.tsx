@@ -230,10 +230,10 @@ describe('C4Renderer', () => {
       const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
 
       const rects = container.querySelectorAll('rect');
-      // External systems should have a grey-ish OKLCH fill
+      // External systems should have a light grey OKLCH fill
       const externalRect = Array.from(rects).find((r) => {
         const fill = r.getAttribute('fill') ?? '';
-        return fill.includes('oklch') && fill.includes('0.02');
+        return fill.includes('oklch(0.96');
       });
       expect(externalRect).toBeTruthy();
     });
@@ -387,8 +387,8 @@ describe('C4Renderer', () => {
 
       const rect = container.querySelector('.nodes-layer rect');
       const fill = rect?.getAttribute('fill') ?? '';
-      // Light mode container fill has higher lightness
-      expect(fill).toContain('oklch(0.62');
+      // Light mode container fill is white
+      expect(fill).toContain('oklch(1.00');
     });
 
     it('should use dark colors in dark mode', () => {
@@ -398,8 +398,8 @@ describe('C4Renderer', () => {
 
       const rect = container.querySelector('.nodes-layer rect');
       const fill = rect?.getAttribute('fill') ?? '';
-      // Dark mode container fill has lower lightness
-      expect(fill).toContain('oklch(0.50');
+      // Dark mode container fill is dark
+      expect(fill).toContain('oklch(0.20');
     });
   });
 
