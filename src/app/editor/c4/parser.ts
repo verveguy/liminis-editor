@@ -76,6 +76,10 @@ const ELEMENT_MACROS: Record<string, MacroInfo> = {
   Node:                { type: 'system', external: false, shape: 'rectangle', argStyle: 'detail', boundary: true },
   Node_L:              { type: 'system', external: false, shape: 'rectangle', argStyle: 'detail', boundary: true },
   Node_R:              { type: 'system', external: false, shape: 'rectangle', argStyle: 'detail', boundary: true },
+
+  // Infrastructure nodes (C4 deployment diagrams)
+  InfrastructureNode:      { type: 'component', external: false, shape: 'rectangle', argStyle: 'detail', boundary: false },
+  InfrastructureNode_Ext:  { type: 'component', external: true,  shape: 'rectangle', argStyle: 'detail', boundary: false },
 };
 
 const REL_MACROS = new Set([

@@ -7,6 +7,7 @@
 
 import type { LayoutResult, LayoutNode, LayoutEdge, Point } from './types';
 import { isExternal, isBoundary } from './types';
+import { estimateLabelSize, buildClippedEdgePaths } from './edge-clipping';
 
 // =============================================================================
 // CONSTANTS - OKLCH Color Palette
@@ -655,15 +656,34 @@ function Edge({ edge, colors }: EdgeProps): JSX.Element {
 
   const labelTransform = `rotate(${angleDeg}, ${labelX}, ${labelY})`;
 
+  // If there's a label, clip the line around it; otherwise draw the full path
+  const edgePaths: string[] = [];
+  if (label) {
+    const { halfW, halfH } = estimateLabelSize(label, EDGE_LABEL_FONT_SIZE);
+    const clipped = buildClippedEdgePaths(
+      shortenedPoints,
+      { x: labelX, y: labelY },
+      halfW,
+      halfH,
+      angleDeg
+    );
+    edgePaths.push(...clipped);
+  } else {
+    edgePaths.push(pathD);
+  }
+
   return (
     <g>
-      {/* Edge line */}
-      <path
-        d={pathD}
-        fill="none"
-        stroke={colors.edgeStroke}
-        strokeWidth={1.5}
-      />
+      {/* Edge line(s) — split around label when present */}
+      {edgePaths.map((d, i) => (
+        <path
+          key={i}
+          d={d}
+          fill="none"
+          stroke={colors.edgeStroke}
+          strokeWidth={1.5}
+        />
+      ))}
       {/* Arrowhead */}
       {arrowPoints && (
         <polygon
@@ -673,19 +693,17 @@ function Edge({ edge, colors }: EdgeProps): JSX.Element {
       )}
       {/* Label */}
       {label && (
-        <>
-          <text
-            x={labelX}
-            y={labelY + 4}
-            textAnchor="middle"
-            transform={labelTransform}
-            fill={colors.edgeLabel}
-            fontSize={EDGE_LABEL_FONT_SIZE}
-            fontFamily="system-ui, -apple-system, sans-serif"
-          >
-            {label}
-          </text>
-        </>
+        <text
+          x={labelX}
+          y={labelY + 4}
+          textAnchor="middle"
+          transform={labelTransform}
+          fill={colors.edgeLabel}
+          fontSize={EDGE_LABEL_FONT_SIZE}
+          fontFamily="system-ui, -apple-system, sans-serif"
+        >
+          {label}
+        </text>
       )}
     </g>
   );

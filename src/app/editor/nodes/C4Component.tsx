@@ -17,6 +17,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { parseC4, validateC4 } from '../c4/parser';
 import { layoutC4Diagram } from '../c4/layout';
+import { buildClippedEdgePaths } from '../c4/edge-clipping';
 import { $isC4Node } from './C4Node';
 
 // =============================================================================
@@ -811,6 +812,31 @@ function renderNodeToSVG(
   group.appendChild(g);
 }
 
+/**
+ * Split an edge label into lines for rendering.
+ * If the label contains a [technology] suffix, always put it on its own line.
+ * Otherwise, break long labels at a natural word boundary near the middle.
+ */
+function splitEdgeLabel(label: string): string[] {
+  // Split on [technology] suffix — always put protocol/tech on second line
+  const techMatch = /^(.+?)\s*(\[.+\])$/.exec(label);
+  if (techMatch) {
+    return [techMatch[1].trim(), techMatch[2]];
+  }
+
+  // Fall back to length-based splitting for long labels without [tech]
+  const LINE_BREAK_THRESHOLD = 30;
+  if (label.length > LINE_BREAK_THRESHOLD) {
+    const mid = Math.floor(label.length / 2);
+    let breakIdx = label.lastIndexOf(' ', mid + 10);
+    if (breakIdx < mid - 15 || breakIdx === -1) breakIdx = label.indexOf(' ', mid - 5);
+    if (breakIdx === -1) breakIdx = mid;
+    return [label.slice(0, breakIdx).trim(), label.slice(breakIdx).trim()];
+  }
+
+  return [label];
+}
+
 function renderEdgeToSVG(
   group: SVGGElement,
   edge: ReturnType<typeof layoutC4Diagram>['edges'][0] & {
@@ -843,14 +869,75 @@ function renderEdgeToSVG(
     };
   }
 
-  // Path
-  const pathD = shortenedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.setAttribute('d', pathD);
-  path.setAttribute('fill', 'none');
-  path.setAttribute('stroke', colors.edgeStroke);
-  path.setAttribute('stroke-width', '1.5');
-  g.appendChild(path);
+  // Compute label position/size for line clipping
+  let labelClipInfo: { center: { x: number; y: number }; halfW: number; halfH: number; angleDeg: number } | null = null;
+  if (label && !edge.isStepNumber && !edge.isLegendRef) {
+    const midpoint = {
+      x: (points[0].x + points[points.length - 1].x) / 2,
+      y: (points[0].y + points[points.length - 1].y) / 2,
+    };
+    const edgeDx = points[points.length - 1].x - points[0].x;
+    const edgeDy = points[points.length - 1].y - points[0].y;
+    let angleDeg = Math.atan2(edgeDy, edgeDx) * (180 / Math.PI);
+    if (angleDeg > 90) angleDeg -= 180;
+    if (angleDeg < -90) angleDeg += 180;
+    if (Math.abs(angleDeg) > 60) angleDeg = 0;
+
+    const lines = splitEdgeLabel(label);
+    const longestLine = lines.reduce((a, b) => (a.length > b.length ? a : b), '');
+    const edgeLabelFontSize = 11;
+    const avgCharWidth = edgeLabelFontSize * 0.62;
+    const halfW = (longestLine.length * avgCharWidth) / 2 + 6;
+    const lineHeight = 14;
+
+    // Clip box centered on the text (which is now centered on the line).
+    const ascent = edgeLabelFontSize * 0.8;
+    const descent = edgeLabelFontSize * 0.2;
+    const pad = 3;
+
+    let clipTop: number;
+    let clipBottom: number;
+    if (lines.length === 1) {
+      const baseline = midpoint.y + 4; // matches text rendering baseline
+      clipTop = baseline - ascent - pad;
+      clipBottom = baseline + descent + pad;
+    } else {
+      const firstBaseline = midpoint.y - ((lines.length - 1) * lineHeight) / 2;
+      const lastBaseline = firstBaseline + (lines.length - 1) * lineHeight;
+      clipTop = firstBaseline - ascent - pad;
+      clipBottom = lastBaseline + descent + pad;
+    }
+
+    const clipCenterY = (clipTop + clipBottom) / 2;
+    const halfH = (clipBottom - clipTop) / 2;
+
+    labelClipInfo = { center: { x: midpoint.x, y: clipCenterY }, halfW, halfH, angleDeg };
+  }
+
+  // Path — clip around label if present, otherwise draw full path
+  const pathDataStrings: string[] = [];
+  if (labelClipInfo) {
+    pathDataStrings.push(...buildClippedEdgePaths(
+      shortenedPoints,
+      labelClipInfo.center,
+      labelClipInfo.halfW,
+      labelClipInfo.halfH,
+      labelClipInfo.angleDeg,
+    ));
+  } else {
+    pathDataStrings.push(
+      shortenedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+    );
+  }
+
+  for (const pathD of pathDataStrings) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', pathD);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', colors.edgeStroke);
+    path.setAttribute('stroke-width', '1.5');
+    g.appendChild(path);
+  }
 
   // Arrowhead
   if (len > 0) {
@@ -948,19 +1035,7 @@ function renderEdgeToSVG(
         g.appendChild(descText);
       }
     } else {
-      // Split long labels into two lines at a natural break
-      const LINE_BREAK_THRESHOLD = 30;
-      let lines: string[];
-      if (label.length > LINE_BREAK_THRESHOLD) {
-        const mid = Math.floor(label.length / 2);
-        // Find nearest space to the middle
-        let breakIdx = label.lastIndexOf(' ', mid + 10);
-        if (breakIdx < mid - 15 || breakIdx === -1) breakIdx = label.indexOf(' ', mid - 5);
-        if (breakIdx === -1) breakIdx = mid;
-        lines = [label.slice(0, breakIdx).trim(), label.slice(breakIdx).trim()];
-      } else {
-        lines = [label];
-      }
+      const lines = splitEdgeLabel(label);
 
       const lineHeight = 14;
 
@@ -973,9 +1048,9 @@ function renderEdgeToSVG(
       textEl.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
       textEl.setAttribute('transform', transform);
 
-      // Single line: position above the line; multi-line: straddle
+      // Center text on the line — the line is clipped around the label
       const startY = lines.length === 1
-        ? labelY - 6  // above the line
+        ? labelY + 4  // baseline offset to visually center 11px text
         : labelY - ((lines.length - 1) * lineHeight) / 2;
       for (let i = 0; i < lines.length; i++) {
         const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
