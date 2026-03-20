@@ -387,8 +387,8 @@ function renderEdgeToString(edge: ProcessedEdge, colors: Colors): string {
       const lines = splitEdgeLabel(label);
       const longestLine = lines.reduce((a, b) => (a.length > b.length ? a : b), '');
       const edgeLabelFontSize = 11;
-      const avgCharWidth = edgeLabelFontSize * 0.62;
-      const halfW = (longestLine.length * avgCharWidth) / 2 + 6;
+      const avgCharWidth = edgeLabelFontSize * 0.55;
+      const halfW = (longestLine.length * avgCharWidth) / 2 + 3;
       const lineHeight = 14;
 
       const ascent = edgeLabelFontSize * 0.8;

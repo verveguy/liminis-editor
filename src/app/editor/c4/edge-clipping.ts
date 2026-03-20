@@ -12,10 +12,10 @@ import type { Point } from './types';
 // =============================================================================
 
 /** Average character width as a ratio of font size (for monospace-ish system fonts) */
-const AVG_CHAR_WIDTH_RATIO = 0.62;
+const AVG_CHAR_WIDTH_RATIO = 0.55;
 
 /** Horizontal padding around label text for the clipping box */
-const LABEL_PADDING_X = 6;
+const LABEL_PADDING_X = 3;
 
 /** Vertical padding around label text for the clipping box */
 const LABEL_PADDING_Y = 4;
