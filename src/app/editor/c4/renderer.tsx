@@ -1,162 +1,116 @@
 /**
- * C4 SVG Renderer
+ * C4 SVG Renderer (Canonical)
  *
- * React component that renders C4 architecture diagrams as SVG.
- * Takes a LayoutResult from the layout engine and produces a visual diagram.
+ * Pure React component that renders C4 architecture diagrams as SVG.
+ * This is the single authoritative renderer — used in the editor (via C4Node)
+ * and for headless SVG generation (via renderToStaticMarkup for publishing).
+ *
+ * Features:
+ * - All C4 element types (person, system, container, component)
+ * - All shapes (rectangle, cylinder, queue)
+ * - Boundary nesting with alternating fills
+ * - Edge labels with line clipping, rotation, and multi-line support
+ * - Step number labels (circled) and legend ref labels (squared)
+ * - Smart legend placement for long/parallel labels
+ * - Light and dark theme support
  */
 
 import type { LayoutResult, LayoutNode, LayoutEdge, Point } from './types';
-import { isExternal, isBoundary } from './types';
-import { estimateLabelSize, buildClippedEdgePaths } from './edge-clipping';
+import { buildClippedEdgePaths } from './edge-clipping';
 
 // =============================================================================
-// CONSTANTS - OKLCH Color Palette
+// CONSTANTS
 // =============================================================================
 
-/** Colors for light mode */
+/** Colors for light mode (matches imperative renderer — white fills, colored strokes) */
 const LIGHT_COLORS = {
-  // Element fills
-  containerFill: 'oklch(0.62 0.15 240)', // Blue similar to #438DD5
-  componentFill: 'oklch(0.70 0.12 240)', // Lighter blue for components
-  externalFill: 'oklch(0.75 0.02 240)', // Grey for external systems
-  personFill: 'oklch(0.55 0.16 152)', // Green for persons
-  boundaryFill: 'oklch(0.97 0.01 240)', // Very light grey for boundaries
-
-  // Strokes
-  containerStroke: 'oklch(0.45 0.15 240)', // Darker blue stroke
-  componentStroke: 'oklch(0.55 0.12 240)', // Component stroke
-  externalStroke: 'oklch(0.55 0.02 240)', // Grey stroke
-  personStroke: 'oklch(0.40 0.16 152)', // Darker green stroke
-  boundaryStroke: 'oklch(0.60 0.05 240)', // Light grey dashed stroke
-  edgeStroke: 'oklch(0.40 0.00 0)', // Neutral grey for edges
-
-  // Text
-  textPrimary: 'oklch(0.98 0.00 0)', // White text on filled elements
-  textSecondary: 'oklch(0.90 0.00 0)', // Slightly dimmer text
-  textOnBoundary: 'oklch(0.25 0.00 0)', // Dark text on light boundary
-  edgeLabel: 'oklch(0.30 0.00 0)', // Dark text for edge labels
-  edgeLabelBackground: 'oklch(1.00 0.00 0)', // White background for edge labels
-
-  // Background
-  background: 'transparent',
+  containerFill: 'oklch(1.00 0.00 0)',
+  componentFill: 'oklch(0.98 0.00 0)',
+  externalFill: 'oklch(0.96 0.01 240)',
+  personFill: 'oklch(0.45 0.16 152)',
+  boundaryFill: 'oklch(0.98 0.01 240)',
+  containerStroke: 'oklch(0.45 0.15 240)',
+  componentStroke: 'oklch(0.50 0.12 240)',
+  externalStroke: 'oklch(0.55 0.02 240)',
+  personStroke: 'oklch(0.35 0.16 152)',
+  boundaryStroke: 'oklch(0.60 0.05 240)',
+  edgeStroke: 'oklch(0.35 0.00 0)',
+  textPrimary: 'oklch(0.20 0.00 0)',
+  textSecondary: 'oklch(0.40 0.00 0)',
+  textOnBoundary: 'oklch(0.25 0.00 0)',
+  edgeLabel: 'oklch(0.30 0.00 0)',
+  edgeLabelBackground: 'oklch(1.00 0.00 0)',
 };
 
 /** Colors for dark mode */
 const DARK_COLORS = {
-  // Element fills
-  containerFill: 'oklch(0.50 0.15 240)', // Darker blue
-  componentFill: 'oklch(0.55 0.12 240)', // Component fill
-  externalFill: 'oklch(0.45 0.02 240)', // Darker grey
-  personFill: 'oklch(0.45 0.16 152)', // Darker green
-  boundaryFill: 'oklch(0.20 0.01 240)', // Dark boundary fill
-
-  // Strokes
-  containerStroke: 'oklch(0.65 0.15 240)', // Lighter blue stroke in dark mode
-  componentStroke: 'oklch(0.70 0.12 240)', // Component stroke
-  externalStroke: 'oklch(0.60 0.02 240)', // Grey stroke
-  personStroke: 'oklch(0.60 0.16 152)', // Lighter green stroke
-  boundaryStroke: 'oklch(0.50 0.05 240)', // Boundary stroke
-  edgeStroke: 'oklch(0.70 0.00 0)', // Lighter grey for edges in dark mode
-
-  // Text
-  textPrimary: 'oklch(0.98 0.00 0)', // White text
-  textSecondary: 'oklch(0.85 0.00 0)', // Slightly dimmer
-  textOnBoundary: 'oklch(0.90 0.00 0)', // Light text on dark boundary
-  edgeLabel: 'oklch(0.85 0.00 0)', // Light text for edge labels
-  edgeLabelBackground: 'oklch(0.25 0.01 240)', // Dark background for edge labels
-
-  // Background
-  background: 'transparent',
+  containerFill: 'oklch(0.20 0.01 240)',
+  componentFill: 'oklch(0.20 0.01 240)',
+  externalFill: 'oklch(0.18 0.00 0)',
+  personFill: 'oklch(0.45 0.16 152)',
+  boundaryFill: 'oklch(0.15 0.01 240)',
+  containerStroke: 'oklch(0.65 0.15 240)',
+  componentStroke: 'oklch(0.60 0.12 240)',
+  externalStroke: 'oklch(0.55 0.02 240)',
+  personStroke: 'oklch(0.60 0.16 152)',
+  boundaryStroke: 'oklch(0.50 0.05 240)',
+  edgeStroke: 'oklch(0.70 0.00 0)',
+  textPrimary: 'oklch(0.90 0.00 0)',
+  textSecondary: 'oklch(0.75 0.00 0)',
+  textOnBoundary: 'oklch(0.90 0.00 0)',
+  edgeLabel: 'oklch(0.80 0.00 0)',
+  edgeLabelBackground: 'oklch(0.20 0.01 240)',
 };
 
-/** Border radius for rounded rectangles */
-const BORDER_RADIUS = 8;
+type Colors = typeof LIGHT_COLORS;
 
-/** Person icon dimensions */
+const BORDER_RADIUS = 8;
 const PERSON_HEAD_RADIUS = 14;
 const PERSON_BODY_WIDTH = 40;
 const PERSON_BODY_HEIGHT = 30;
-
-/** Text styling */
 const NAME_FONT_SIZE = 14;
 const TECH_FONT_SIZE = 11;
 const DESCRIPTION_FONT_SIZE = 11;
 const EDGE_LABEL_FONT_SIZE = 11;
-
-/** Arrowhead size */
 const ARROW_SIZE = 8;
+const LEGEND_ROW_HEIGHT = 24;
+const LEGEND_MARGIN = 20;
+const STEP_NUMBER_PATTERN = /^(\d+)\s*\[(.+)\]$/;
+const LEGEND_THRESHOLD = 50;
 
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
 
-/**
- * Get the color palette based on theme.
- */
-function getColors(isDarkMode: boolean) {
+function getColors(isDarkMode: boolean): Colors {
   return isDarkMode ? DARK_COLORS : LIGHT_COLORS;
 }
 
-/**
- * Calculate arrowhead polygon points for an edge.
- * Based on GraphLink.tsx pattern.
- */
-function calculateArrowheadPoints(
-  startPoint: Point,
-  endPoint: Point
-): string {
+function calculateArrowheadPoints(startPoint: Point, endPoint: Point): string {
   const dx = endPoint.x - startPoint.x;
   const dy = endPoint.y - startPoint.y;
   const len = Math.sqrt(dx * dx + dy * dy);
-
   if (len === 0) return '';
-
-  // Unit vector along the edge
   const ux = dx / len;
   const uy = dy / len;
-
-  // Perpendicular vector
   const px = -uy;
   const py = ux;
-
-  // Tip at endPoint, base set back by ARROW_SIZE
   const tipX = endPoint.x;
   const tipY = endPoint.y;
   const baseX = endPoint.x - ux * ARROW_SIZE;
   const baseY = endPoint.y - uy * ARROW_SIZE;
   const halfW = ARROW_SIZE * 0.5;
-
   return `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
 }
 
-/**
- * Calculate the midpoint of an edge for label placement.
- */
-function getEdgeMidpoint(points: Point[]): Point {
-  if (points.length < 2) {
-    return points[0] || { x: 0, y: 0 };
-  }
-  // Use the midpoint between first and last point
-  return {
-    x: (points[0].x + points[points.length - 1].x) / 2,
-    y: (points[0].y + points[points.length - 1].y) / 2,
-  };
-}
-
-/**
- * Shorten edge endpoint to leave room for arrowhead.
- */
 function shortenEdgeEnd(points: Point[]): Point[] {
   if (points.length < 2) return points;
-
   const result = [...points];
   const lastIndex = result.length - 1;
   const secondLastIndex = lastIndex - 1;
-
   const dx = result[lastIndex].x - result[secondLastIndex].x;
   const dy = result[lastIndex].y - result[secondLastIndex].y;
   const len = Math.sqrt(dx * dx + dy * dy);
-
   if (len > ARROW_SIZE) {
     const ratio = (len - ARROW_SIZE) / len;
     result[lastIndex] = {
@@ -164,8 +118,283 @@ function shortenEdgeEnd(points: Point[]): Point[] {
       y: result[secondLastIndex].y + dy * ratio,
     };
   }
-
   return result;
+}
+
+/**
+ * Split an edge label into lines for rendering.
+ * If the label contains a [technology] suffix, always put it on its own line.
+ * Otherwise, break long labels at a natural word boundary near the middle.
+ */
+function splitEdgeLabel(label: string): string[] {
+  const techMatch = /^(.+?)\s*(\[.+\])$/.exec(label);
+  if (techMatch) {
+    return [techMatch[1].trim(), techMatch[2]];
+  }
+  const LINE_BREAK_THRESHOLD = 30;
+  if (label.length > LINE_BREAK_THRESHOLD) {
+    const mid = Math.floor(label.length / 2);
+    let breakIdx = label.lastIndexOf(' ', mid + 10);
+    if (breakIdx < mid - 15 || breakIdx === -1) breakIdx = label.indexOf(' ', mid - 5);
+    if (breakIdx === -1) breakIdx = mid;
+    return [label.slice(0, breakIdx).trim(), label.slice(breakIdx).trim()];
+  }
+  return [label];
+}
+
+/**
+ * Wrap text into lines that fit within a given pixel width.
+ * Uses approximate character width for system-ui at the given font size.
+ */
+function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
+  const avgCharWidth = fontSize * 0.55;
+  const maxChars = Math.floor(maxWidth / avgCharWidth);
+  if (text.length <= maxChars) return [text];
+
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let current = '';
+
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (test.length > maxChars && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+/**
+ * Render a multi-line description as tspan elements within a text element.
+ */
+function DescriptionText({ x, y, text, nodeWidth, fill, fontSize, lineHeight = 14 }: {
+  x: number;
+  y: number;
+  text: string;
+  nodeWidth: number;
+  fill: string;
+  fontSize: number;
+  lineHeight?: number;
+}): JSX.Element {
+  // Leave padding on each side
+  const maxWidth = nodeWidth - 20;
+  const lines = wrapText(text, maxWidth, fontSize);
+
+  return (
+    <text
+      x={x} y={y}
+      textAnchor="middle"
+      fill={fill}
+      fontSize={fontSize}
+      fontFamily="system-ui, -apple-system, sans-serif"
+      opacity={0.7}
+    >
+      {lines.map((line, i) => (
+        <tspan key={i} x={x} dy={i === 0 ? 0 : lineHeight}>{line}</tspan>
+      ))}
+    </text>
+  );
+}
+
+/** Build id→parentId map for O(1) parent lookups */
+function buildParentMap(allNodes: LayoutNode[]): Map<string, string | undefined> {
+  const map = new Map<string, string | undefined>();
+  for (const node of allNodes) {
+    map.set(node.id, node.element.parent);
+  }
+  return map;
+}
+
+/** Compute nesting depth for alternating boundary fills */
+function getNestingDepth(element: LayoutNode['element'], parentMap: Map<string, string | undefined>): number {
+  let depth = 0;
+  let parentId = element.parent;
+  while (parentId) {
+    depth++;
+    parentId = parentMap.get(parentId);
+  }
+  return depth;
+}
+
+// =============================================================================
+// LEGEND PRE-PROCESSING
+// =============================================================================
+
+interface LegendEntry {
+  index: string;
+  label: string;
+  isStep: boolean;
+}
+
+interface ProcessedEdge extends LayoutEdge {
+  isLegendRef: boolean;
+  isStepNumber: boolean;
+  displayLabel?: string;
+}
+
+function processEdgesForLegend(edges: LayoutEdge[]): {
+  edges: ProcessedEdge[];
+  legendEntries: LegendEntry[];
+} {
+  const legendEntries: LegendEntry[] = [];
+  let nextLetterIndex = 0;
+  const nextLetter = () => String.fromCharCode(65 + (nextLetterIndex++ % 26));
+
+  const processed: ProcessedEdge[] = edges.map((edge) => {
+    if (!edge.label) return { ...edge, isLegendRef: false, isStepNumber: false };
+
+    const stepMatch = STEP_NUMBER_PATTERN.exec(edge.label);
+    if (stepMatch) {
+      const stepNum = stepMatch[1];
+      const description = stepMatch[2];
+      legendEntries.push({ index: stepNum, label: description, isStep: true });
+      const showInline = description.length <= LEGEND_THRESHOLD;
+      return {
+        ...edge,
+        label: stepNum,
+        displayLabel: showInline ? description : undefined,
+        isLegendRef: true,
+        isStepNumber: true,
+      };
+    }
+
+    if (edge.label.length > LEGEND_THRESHOLD) {
+      const letter = nextLetter();
+      legendEntries.push({ index: letter, label: edge.label, isStep: false });
+      return { ...edge, label: letter, isLegendRef: true, isStepNumber: false };
+    }
+    return { ...edge, isLegendRef: false, isStepNumber: false };
+  });
+
+  // If multiple edges between same pair, or any one is in legend,
+  // move ALL edges in that pair to legend
+  const pairCounts = new Map<string, number>();
+  for (const edge of processed) {
+    if (edge.label) {
+      const key = [edge.source, edge.target].sort().join('::');
+      pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+    }
+  }
+  const pairNeedsLegend = new Map<string, boolean>();
+  for (const edge of processed) {
+    const key = [edge.source, edge.target].sort().join('::');
+    if (edge.isLegendRef || (pairCounts.get(key) ?? 0) > 1) {
+      pairNeedsLegend.set(key, true);
+    }
+  }
+  for (const edge of processed) {
+    if (!edge.isLegendRef && edge.label) {
+      const key = [edge.source, edge.target].sort().join('::');
+      if (pairNeedsLegend.get(key)) {
+        const letter = nextLetter();
+        legendEntries.push({ index: letter, label: edge.label, isStep: false });
+        edge.label = letter;
+        edge.isLegendRef = true;
+      }
+    }
+  }
+
+  return { edges: processed, legendEntries };
+}
+
+// =============================================================================
+// LEGEND PLACEMENT
+// =============================================================================
+
+function computeLegendPlacement(
+  legendEntries: LegendEntry[],
+  layout: LayoutResult,
+): { x: number; y: number; width: number; height: number; totalWidth: number; totalHeight: number } {
+  const longestLabel = Math.max(...legendEntries.map((e) => e.label.length), 0);
+  const legendW = Math.min(longestLabel * 6 + 40, 400);
+  const legendH = legendEntries.length * LEGEND_ROW_HEIGHT + LEGEND_MARGIN;
+  const margin = LEGEND_MARGIN;
+  const allNodes = layout.nodes;
+
+  function overlapsNodes(rx: number, ry: number, rw: number, rh: number): boolean {
+    for (const node of allNodes) {
+      if (rx < node.x + node.width + margin &&
+          rx + rw + margin > node.x &&
+          ry < node.y + node.height + margin &&
+          ry + rh + margin > node.y) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  const step = 30;
+  let bestPlacement: { x: number; y: number } | null = null;
+  let bestScore = -Infinity;
+  const allowOverflow = legendW;
+
+  for (let cy = margin; cy <= layout.height - legendH - margin; cy += step) {
+    for (let cx = margin; cx <= layout.width + allowOverflow - legendW; cx += step) {
+      if (!overlapsNodes(cx, cy, legendW, legendH)) {
+        const withinX = cx + legendW <= layout.width;
+        const withinY = cy + legendH <= layout.height;
+        const withinBonus = (withinX ? 50 : 0) + (withinY ? 50 : 0);
+        const overflowX = Math.max(0, (cx + legendW) - layout.width);
+        const overflowY = Math.max(0, (cy + legendH) - layout.height);
+        const overflowPenalty = (overflowX + overflowY) * 0.5;
+        const score = withinBonus +
+          (cx / (layout.width || 1)) * 30 +
+          ((1 - cy / (layout.height || 1)) * 20) -
+          overflowPenalty;
+        if (score > bestScore) {
+          bestScore = score;
+          bestPlacement = { x: cx, y: cy };
+        }
+      }
+    }
+  }
+
+  for (const node of allNodes) {
+    const cx = node.x + node.width + margin;
+    const cy = node.y;
+    if (!overlapsNodes(cx, cy, legendW, legendH)) {
+      const withinX = cx + legendW <= layout.width;
+      const withinY = cy + legendH <= layout.height;
+      const withinBonus = (withinX ? 50 : 0) + (withinY ? 50 : 0);
+      const overflowX = Math.max(0, (cx + legendW) - layout.width);
+      const overflowY = Math.max(0, (cy + legendH) - layout.height);
+      const overflowPenalty = (overflowX + overflowY) * 0.5;
+      const score = withinBonus +
+        (cx / (layout.width || 1)) * 30 +
+        ((1 - cy / (layout.height || 1)) * 20) -
+        overflowPenalty;
+      if (score > bestScore) {
+        bestScore = score;
+        bestPlacement = { x: cx, y: cy };
+      }
+    }
+  }
+
+  if (!bestPlacement) {
+    bestPlacement = { x: margin, y: layout.height + margin };
+  }
+
+  let totalWidth = layout.width;
+  let totalHeight = layout.height;
+  if (bestPlacement.x + legendW + margin > totalWidth) {
+    totalWidth = bestPlacement.x + legendW + margin;
+  }
+  if (bestPlacement.y + legendH + margin > totalHeight) {
+    totalHeight = bestPlacement.y + legendH + margin;
+  }
+
+  return {
+    x: bestPlacement.x,
+    y: bestPlacement.y,
+    width: legendW,
+    height: legendH,
+    totalWidth,
+    totalHeight,
+  };
 }
 
 // =============================================================================
@@ -174,52 +403,43 @@ function shortenEdgeEnd(points: Point[]): Point[] {
 
 interface ElementProps {
   node: LayoutNode;
-  colors: typeof LIGHT_COLORS;
+  colors: Colors;
+  allNodes: LayoutNode[];
+  parentMap: Map<string, string | undefined>;
 }
 
-/**
- * Render a system boundary (dotted-line rounded rectangle).
- */
-function SystemBoundary({ node, colors }: ElementProps): JSX.Element {
+function SystemBoundary({ node, colors, parentMap }: ElementProps): JSX.Element {
   const { x, y, width, height, element } = node;
-  const isExt = isExternal(element);
-  const hasBoundaryStyle = isBoundary(element);
-
-  // Systems with children or boundary style get special treatment
-  const hasChildren = (node.children?.length ?? 0) > 0 || hasBoundaryStyle;
+  const isExt = element.properties.external === true;
+  const hasChildren = (node.children?.length ?? 0) > 0 || element.properties.style === 'boundary';
+  const depth = getNestingDepth(element, parentMap);
+  const boundaryFillColor = depth % 2 === 0 ? colors.boundaryFill : colors.containerFill;
 
   return (
     <g>
-      {/* Background rectangle */}
       <rect
-        x={x}
-        y={y}
-        width={width}
-        height={height}
-        rx={BORDER_RADIUS}
-        ry={BORDER_RADIUS}
-        fill={isExt ? colors.externalFill : hasChildren ? colors.boundaryFill : colors.containerFill}
+        x={x} y={y} width={width} height={height}
+        rx={BORDER_RADIUS} ry={BORDER_RADIUS}
+        fill={isExt ? colors.externalFill : hasChildren ? boundaryFillColor : colors.containerFill}
         stroke={isExt ? colors.externalStroke : hasChildren ? colors.boundaryStroke : colors.containerStroke}
-        strokeWidth={isExt || hasChildren ? 2 : 1.5}
-        strokeDasharray={isExt || hasChildren ? '8 4' : 'none'}
+        strokeWidth={2.5}
+        strokeDasharray={(isExt || hasChildren) ? '8 4' : 'none'}
       />
-      {/* Name label at top */}
       <text
         x={x + width / 2}
-        y={y + 24}
+        y={hasChildren ? y + 24 : y + height / 2 - (element.properties.tech ? 6 : 0) - (element.properties.description ? 6 : 0)}
         textAnchor="middle"
+        dominantBaseline={hasChildren ? undefined : 'middle'}
         fill={hasChildren ? colors.textOnBoundary : colors.textPrimary}
-        fontSize={NAME_FONT_SIZE}
-        fontWeight="600"
+        fontSize={NAME_FONT_SIZE} fontWeight="600"
         fontFamily="system-ui, -apple-system, sans-serif"
       >
         {element.name}
       </text>
-      {/* Tech badge */}
       {element.properties.tech && (
         <text
           x={x + width / 2}
-          y={y + 40}
+          y={hasChildren ? y + 40 : y + height / 2 + 10 - (element.properties.description ? 6 : 0)}
           textAnchor="middle"
           fill={hasChildren ? colors.textOnBoundary : colors.textSecondary}
           fontSize={TECH_FONT_SIZE}
@@ -229,45 +449,35 @@ function SystemBoundary({ node, colors }: ElementProps): JSX.Element {
           [{element.properties.tech}]
         </text>
       )}
-      {/* Description */}
       {element.properties.description && !hasChildren && (
-        <text
+        <DescriptionText
           x={x + width / 2}
-          y={y + (element.properties.tech ? 56 : 42)}
-          textAnchor="middle"
+          y={y + height / 2 + (element.properties.tech ? 26 : 14)}
+          text={element.properties.description}
+          nodeWidth={width}
           fill={colors.textSecondary}
           fontSize={DESCRIPTION_FONT_SIZE}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          opacity={0.7}
-        >
-          {element.properties.description.length > 50
-            ? element.properties.description.slice(0, 47) + '...'
-            : element.properties.description}
-        </text>
+        />
       )}
     </g>
   );
 }
 
-/**
- * Render a container (solid filled rectangle with tech badge).
- */
-function Container({ node, colors }: ElementProps): JSX.Element {
+function Container({ node, colors, allNodes, parentMap }: ElementProps): JSX.Element {
   const { x, y, width, height, element } = node;
-  const isExt = isExternal(element);
-  const isCylinder = element.properties.shape === 'cylinder';
-  const isQueue = element.properties.shape === 'queue';
+  const isExt = element.properties.external === true;
   const hasChildren = (node.children?.length ?? 0) > 0 || element.properties.style === 'boundary';
 
-  if (isCylinder) {
-    return <CylinderShape node={node} colors={colors} />;
+  if (element.properties.shape === 'cylinder') {
+    return <CylinderShape node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
+  }
+  if (element.properties.shape === 'queue') {
+    return <QueueShape node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
   }
 
-  if (isQueue) {
-    return <QueueShape node={node} colors={colors} />;
-  }
-
-  const fill = isExt ? colors.externalFill : hasChildren ? colors.boundaryFill : colors.containerFill;
+  const depth = getNestingDepth(element, parentMap);
+  const boundaryFillColor = depth % 2 === 0 ? colors.boundaryFill : colors.containerFill;
+  const fill = isExt ? colors.externalFill : hasChildren ? boundaryFillColor : colors.containerFill;
   const stroke = isExt ? colors.externalStroke : hasChildren ? colors.boundaryStroke : colors.containerStroke;
   const textColor = hasChildren ? colors.textOnBoundary : colors.textPrimary;
   const textY = hasChildren
@@ -276,33 +486,23 @@ function Container({ node, colors }: ElementProps): JSX.Element {
 
   return (
     <g>
-      {/* Background rectangle */}
       <rect
-        x={x}
-        y={y}
-        width={width}
-        height={height}
-        rx={BORDER_RADIUS}
-        ry={BORDER_RADIUS}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={isExt || hasChildren ? 2 : 1.5}
-        strokeDasharray={isExt || hasChildren ? '8 4' : 'none'}
+        x={x} y={y} width={width} height={height}
+        rx={BORDER_RADIUS} ry={BORDER_RADIUS}
+        fill={fill} stroke={stroke}
+        strokeWidth={2.5}
+        strokeDasharray={(isExt || hasChildren) ? '8 4' : 'none'}
       />
-      {/* Name label */}
       <text
-        x={x + width / 2}
-        y={textY}
+        x={x + width / 2} y={textY}
         textAnchor="middle"
         dominantBaseline={hasChildren ? undefined : 'middle'}
         fill={textColor}
-        fontSize={NAME_FONT_SIZE}
-        fontWeight="600"
+        fontSize={NAME_FONT_SIZE} fontWeight="600"
         fontFamily="system-ui, -apple-system, sans-serif"
       >
         {element.name}
       </text>
-      {/* Tech badge */}
       {element.properties.tech && (
         <text
           x={x + width / 2}
@@ -316,229 +516,147 @@ function Container({ node, colors }: ElementProps): JSX.Element {
           [{element.properties.tech}]
         </text>
       )}
-      {/* Description */}
-      {element.properties.description && (
-        <text
+      {element.properties.description && !hasChildren && (
+        <DescriptionText
           x={x + width / 2}
           y={y + height / 2 + (element.properties.tech ? 26 : 14)}
-          textAnchor="middle"
+          text={element.properties.description}
+          nodeWidth={width}
           fill={colors.textSecondary}
           fontSize={DESCRIPTION_FONT_SIZE}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          opacity={0.7}
-        >
-          {element.properties.description.length > 50
-            ? element.properties.description.slice(0, 47) + '...'
-            : element.properties.description}
-        </text>
+        />
       )}
     </g>
   );
 }
 
-/**
- * Render a cylinder shape (for databases).
- */
 function CylinderShape({ node, colors }: ElementProps): JSX.Element {
   const { x, y, width, height, element } = node;
-  const isExt = isExternal(element);
-
-  // Cylinder dimensions
+  const isExt = element.properties.external === true;
   const ellipseRy = 12;
   const bodyY = y + ellipseRy;
   const bodyHeight = height - ellipseRy * 2;
-
-  return (
-    <g>
-      {/* Cylinder body */}
-      <rect
-        x={x}
-        y={bodyY}
-        width={width}
-        height={bodyHeight}
-        fill={isExt ? colors.externalFill : colors.containerFill}
-        stroke={isExt ? colors.externalStroke : colors.containerStroke}
-        strokeWidth={isExt ? 2 : 1.5}
-        strokeDasharray={isExt ? '8 4' : 'none'}
-      />
-      {/* Bottom ellipse */}
-      <ellipse
-        cx={x + width / 2}
-        cy={y + height - ellipseRy}
-        rx={width / 2}
-        ry={ellipseRy}
-        fill={isExt ? colors.externalFill : colors.containerFill}
-        stroke={isExt ? colors.externalStroke : colors.containerStroke}
-        strokeWidth={isExt ? 2 : 1.5}
-        strokeDasharray={isExt ? '8 4' : 'none'}
-      />
-      {/* Top ellipse (on top) */}
-      <ellipse
-        cx={x + width / 2}
-        cy={y + ellipseRy}
-        rx={width / 2}
-        ry={ellipseRy}
-        fill={isExt ? colors.externalFill : colors.containerFill}
-        stroke={isExt ? colors.externalStroke : colors.containerStroke}
-        strokeWidth={isExt ? 2 : 1.5}
-        strokeDasharray={isExt ? '8 4' : 'none'}
-      />
-      {/* Name label */}
-      <text
-        x={x + width / 2}
-        y={y + height / 2 - (element.properties.tech ? 6 : 0)}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fill={colors.textPrimary}
-        fontSize={NAME_FONT_SIZE}
-        fontWeight="600"
-        fontFamily="system-ui, -apple-system, sans-serif"
-      >
-        {element.name}
-      </text>
-      {/* Tech badge */}
-      {element.properties.tech && (
-        <text
-          x={x + width / 2}
-          y={y + height / 2 + 12}
-          textAnchor="middle"
-          fill={colors.textSecondary}
-          fontSize={TECH_FONT_SIZE}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          opacity={0.8}
-        >
-          [{element.properties.tech}]
-        </text>
-      )}
-    </g>
-  );
-}
-
-/**
- * Render a queue shape (rectangle with wavy right edge for message queues).
- */
-function QueueShape({ node, colors }: ElementProps): JSX.Element {
-  const { x, y, width, height, element } = node;
-  const isExt = isExternal(element);
-  const waveDepth = 10;
-  const r = BORDER_RADIUS;
   const fill = isExt ? colors.externalFill : colors.containerFill;
   const stroke = isExt ? colors.externalStroke : colors.containerStroke;
 
-  // Path: rounded left corners, wavy right edge
-  const pathD = [
-    `M ${x + r} ${y}`,
-    `L ${x + width - waveDepth} ${y}`,
-    `C ${x + width + waveDepth * 0.3} ${y + height * 0.25}, ${x + width - waveDepth * 1.3} ${y + height * 0.5}, ${x + width - waveDepth} ${y + height * 0.5}`,
-    `C ${x + width - waveDepth * 0.7} ${y + height * 0.5}, ${x + width + waveDepth * 0.3} ${y + height * 0.75}, ${x + width - waveDepth} ${y + height}`,
-    `L ${x + r} ${y + height}`,
-    `Q ${x} ${y + height}, ${x} ${y + height - r}`,
-    `L ${x} ${y + r}`,
-    `Q ${x} ${y}, ${x + r} ${y}`,
-    'Z',
-  ].join(' ');
-
-  const textCenterX = x + (width - waveDepth) / 2;
-
   return (
     <g>
-      <path
-        d={pathD}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth={isExt ? 2 : 1.5}
+      <rect x={x} y={bodyY} width={width} height={bodyHeight}
+        fill={fill} stroke={stroke} strokeWidth={2.5}
         strokeDasharray={isExt ? '8 4' : 'none'}
       />
-      {/* Name label */}
+      <ellipse cx={x + width / 2} cy={y + height - ellipseRy}
+        rx={width / 2} ry={ellipseRy}
+        fill={fill} stroke={stroke} strokeWidth={2.5}
+        strokeDasharray={isExt ? '8 4' : 'none'}
+      />
+      <ellipse cx={x + width / 2} cy={y + ellipseRy}
+        rx={width / 2} ry={ellipseRy}
+        fill={fill} stroke={stroke} strokeWidth={2.5}
+        strokeDasharray={isExt ? '8 4' : 'none'}
+      />
       <text
-        x={textCenterX}
-        y={y + height / 2 - (element.properties.tech ? 6 : 0)}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fill={colors.textPrimary}
-        fontSize={NAME_FONT_SIZE}
-        fontWeight="600"
+        x={x + width / 2} y={y + height / 2 - (element.properties.tech ? 6 : 0)}
+        textAnchor="middle" dominantBaseline="middle"
+        fill={colors.textPrimary} fontSize={NAME_FONT_SIZE} fontWeight="600"
         fontFamily="system-ui, -apple-system, sans-serif"
       >
         {element.name}
       </text>
-      {/* Tech badge */}
       {element.properties.tech && (
-        <text
-          x={textCenterX}
-          y={y + height / 2 + 12}
-          textAnchor="middle"
-          fill={colors.textSecondary}
-          fontSize={TECH_FONT_SIZE}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          opacity={0.8}
+        <text x={x + width / 2} y={y + height / 2 + 12}
+          textAnchor="middle" fill={colors.textSecondary}
+          fontSize={TECH_FONT_SIZE} fontFamily="system-ui, -apple-system, sans-serif" opacity={0.8}
         >
           [{element.properties.tech}]
-        </text>
-      )}
-      {/* Description */}
-      {element.properties.description && (
-        <text
-          x={textCenterX}
-          y={y + height / 2 + (element.properties.tech ? 26 : 14)}
-          textAnchor="middle"
-          fill={colors.textSecondary}
-          fontSize={TECH_FONT_SIZE}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          opacity={0.7}
-        >
-          {element.properties.description.length > 50
-            ? element.properties.description.slice(0, 47) + '...'
-            : element.properties.description}
         </text>
       )}
     </g>
   );
 }
 
-/**
- * Render a component (smaller rectangle within a container).
- */
-function Component({ node, colors }: ElementProps): JSX.Element {
+function QueueShape({ node, colors }: ElementProps): JSX.Element {
   const { x, y, width, height, element } = node;
+  const isExt = element.properties.external === true;
+  const fill = isExt ? colors.externalFill : colors.containerFill;
+  const stroke = isExt ? colors.externalStroke : colors.containerStroke;
+  const ellipseRx = 16;
 
   return (
     <g>
-      {/* Background rectangle */}
-      <rect
-        x={x}
-        y={y}
-        width={width}
-        height={height}
-        rx={BORDER_RADIUS / 2}
-        ry={BORDER_RADIUS / 2}
-        fill={colors.componentFill}
-        stroke={colors.componentStroke}
-        strokeWidth={1}
+      <rect x={x + ellipseRx} y={y} width={width - ellipseRx * 2} height={height}
+        fill={fill} stroke={fill}
       />
-      {/* Name label */}
+      <ellipse cx={x + ellipseRx} cy={y + height / 2}
+        rx={ellipseRx} ry={height / 2}
+        fill={fill} stroke={stroke} strokeWidth={2.5}
+        strokeDasharray={isExt ? '8 4' : 'none'}
+      />
+      <ellipse cx={x + width - ellipseRx} cy={y + height / 2}
+        rx={ellipseRx} ry={height / 2}
+        fill={fill} stroke={stroke} strokeWidth={2.5}
+        strokeDasharray={isExt ? '8 4' : 'none'}
+      />
+      <line x1={x + ellipseRx} y1={y} x2={x + width - ellipseRx} y2={y}
+        stroke={stroke} strokeWidth={2.5}
+      />
+      <line x1={x + ellipseRx} y1={y + height} x2={x + width - ellipseRx} y2={y + height}
+        stroke={stroke} strokeWidth={2.5}
+      />
       <text
-        x={x + width / 2}
-        y={y + height / 2 - (element.properties.tech ? 4 : 0)}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fill={colors.textPrimary}
-        fontSize={NAME_FONT_SIZE - 1}
-        fontWeight="500"
+        x={x + width / 2} y={y + height / 2 - (element.properties.tech ? 6 : 0)}
+        textAnchor="middle" dominantBaseline="middle"
+        fill={colors.textPrimary} fontSize={NAME_FONT_SIZE} fontWeight="600"
         fontFamily="system-ui, -apple-system, sans-serif"
       >
         {element.name}
       </text>
-      {/* Tech badge */}
+      {element.properties.tech && (
+        <text x={x + width / 2} y={y + height / 2 + 12}
+          textAnchor="middle" fill={colors.textSecondary}
+          fontSize={TECH_FONT_SIZE} fontFamily="system-ui, -apple-system, sans-serif" opacity={0.8}
+        >
+          [{element.properties.tech}]
+        </text>
+      )}
+      {element.properties.description && (
+        <DescriptionText
+          x={x + width / 2}
+          y={y + height / 2 + (element.properties.tech ? 26 : 14)}
+          text={element.properties.description}
+          nodeWidth={width}
+          fill={colors.textSecondary}
+          fontSize={DESCRIPTION_FONT_SIZE}
+        />
+      )}
+    </g>
+  );
+}
+
+function Component({ node, colors }: ElementProps): JSX.Element {
+  const { x, y, width, height, element } = node;
+  return (
+    <g>
+      <rect
+        x={x} y={y} width={width} height={height}
+        rx={BORDER_RADIUS / 2} ry={BORDER_RADIUS / 2}
+        fill={colors.componentFill} stroke={colors.componentStroke} strokeWidth={2.5}
+      />
+      <text
+        x={x + width / 2} y={y + height / 2 - (element.properties.tech ? 4 : 0)}
+        textAnchor="middle" dominantBaseline="middle"
+        fill={colors.textPrimary}
+        fontSize={NAME_FONT_SIZE - 1} fontWeight="500"
+        fontFamily="system-ui, -apple-system, sans-serif"
+      >
+        {element.name}
+      </text>
       {element.properties.tech && (
         <text
-          x={x + width / 2}
-          y={y + height / 2 + 12}
-          textAnchor="middle"
-          fill={colors.textSecondary}
+          x={x + width / 2} y={y + height / 2 + 12}
+          textAnchor="middle" fill={colors.textSecondary}
           fontSize={TECH_FONT_SIZE - 1}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          opacity={0.8}
+          fontFamily="system-ui, -apple-system, sans-serif" opacity={0.8}
         >
           [{element.properties.tech}]
         </text>
@@ -547,61 +665,37 @@ function Component({ node, colors }: ElementProps): JSX.Element {
   );
 }
 
-/**
- * Render a person (SVG icon shape).
- */
 function Person({ node, colors }: ElementProps): JSX.Element {
   const { x, y, width, height, element } = node;
   const centerX = x + width / 2;
-
-  // Icon positioning - person icon at top, name below
   const iconY = y + 12;
 
   return (
     <g>
-      {/* Person head (circle) */}
       <circle
-        cx={centerX}
-        cy={iconY + PERSON_HEAD_RADIUS}
-        r={PERSON_HEAD_RADIUS}
-        fill={colors.personFill}
-        stroke={colors.personStroke}
-        strokeWidth={1.5}
+        cx={centerX} cy={iconY + PERSON_HEAD_RADIUS} r={PERSON_HEAD_RADIUS}
+        fill={colors.personFill} stroke={colors.personStroke} strokeWidth={1.5}
       />
-      {/* Person body (rounded rectangle) */}
       <rect
-        x={centerX - PERSON_BODY_WIDTH / 2}
-        y={iconY + PERSON_HEAD_RADIUS * 2 + 4}
-        width={PERSON_BODY_WIDTH}
-        height={PERSON_BODY_HEIGHT}
-        rx={PERSON_BODY_WIDTH / 2}
-        ry={8}
-        fill={colors.personFill}
-        stroke={colors.personStroke}
-        strokeWidth={1.5}
+        x={centerX - PERSON_BODY_WIDTH / 2} y={iconY + PERSON_HEAD_RADIUS * 2 + 4}
+        width={PERSON_BODY_WIDTH} height={PERSON_BODY_HEIGHT}
+        rx={PERSON_BODY_WIDTH / 2} ry={8}
+        fill={colors.personFill} stroke={colors.personStroke} strokeWidth={1.5}
       />
-      {/* Name label */}
       <text
-        x={centerX}
-        y={y + height - 18}
-        textAnchor="middle"
-        fill={colors.textOnBoundary}
-        fontSize={NAME_FONT_SIZE}
-        fontWeight="600"
+        x={centerX} y={y + height - 18}
+        textAnchor="middle" fill={colors.textOnBoundary}
+        fontSize={NAME_FONT_SIZE} fontWeight="600"
         fontFamily="system-ui, -apple-system, sans-serif"
       >
         {element.name}
       </text>
-      {/* Description */}
       {element.properties.description && (
         <text
-          x={centerX}
-          y={y + height - 4}
-          textAnchor="middle"
-          fill={colors.textOnBoundary}
+          x={centerX} y={y + height - 4}
+          textAnchor="middle" fill={colors.textOnBoundary}
           fontSize={DESCRIPTION_FONT_SIZE}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          opacity={0.7}
+          fontFamily="system-ui, -apple-system, sans-serif" opacity={0.7}
         >
           {element.properties.description.length > 20
             ? element.properties.description.slice(0, 17) + '...'
@@ -612,99 +706,224 @@ function Person({ node, colors }: ElementProps): JSX.Element {
   );
 }
 
-/**
- * Render an edge (relationship) with label and arrowhead.
- */
-interface EdgeProps {
-  edge: LayoutEdge;
-  colors: typeof LIGHT_COLORS;
+// =============================================================================
+// EDGE RENDERER
+// =============================================================================
+
+interface EdgeComponentProps {
+  edge: ProcessedEdge;
+  colors: Colors;
 }
 
-function Edge({ edge, colors }: EdgeProps): JSX.Element {
+function EdgeComponent({ edge, colors }: EdgeComponentProps): JSX.Element {
   const { points, label } = edge;
-
   if (points.length < 2) return <></>;
 
-  // Shorten the edge to make room for the arrowhead
   const shortenedPoints = shortenEdgeEnd(points);
-
-  // Build path string
-  const pathD = shortenedPoints
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
-    .join(' ');
-
-  // Calculate arrowhead at original end point
   const arrowPoints = calculateArrowheadPoints(
     shortenedPoints[shortenedPoints.length - 1],
     points[points.length - 1]
   );
 
-  // Get midpoint for label, offset perpendicular to edge, rotated along edge
-  const midpoint = getEdgeMidpoint(points);
+  const midpoint: Point = {
+    x: (points[0].x + points[points.length - 1].x) / 2,
+    y: (points[0].y + points[points.length - 1].y) / 2,
+  };
   const edgeDx = points[points.length - 1].x - points[0].x;
   const edgeDy = points[points.length - 1].y - points[0].y;
 
-  // Place label centered on the line
-  const labelX = midpoint.x;
-  const labelY = midpoint.y;
-
-  // Angle in degrees — only rotate for clearly horizontal edges (within 30°)
   let angleDeg = Math.atan2(edgeDy, edgeDx) * (180 / Math.PI);
   if (angleDeg > 90) angleDeg -= 180;
   if (angleDeg < -90) angleDeg += 180;
   if (Math.abs(angleDeg) > 60) angleDeg = 0;
 
+  const labelX = midpoint.x;
+  const labelY = midpoint.y;
   const labelTransform = `rotate(${angleDeg}, ${labelX}, ${labelY})`;
 
-  // If there's a label, clip the line around it; otherwise draw the full path
-  const edgePaths: string[] = [];
+  // Compute edge paths with label clipping
+  let edgePaths: string[];
   if (label) {
-    const { halfW, halfH } = estimateLabelSize(label, EDGE_LABEL_FONT_SIZE);
-    const clipped = buildClippedEdgePaths(
-      shortenedPoints,
-      { x: labelX, y: labelY },
-      halfW,
-      halfH,
-      angleDeg
-    );
-    edgePaths.push(...clipped);
+    if (edge.isStepNumber && edge.displayLabel) {
+      // Step number with inline text: clip around the displayLabel text (above the circle).
+      // The circle itself is opaque and covers the line naturally.
+      const displayLines = splitEdgeLabel(edge.displayLabel);
+      const longestLine = displayLines.reduce((a, b) => (a.length > b.length ? a : b), '');
+      const avgCharWidth = EDGE_LABEL_FONT_SIZE * 0.55;
+      const halfW = (longestLine.length * avgCharWidth) / 2 + 3;
+      const ascent = EDGE_LABEL_FONT_SIZE * 0.8;
+      const descent = EDGE_LABEL_FONT_SIZE * 0.2;
+      const pad = 3;
+      // displayLabel renders at labelY - 16
+      const textBaseline = labelY - 16;
+      const clipTop = textBaseline - ascent - pad;
+      const clipBottom = textBaseline + descent + pad;
+      const clipCenterY = (clipTop + clipBottom) / 2;
+      const halfH = (clipBottom - clipTop) / 2;
+      edgePaths = buildClippedEdgePaths(
+        shortenedPoints,
+        { x: labelX, y: clipCenterY },
+        halfW,
+        halfH,
+        angleDeg
+      );
+    } else if (edge.isStepNumber || edge.isLegendRef) {
+      // Circle/square shapes are opaque — no line clipping needed
+      edgePaths = [shortenedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')];
+    } else {
+      // Clip around text label
+      const lines = splitEdgeLabel(label);
+      const longestLine = lines.reduce((a, b) => (a.length > b.length ? a : b), '');
+      const avgCharWidth = EDGE_LABEL_FONT_SIZE * 0.55;
+      const halfW = (longestLine.length * avgCharWidth) / 2 + 3;
+      const lineHeight = 14;
+      const ascent = EDGE_LABEL_FONT_SIZE * 0.8;
+      const descent = EDGE_LABEL_FONT_SIZE * 0.2;
+      const pad = 3;
+
+      let clipTop: number;
+      let clipBottom: number;
+      if (lines.length === 1) {
+        const baseline = labelY + 4;
+        clipTop = baseline - ascent - pad;
+        clipBottom = baseline + descent + pad;
+      } else {
+        const firstBaseline = labelY - ((lines.length - 1) * lineHeight) / 2;
+        const lastBaseline = firstBaseline + (lines.length - 1) * lineHeight;
+        clipTop = firstBaseline - ascent - pad;
+        clipBottom = lastBaseline + descent + pad;
+      }
+
+      const clipCenterY = (clipTop + clipBottom) / 2;
+      const halfH = (clipBottom - clipTop) / 2;
+
+      edgePaths = buildClippedEdgePaths(
+        shortenedPoints,
+        { x: labelX, y: clipCenterY },
+        halfW,
+        halfH,
+        angleDeg
+      );
+    }
   } else {
-    edgePaths.push(pathD);
+    edgePaths = [shortenedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')];
+  }
+
+  // Render label content
+  let labelContent: JSX.Element | null = null;
+  if (label) {
+    if (edge.isStepNumber || edge.isLegendRef) {
+      labelContent = (
+        <>
+          {edge.isStepNumber ? (
+            <circle cx={labelX} cy={labelY} r={10}
+              fill={colors.edgeLabelBackground} stroke={colors.edgeStroke} strokeWidth={1.5}
+            />
+          ) : (
+            <rect x={labelX - 10} y={labelY - 10} width={20} height={20} rx={3}
+              fill={colors.edgeLabelBackground} stroke={colors.edgeStroke} strokeWidth={1.5}
+            />
+          )}
+          <text x={labelX} y={labelY + 4}
+            textAnchor="middle" fill={colors.edgeStroke}
+            fontSize={10} fontWeight="600"
+            fontFamily="system-ui, -apple-system, sans-serif"
+          >
+            {label}
+          </text>
+          {edge.isStepNumber && edge.displayLabel && (
+            <text x={labelX} y={labelY - 16}
+              textAnchor="middle" fill={colors.edgeLabel}
+              fontSize={EDGE_LABEL_FONT_SIZE}
+              fontFamily="system-ui, -apple-system, sans-serif"
+              transform={labelTransform}
+            >
+              {edge.displayLabel}
+            </text>
+          )}
+        </>
+      );
+    } else {
+      const lines = splitEdgeLabel(label);
+      const lineHeight = 14;
+      const startY = lines.length === 1
+        ? labelY + 4
+        : labelY - ((lines.length - 1) * lineHeight) / 2;
+
+      labelContent = (
+        <text x={labelX} textAnchor="middle"
+          fill={colors.edgeLabel} fontSize={EDGE_LABEL_FONT_SIZE}
+          fontFamily="system-ui, -apple-system, sans-serif"
+          transform={labelTransform}
+        >
+          {lines.map((line, i) => (
+            <tspan key={i} x={labelX} y={startY + i * lineHeight}>{line}</tspan>
+          ))}
+        </text>
+      );
+    }
   }
 
   return (
     <g>
-      {/* Edge line(s) — split around label when present */}
       {edgePaths.map((d, i) => (
-        <path
-          key={i}
-          d={d}
-          fill="none"
-          stroke={colors.edgeStroke}
-          strokeWidth={1.5}
-        />
+        <path key={i} d={d} fill="none" stroke={colors.edgeStroke} strokeWidth={1.5} />
       ))}
-      {/* Arrowhead */}
-      {arrowPoints && (
-        <polygon
-          points={arrowPoints}
-          fill={colors.edgeStroke}
-        />
-      )}
-      {/* Label */}
-      {label && (
-        <text
-          x={labelX}
-          y={labelY + 4}
-          textAnchor="middle"
-          transform={labelTransform}
-          fill={colors.edgeLabel}
-          fontSize={EDGE_LABEL_FONT_SIZE}
-          fontFamily="system-ui, -apple-system, sans-serif"
-        >
-          {label}
-        </text>
-      )}
+      {arrowPoints && <polygon points={arrowPoints} fill={colors.edgeStroke} />}
+      {labelContent}
+    </g>
+  );
+}
+
+// =============================================================================
+// LEGEND RENDERER
+// =============================================================================
+
+function Legend({ entries, placement, colors }: {
+  entries: LegendEntry[];
+  placement: { x: number; y: number };
+  colors: Colors;
+}): JSX.Element {
+  const circleR = 9;
+  const baseY = placement.y + circleR + 4;
+
+  return (
+    <g className="legend-layer">
+      {entries.map((entry, i) => {
+        const rowY = baseY + i * LEGEND_ROW_HEIGHT;
+        const symbolCenterX = placement.x + circleR;
+        const symbolCenterY = rowY - 4;
+        const textY = rowY;
+
+        return (
+          <g key={i}>
+            {entry.isStep ? (
+              <circle cx={symbolCenterX} cy={symbolCenterY} r={circleR}
+                fill={colors.edgeLabelBackground} stroke={colors.edgeStroke} strokeWidth={1.5}
+              />
+            ) : (
+              <rect
+                x={symbolCenterX - circleR} y={symbolCenterY - circleR}
+                width={circleR * 2} height={circleR * 2} rx={3}
+                fill={colors.edgeLabelBackground} stroke={colors.edgeStroke} strokeWidth={1.5}
+              />
+            )}
+            <text x={symbolCenterX} y={textY}
+              textAnchor="middle" fill={colors.edgeStroke}
+              fontSize={10} fontWeight="600"
+              fontFamily="system-ui, -apple-system, sans-serif"
+            >
+              {entry.index}
+            </text>
+            <text x={placement.x + circleR * 2 + 8} y={textY}
+              fill={colors.edgeLabel} fontSize={11}
+              fontFamily="system-ui, -apple-system, sans-serif"
+            >
+              {entry.label}
+            </text>
+          </g>
+        );
+      })}
     </g>
   );
 }
@@ -713,23 +932,19 @@ function Edge({ edge, colors }: EdgeProps): JSX.Element {
 // NODE RENDERER DISPATCHER
 // =============================================================================
 
-/**
- * Render a node based on its element type.
- */
-function renderNode(node: LayoutNode, colors: typeof LIGHT_COLORS): JSX.Element {
+function renderNode(node: LayoutNode, colors: Colors, allNodes: LayoutNode[], parentMap: Map<string, string | undefined>): JSX.Element {
   const { element } = node;
-
   switch (element.type) {
     case 'system':
-      return <SystemBoundary key={node.id} node={node} colors={colors} />;
+      return <SystemBoundary key={node.id} node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
     case 'container':
-      return <Container key={node.id} node={node} colors={colors} />;
+      return <Container key={node.id} node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
     case 'component':
-      return <Component key={node.id} node={node} colors={colors} />;
+      return <Component key={node.id} node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
     case 'person':
-      return <Person key={node.id} node={node} colors={colors} />;
+      return <Person key={node.id} node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
     default:
-      return <Container key={node.id} node={node} colors={colors} />;
+      return <Container key={node.id} node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
   }
 }
 
@@ -747,50 +962,65 @@ export interface C4RendererProps {
 /**
  * C4 Diagram SVG Renderer.
  *
- * Renders a C4 architecture diagram as an SVG element.
- * Elements are layered: boundaries first, then edges, then nodes.
+ * Pure component: takes layout + theme, returns SVG.
+ * Used directly in the editor and via renderToStaticMarkup for publishing.
  */
 export function C4Renderer({ layout, isDarkMode }: C4RendererProps): JSX.Element {
   const colors = getColors(isDarkMode);
 
-  // Separate boundary nodes (systems with children) from regular nodes
   const boundaryNodes = layout.nodes.filter(
     (n) =>
       n.element.type === 'system' &&
-      ((n.children?.length ?? 0) > 0 || isBoundary(n.element))
+      ((n.children?.length ?? 0) > 0 || n.element.properties.style === 'boundary')
   );
   const regularNodes = layout.nodes.filter(
     (n) =>
       !(
         n.element.type === 'system' &&
-        ((n.children?.length ?? 0) > 0 || isBoundary(n.element))
+        ((n.children?.length ?? 0) > 0 || n.element.properties.style === 'boundary')
       )
   );
 
+  const parentMap = buildParentMap(layout.nodes);
+  const { edges: processedEdges, legendEntries } = processEdgesForLegend(layout.edges);
+
+  let totalWidth = layout.width;
+  let totalHeight = layout.height;
+  let legendPlacement: { x: number; y: number } | null = null;
+
+  if (legendEntries.length > 0) {
+    const lp = computeLegendPlacement(legendEntries, layout);
+    legendPlacement = { x: lp.x, y: lp.y };
+    totalWidth = lp.totalWidth;
+    totalHeight = lp.totalHeight;
+  }
+
   return (
     <svg
-      width={layout.width}
-      height={layout.height}
-      viewBox={`0 0 ${layout.width} ${layout.height}`}
+      width={totalWidth}
+      height={totalHeight}
+      viewBox={`0 0 ${totalWidth} ${totalHeight}`}
       xmlns="http://www.w3.org/2000/svg"
       style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
     >
-      {/* Boundaries layer (back-most) */}
       <g className="boundaries-layer">
-        {boundaryNodes.map((node) => renderNode(node, colors))}
+        {boundaryNodes.map((node) => renderNode(node, colors, layout.nodes, parentMap))}
       </g>
-
-      {/* Nodes layer */}
       <g className="nodes-layer">
-        {regularNodes.map((node) => renderNode(node, colors))}
+        {regularNodes.map((node) => renderNode(node, colors, layout.nodes, parentMap))}
       </g>
-
-      {/* Edges layer (front-most, so relationships are always visible) */}
       <g className="edges-layer">
-        {layout.edges.map((edge, i) => (
-          <Edge key={`${edge.source}-${edge.target}-${i}`} edge={edge} colors={colors} />
+        {processedEdges.map((edge, i) => (
+          <EdgeComponent
+            key={`${edge.source}-${edge.target}-${i}`}
+            edge={edge}
+            colors={colors}
+          />
         ))}
       </g>
+      {legendPlacement && legendEntries.length > 0 && (
+        <Legend entries={legendEntries} placement={legendPlacement} colors={colors} />
+      )}
     </svg>
   );
 }
@@ -800,15 +1030,10 @@ export function C4Renderer({ layout, isDarkMode }: C4RendererProps): JSX.Element
 // =============================================================================
 
 export interface C4ErrorDisplayProps {
-  /** Error messages to display */
   errors: { message: string; line: number; column: number }[];
-  /** Whether dark mode is enabled */
   isDarkMode: boolean;
 }
 
-/**
- * Display parse errors instead of a diagram.
- */
 export function C4ErrorDisplay({ errors, isDarkMode }: C4ErrorDisplayProps): JSX.Element {
   const errorColor = isDarkMode ? 'oklch(0.70 0.20 25)' : 'oklch(0.55 0.25 25)';
   const bgColor = isDarkMode ? 'oklch(0.20 0.02 25)' : 'oklch(0.95 0.02 25)';

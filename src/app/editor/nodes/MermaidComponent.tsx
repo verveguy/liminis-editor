@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
 import { openLink } from '../../../messaging-electron';
 import { $isMermaidNode } from './MermaidNode';
+import { DiagramContextMenu, useDiagramContextMenu } from './DiagramContextMenu';
 
 // Initialize mermaid with default config
 mermaid.initialize({
@@ -39,6 +40,7 @@ function MermaidRenderer({
   const shadowRootRef = useRef<ShadowRoot | null>(null);
   const renderIdRef = useRef(0);
   const linkHandlerRef = useRef<((event: Event) => void) | null>(null);
+  const contextMenu = useDiagramContextMenu();
 
   useEffect(() => {
     const container = containerRef.current;
@@ -158,18 +160,22 @@ function MermaidRenderer({
   }, [code]);
 
   return (
-    <div
-      role="button"
-      tabIndex={-1}
-      onDoubleClick={onDoubleClick}
-      ref={containerRef}
-      className="mermaid-renderer"
-      style={{ 
-        display: 'block',
-        cursor: 'pointer',
-        minHeight: '100px',
-      }}
-    />
+    <>
+      <div
+        role="button"
+        tabIndex={-1}
+        onDoubleClick={onDoubleClick}
+        onContextMenu={(e) => contextMenu.show(e, containerRef)}
+        ref={containerRef}
+        className="mermaid-renderer"
+        style={{
+          display: 'block',
+          cursor: 'pointer',
+          minHeight: '100px',
+        }}
+      />
+      <DiagramContextMenu {...contextMenu.props} />
+    </>
   );
 }
 

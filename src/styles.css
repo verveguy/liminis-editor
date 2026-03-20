@@ -1709,6 +1709,11 @@ body {
   transition: box-shadow 0.2s ease;
 }
 
+.c4-renderer svg {
+  max-width: 100%;
+  height: auto;
+}
+
 .c4-renderer:hover {
   box-shadow: none;
 }
