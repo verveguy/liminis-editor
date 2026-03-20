@@ -200,14 +200,22 @@ function DescriptionText({ x, y, text, nodeWidth, fill, fontSize, lineHeight = 1
   );
 }
 
+/** Build id→parentId map for O(1) parent lookups */
+function buildParentMap(allNodes: LayoutNode[]): Map<string, string | undefined> {
+  const map = new Map<string, string | undefined>();
+  for (const node of allNodes) {
+    map.set(node.id, node.element.parent);
+  }
+  return map;
+}
+
 /** Compute nesting depth for alternating boundary fills */
-function getNestingDepth(element: LayoutNode['element'], allNodes: LayoutNode[]): number {
+function getNestingDepth(element: LayoutNode['element'], parentMap: Map<string, string | undefined>): number {
   let depth = 0;
   let parentId = element.parent;
   while (parentId) {
     depth++;
-    const parentNode = allNodes.find((n) => n.id === parentId);
-    parentId = parentNode?.element.parent;
+    parentId = parentMap.get(parentId);
   }
   return depth;
 }
@@ -397,13 +405,14 @@ interface ElementProps {
   node: LayoutNode;
   colors: Colors;
   allNodes: LayoutNode[];
+  parentMap: Map<string, string | undefined>;
 }
 
-function SystemBoundary({ node, colors, allNodes }: ElementProps): JSX.Element {
+function SystemBoundary({ node, colors, parentMap }: ElementProps): JSX.Element {
   const { x, y, width, height, element } = node;
   const isExt = element.properties.external === true;
   const hasChildren = (node.children?.length ?? 0) > 0 || element.properties.style === 'boundary';
-  const depth = getNestingDepth(element, allNodes);
+  const depth = getNestingDepth(element, parentMap);
   const boundaryFillColor = depth % 2 === 0 ? colors.boundaryFill : colors.containerFill;
 
   return (
@@ -454,19 +463,19 @@ function SystemBoundary({ node, colors, allNodes }: ElementProps): JSX.Element {
   );
 }
 
-function Container({ node, colors, allNodes }: ElementProps): JSX.Element {
+function Container({ node, colors, allNodes, parentMap }: ElementProps): JSX.Element {
   const { x, y, width, height, element } = node;
   const isExt = element.properties.external === true;
   const hasChildren = (node.children?.length ?? 0) > 0 || element.properties.style === 'boundary';
 
   if (element.properties.shape === 'cylinder') {
-    return <CylinderShape node={node} colors={colors} allNodes={allNodes} />;
+    return <CylinderShape node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
   }
   if (element.properties.shape === 'queue') {
-    return <QueueShape node={node} colors={colors} allNodes={allNodes} />;
+    return <QueueShape node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
   }
 
-  const depth = getNestingDepth(element, allNodes);
+  const depth = getNestingDepth(element, parentMap);
   const boundaryFillColor = depth % 2 === 0 ? colors.boundaryFill : colors.containerFill;
   const fill = isExt ? colors.externalFill : hasChildren ? boundaryFillColor : colors.containerFill;
   const stroke = isExt ? colors.externalStroke : hasChildren ? colors.boundaryStroke : colors.containerStroke;
@@ -876,15 +885,15 @@ function Legend({ entries, placement, colors }: {
   colors: Colors;
 }): JSX.Element {
   const circleR = 9;
-  let currentY = placement.y + circleR + 4;
+  const baseY = placement.y + circleR + 4;
 
   return (
     <g className="legend-layer">
       {entries.map((entry, i) => {
+        const rowY = baseY + i * LEGEND_ROW_HEIGHT;
         const symbolCenterX = placement.x + circleR;
-        const symbolCenterY = currentY - 4;
-        const textY = currentY;
-        currentY += LEGEND_ROW_HEIGHT;
+        const symbolCenterY = rowY - 4;
+        const textY = rowY;
 
         return (
           <g key={i}>
@@ -923,19 +932,19 @@ function Legend({ entries, placement, colors }: {
 // NODE RENDERER DISPATCHER
 // =============================================================================
 
-function renderNode(node: LayoutNode, colors: Colors, allNodes: LayoutNode[]): JSX.Element {
+function renderNode(node: LayoutNode, colors: Colors, allNodes: LayoutNode[], parentMap: Map<string, string | undefined>): JSX.Element {
   const { element } = node;
   switch (element.type) {
     case 'system':
-      return <SystemBoundary key={node.id} node={node} colors={colors} allNodes={allNodes} />;
+      return <SystemBoundary key={node.id} node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
     case 'container':
-      return <Container key={node.id} node={node} colors={colors} allNodes={allNodes} />;
+      return <Container key={node.id} node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
     case 'component':
-      return <Component key={node.id} node={node} colors={colors} allNodes={allNodes} />;
+      return <Component key={node.id} node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
     case 'person':
-      return <Person key={node.id} node={node} colors={colors} allNodes={allNodes} />;
+      return <Person key={node.id} node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
     default:
-      return <Container key={node.id} node={node} colors={colors} allNodes={allNodes} />;
+      return <Container key={node.id} node={node} colors={colors} allNodes={allNodes} parentMap={parentMap} />;
   }
 }
 
@@ -972,6 +981,7 @@ export function C4Renderer({ layout, isDarkMode }: C4RendererProps): JSX.Element
       )
   );
 
+  const parentMap = buildParentMap(layout.nodes);
   const { edges: processedEdges, legendEntries } = processEdgesForLegend(layout.edges);
 
   let totalWidth = layout.width;
@@ -994,10 +1004,10 @@ export function C4Renderer({ layout, isDarkMode }: C4RendererProps): JSX.Element
       style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
     >
       <g className="boundaries-layer">
-        {boundaryNodes.map((node) => renderNode(node, colors, layout.nodes))}
+        {boundaryNodes.map((node) => renderNode(node, colors, layout.nodes, parentMap))}
       </g>
       <g className="nodes-layer">
-        {regularNodes.map((node) => renderNode(node, colors, layout.nodes))}
+        {regularNodes.map((node) => renderNode(node, colors, layout.nodes, parentMap))}
       </g>
       <g className="edges-layer">
         {processedEdges.map((edge, i) => (
