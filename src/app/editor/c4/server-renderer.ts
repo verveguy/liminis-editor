@@ -9,6 +9,7 @@
  */
 
 import type { LayoutResult, LayoutNode, LayoutEdge, Point } from './types';
+import { buildClippedEdgePaths } from './edge-clipping';
 
 // =============================================================================
 // COLOR PALETTES (matching C4Component.tsx imperative renderer)
@@ -319,6 +320,29 @@ function processEdgesForLegend(edges: LayoutEdge[]): { edges: ProcessedEdge[]; l
   return { edges: processed, legendEntries };
 }
 
+/**
+ * Split an edge label into lines for rendering.
+ * If the label contains a [technology] suffix, always put it on its own line.
+ * Otherwise, break long labels at a natural word boundary near the middle.
+ */
+function splitEdgeLabel(label: string): string[] {
+  const techMatch = /^(.+?)\s*(\[.+\])$/.exec(label);
+  if (techMatch) {
+    return [techMatch[1].trim(), techMatch[2]];
+  }
+
+  const LINE_BREAK_THRESHOLD = 30;
+  if (label.length > LINE_BREAK_THRESHOLD) {
+    const mid = Math.floor(label.length / 2);
+    let breakIdx = label.lastIndexOf(' ', mid + 10);
+    if (breakIdx < mid - 15 || breakIdx === -1) breakIdx = label.indexOf(' ', mid - 5);
+    if (breakIdx === -1) breakIdx = mid;
+    return [label.slice(0, breakIdx).trim(), label.slice(breakIdx).trim()];
+  }
+
+  return [label];
+}
+
 function renderEdgeToString(edge: ProcessedEdge, colors: Colors): string {
   const { points, label } = edge;
   if (points.length < 2) return '';
@@ -340,10 +364,70 @@ function renderEdgeToString(edge: ProcessedEdge, colors: Colors): string {
     };
   }
 
-  const pathD = shortenedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+  // Compute label clipping info for non-legend/non-step labels
+  let labelClipInfo: { center: Point; halfW: number; halfH: number; angleDeg: number } | null = null;
+  if (label && !edge.isStepNumber && !edge.isLegendRef) {
+    const midpoint: Point = {
+      x: (points[0].x + points[points.length - 1].x) / 2,
+      y: (points[0].y + points[points.length - 1].y) / 2,
+    };
+    const edgeDx = points[points.length - 1].x - points[0].x;
+    const edgeDy = points[points.length - 1].y - points[0].y;
+    let angleDeg = Math.atan2(edgeDy, edgeDx) * (180 / Math.PI);
+    if (angleDeg > 90) angleDeg -= 180;
+    if (angleDeg < -90) angleDeg += 180;
+    if (Math.abs(angleDeg) > 60) angleDeg = 0;
+
+    const lines = splitEdgeLabel(label);
+    const longestLine = lines.reduce((a, b) => (a.length > b.length ? a : b), '');
+    const edgeLabelFontSize = 11;
+    const avgCharWidth = edgeLabelFontSize * 0.62;
+    const halfW = (longestLine.length * avgCharWidth) / 2 + 6;
+    const lineHeight = 14;
+
+    const ascent = edgeLabelFontSize * 0.8;
+    const descent = edgeLabelFontSize * 0.2;
+    const pad = 3;
+
+    let clipTop: number;
+    let clipBottom: number;
+    if (lines.length === 1) {
+      const baseline = midpoint.y + 4;
+      clipTop = baseline - ascent - pad;
+      clipBottom = baseline + descent + pad;
+    } else {
+      const firstBaseline = midpoint.y - ((lines.length - 1) * lineHeight) / 2;
+      const lastBaseline = firstBaseline + (lines.length - 1) * lineHeight;
+      clipTop = firstBaseline - ascent - pad;
+      clipBottom = lastBaseline + descent + pad;
+    }
+
+    const clipCenterY = (clipTop + clipBottom) / 2;
+    const halfH = (clipBottom - clipTop) / 2;
+
+    labelClipInfo = { center: { x: midpoint.x, y: clipCenterY }, halfW, halfH, angleDeg };
+  }
+
+  // Build edge path(s) — clip around label if present
+  const pathDataStrings: string[] = [];
+  if (labelClipInfo) {
+    pathDataStrings.push(...buildClippedEdgePaths(
+      shortenedPoints,
+      labelClipInfo.center,
+      labelClipInfo.halfW,
+      labelClipInfo.halfH,
+      labelClipInfo.angleDeg,
+    ));
+  } else {
+    pathDataStrings.push(
+      shortenedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+    );
+  }
 
   let svg = '<g>';
-  svg += `<path d="${pathD}" fill="none" stroke="${colors.edgeStroke}" stroke-width="1.5"/>`;
+  for (const pathD of pathDataStrings) {
+    svg += `<path d="${pathD}" fill="none" stroke="${colors.edgeStroke}" stroke-width="1.5"/>`;
+  }
 
   // Arrowhead
   if (len > 0) {
@@ -389,22 +473,12 @@ function renderEdgeToString(edge: ProcessedEdge, colors: Colors): string {
         svg += `<text x="${labelX}" y="${labelY - 16}" text-anchor="middle" fill="${colors.edgeLabel}" font-size="11" font-family="system-ui, -apple-system, sans-serif" transform="${transform}">${escapeXml(edge.displayLabel)}</text>`;
       }
     } else {
-      // Split long labels into two lines
-      const LINE_BREAK_THRESHOLD = 30;
-      let lines: string[];
-      if (label.length > LINE_BREAK_THRESHOLD) {
-        const mid = Math.floor(label.length / 2);
-        let breakIdx = label.lastIndexOf(' ', mid + 10);
-        if (breakIdx < mid - 15 || breakIdx === -1) breakIdx = label.indexOf(' ', mid - 5);
-        if (breakIdx === -1) breakIdx = mid;
-        lines = [label.slice(0, breakIdx).trim(), label.slice(breakIdx).trim()];
-      } else {
-        lines = [label];
-      }
-
+      const lines = splitEdgeLabel(label);
       const lineHeight = 14;
+
+      // Center text on the line — the line is clipped around the label
       const startY = lines.length === 1
-        ? labelY - 6
+        ? labelY + 4  // baseline offset to visually center 11px text
         : labelY - ((lines.length - 1) * lineHeight) / 2;
 
       svg += `<text x="${labelX}" text-anchor="middle" fill="${colors.edgeLabel}" font-size="11" font-family="system-ui, -apple-system, sans-serif" transform="${transform}">`;
