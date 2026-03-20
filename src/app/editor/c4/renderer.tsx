@@ -142,6 +142,64 @@ function splitEdgeLabel(label: string): string[] {
   return [label];
 }
 
+/**
+ * Wrap text into lines that fit within a given pixel width.
+ * Uses approximate character width for system-ui at the given font size.
+ */
+function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
+  const avgCharWidth = fontSize * 0.55;
+  const maxChars = Math.floor(maxWidth / avgCharWidth);
+  if (text.length <= maxChars) return [text];
+
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let current = '';
+
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (test.length > maxChars && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+/**
+ * Render a multi-line description as tspan elements within a text element.
+ */
+function DescriptionText({ x, y, text, nodeWidth, fill, fontSize, lineHeight = 14 }: {
+  x: number;
+  y: number;
+  text: string;
+  nodeWidth: number;
+  fill: string;
+  fontSize: number;
+  lineHeight?: number;
+}): JSX.Element {
+  // Leave padding on each side
+  const maxWidth = nodeWidth - 20;
+  const lines = wrapText(text, maxWidth, fontSize);
+
+  return (
+    <text
+      x={x} y={y}
+      textAnchor="middle"
+      fill={fill}
+      fontSize={fontSize}
+      fontFamily="system-ui, -apple-system, sans-serif"
+      opacity={0.7}
+    >
+      {lines.map((line, i) => (
+        <tspan key={i} x={x} dy={i === 0 ? 0 : lineHeight}>{line}</tspan>
+      ))}
+    </text>
+  );
+}
+
 /** Compute nesting depth for alternating boundary fills */
 function getNestingDepth(element: LayoutNode['element'], allNodes: LayoutNode[]): number {
   let depth = 0;
@@ -383,19 +441,14 @@ function SystemBoundary({ node, colors, allNodes }: ElementProps): JSX.Element {
         </text>
       )}
       {element.properties.description && !hasChildren && (
-        <text
+        <DescriptionText
           x={x + width / 2}
           y={y + height / 2 + (element.properties.tech ? 26 : 14)}
-          textAnchor="middle"
+          text={element.properties.description}
+          nodeWidth={width}
           fill={colors.textSecondary}
           fontSize={DESCRIPTION_FONT_SIZE}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          opacity={0.7}
-        >
-          {element.properties.description.length > 50
-            ? element.properties.description.slice(0, 47) + '...'
-            : element.properties.description}
-        </text>
+        />
       )}
     </g>
   );
@@ -455,19 +508,14 @@ function Container({ node, colors, allNodes }: ElementProps): JSX.Element {
         </text>
       )}
       {element.properties.description && !hasChildren && (
-        <text
+        <DescriptionText
           x={x + width / 2}
           y={y + height / 2 + (element.properties.tech ? 26 : 14)}
-          textAnchor="middle"
+          text={element.properties.description}
+          nodeWidth={width}
           fill={colors.textSecondary}
           fontSize={DESCRIPTION_FONT_SIZE}
-          fontFamily="system-ui, -apple-system, sans-serif"
-          opacity={0.7}
-        >
-          {element.properties.description.length > 50
-            ? element.properties.description.slice(0, 47) + '...'
-            : element.properties.description}
-        </text>
+        />
       )}
     </g>
   );
@@ -563,14 +611,14 @@ function QueueShape({ node, colors }: ElementProps): JSX.Element {
         </text>
       )}
       {element.properties.description && (
-        <text x={x + width / 2} y={y + height / 2 + (element.properties.tech ? 26 : 14)}
-          textAnchor="middle" fill={colors.textSecondary}
-          fontSize={DESCRIPTION_FONT_SIZE} fontFamily="system-ui, -apple-system, sans-serif" opacity={0.7}
-        >
-          {element.properties.description.length > 50
-            ? element.properties.description.slice(0, 47) + '...'
-            : element.properties.description}
-        </text>
+        <DescriptionText
+          x={x + width / 2}
+          y={y + height / 2 + (element.properties.tech ? 26 : 14)}
+          text={element.properties.description}
+          nodeWidth={width}
+          fill={colors.textSecondary}
+          fontSize={DESCRIPTION_FONT_SIZE}
+        />
       )}
     </g>
   );
@@ -687,17 +735,32 @@ function EdgeComponent({ edge, colors }: EdgeComponentProps): JSX.Element {
   // Compute edge paths with label clipping
   let edgePaths: string[];
   if (label) {
-    if (edge.isStepNumber || edge.isLegendRef) {
-      // Clip around the circle/square shape
-      const shapeR = 10;
-      const pad = 2;
+    if (edge.isStepNumber && edge.displayLabel) {
+      // Step number with inline text: clip around the displayLabel text (above the circle).
+      // The circle itself is opaque and covers the line naturally.
+      const displayLines = splitEdgeLabel(edge.displayLabel);
+      const longestLine = displayLines.reduce((a, b) => (a.length > b.length ? a : b), '');
+      const avgCharWidth = EDGE_LABEL_FONT_SIZE * 0.55;
+      const halfW = (longestLine.length * avgCharWidth) / 2 + 3;
+      const ascent = EDGE_LABEL_FONT_SIZE * 0.8;
+      const descent = EDGE_LABEL_FONT_SIZE * 0.2;
+      const pad = 3;
+      // displayLabel renders at labelY - 16
+      const textBaseline = labelY - 16;
+      const clipTop = textBaseline - ascent - pad;
+      const clipBottom = textBaseline + descent + pad;
+      const clipCenterY = (clipTop + clipBottom) / 2;
+      const halfH = (clipBottom - clipTop) / 2;
       edgePaths = buildClippedEdgePaths(
         shortenedPoints,
-        { x: labelX, y: labelY },
-        shapeR + pad,
-        shapeR + pad,
-        0
+        { x: labelX, y: clipCenterY },
+        halfW,
+        halfH,
+        angleDeg
       );
+    } else if (edge.isStepNumber || edge.isLegendRef) {
+      // Circle/square shapes are opaque — no line clipping needed
+      edgePaths = [shortenedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')];
     } else {
       // Clip around text label
       const lines = splitEdgeLabel(label);

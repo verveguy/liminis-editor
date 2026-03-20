@@ -192,18 +192,22 @@ describe('C4Renderer', () => {
       expect(descText).toBeTruthy();
     });
 
-    it('should truncate long descriptions', () => {
+    it('should wrap long descriptions into multiple tspan elements', () => {
       const longDesc =
-        'This is a very long description that should be truncated to fit within the element bounds';
+        'This is a very long description that should be wrapped to fit within the element bounds';
       const node = createLayoutNode('container', 'api', 'API', {
         properties: { description: longDesc },
       });
       const layout = createLayoutResult([node]);
       const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
 
-      const texts = container.querySelectorAll('text');
-      const descText = Array.from(texts).find((t) => t.textContent?.includes('...'));
-      expect(descText).toBeTruthy();
+      // Full description should be present (no truncation)
+      const allText = container.textContent ?? '';
+      expect(allText).toContain('very long');
+
+      // Should have tspan elements for multi-line wrapping
+      const tspans = container.querySelectorAll('tspan');
+      expect(tspans.length).toBeGreaterThan(1);
     });
   });
 
