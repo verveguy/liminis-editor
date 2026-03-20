@@ -21,6 +21,7 @@ import { parseC4, validateC4 } from '../c4/parser';
 import { layoutC4Diagram } from '../c4/layout';
 import { C4Renderer, C4ErrorDisplay } from '../c4/renderer';
 import { $isC4Node } from './C4Node';
+import { DiagramContextMenu, useDiagramContextMenu } from './DiagramContextMenu';
 
 // =============================================================================
 // C4 DIAGRAM DISPLAY
@@ -33,7 +34,9 @@ function C4DiagramDisplay({
   code: string;
   onDoubleClick: () => void;
 }): JSX.Element {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const contextMenu = useDiagramContextMenu();
 
   // Detect theme using MutationObserver
   useEffect(() => {
@@ -74,9 +77,11 @@ function C4DiagramDisplay({
 
   return (
     <div
+      ref={containerRef}
       role="button"
       tabIndex={0}
       onDoubleClick={onDoubleClick}
+      onContextMenu={(e) => contextMenu.show(e, containerRef)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -94,6 +99,7 @@ function C4DiagramDisplay({
       }}
     >
       <C4Renderer layout={layout} isDarkMode={isDarkMode} />
+      <DiagramContextMenu {...contextMenu.props} />
     </div>
   );
 }
