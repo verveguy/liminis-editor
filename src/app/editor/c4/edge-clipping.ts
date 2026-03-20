@@ -123,6 +123,9 @@ export function buildClippedEdgePaths(
 
     if (!prevInside && !inside && crossings.length === 0) {
       current.push(p);
+    } else if (!prevInside && !inside && crossings.length === 1) {
+      // Tangent touch — treat as no clipping
+      current.push(p);
     } else if (!prevInside && !inside && crossings.length >= 2) {
       current.push(lerp(prev, p, crossings[0]));
       visibleSegments.push(current);
@@ -146,9 +149,19 @@ export function buildClippedEdgePaths(
     visibleSegments.push(current);
   }
 
-  return visibleSegments
+  const paths = visibleSegments
     .filter((seg) => seg.length >= 2)
     .map((seg) =>
       seg.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
     );
+
+  // Fallback: if clipping consumed the entire edge, draw the original path
+  // rather than leaving a floating arrowhead with no line
+  if (paths.length === 0 && points.length >= 2) {
+    return [
+      points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' '),
+    ];
+  }
+
+  return paths;
 }
