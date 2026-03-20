@@ -812,6 +812,31 @@ function renderNodeToSVG(
   group.appendChild(g);
 }
 
+/**
+ * Split an edge label into lines for rendering.
+ * If the label contains a [technology] suffix, always put it on its own line.
+ * Otherwise, break long labels at a natural word boundary near the middle.
+ */
+function splitEdgeLabel(label: string): string[] {
+  // Split on [technology] suffix — always put protocol/tech on second line
+  const techMatch = /^(.+?)\s*(\[.+\])$/.exec(label);
+  if (techMatch) {
+    return [techMatch[1].trim(), techMatch[2]];
+  }
+
+  // Fall back to length-based splitting for long labels without [tech]
+  const LINE_BREAK_THRESHOLD = 30;
+  if (label.length > LINE_BREAK_THRESHOLD) {
+    const mid = Math.floor(label.length / 2);
+    let breakIdx = label.lastIndexOf(' ', mid + 10);
+    if (breakIdx < mid - 15 || breakIdx === -1) breakIdx = label.indexOf(' ', mid - 5);
+    if (breakIdx === -1) breakIdx = mid;
+    return [label.slice(0, breakIdx).trim(), label.slice(breakIdx).trim()];
+  }
+
+  return [label];
+}
+
 function renderEdgeToSVG(
   group: SVGGElement,
   edge: ReturnType<typeof layoutC4Diagram>['edges'][0] & {
@@ -858,18 +883,7 @@ function renderEdgeToSVG(
     if (angleDeg < -90) angleDeg += 180;
     if (Math.abs(angleDeg) > 60) angleDeg = 0;
 
-    // Check if label will be multi-line
-    const LINE_BREAK_THRESHOLD = 30;
-    let lines: string[];
-    if (label.length > LINE_BREAK_THRESHOLD) {
-      const mid = Math.floor(label.length / 2);
-      let breakIdx = label.lastIndexOf(' ', mid + 10);
-      if (breakIdx < mid - 15 || breakIdx === -1) breakIdx = label.indexOf(' ', mid - 5);
-      if (breakIdx === -1) breakIdx = mid;
-      lines = [label.slice(0, breakIdx).trim(), label.slice(breakIdx).trim()];
-    } else {
-      lines = [label];
-    }
+    const lines = splitEdgeLabel(label);
     const longestLine = lines.reduce((a, b) => (a.length > b.length ? a : b), '');
     const edgeLabelFontSize = 11;
     const avgCharWidth = edgeLabelFontSize * 0.62;
@@ -1021,19 +1035,7 @@ function renderEdgeToSVG(
         g.appendChild(descText);
       }
     } else {
-      // Split long labels into two lines at a natural break
-      const LINE_BREAK_THRESHOLD = 30;
-      let lines: string[];
-      if (label.length > LINE_BREAK_THRESHOLD) {
-        const mid = Math.floor(label.length / 2);
-        // Find nearest space to the middle
-        let breakIdx = label.lastIndexOf(' ', mid + 10);
-        if (breakIdx < mid - 15 || breakIdx === -1) breakIdx = label.indexOf(' ', mid - 5);
-        if (breakIdx === -1) breakIdx = mid;
-        lines = [label.slice(0, breakIdx).trim(), label.slice(breakIdx).trim()];
-      } else {
-        lines = [label];
-      }
+      const lines = splitEdgeLabel(label);
 
       const lineHeight = 14;
 
