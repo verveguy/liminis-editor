@@ -876,24 +876,31 @@ function renderEdgeToSVG(
     const halfW = (longestLine.length * avgCharWidth) / 2 + 6;
     const lineHeight = 14;
 
-    // Match the actual text rendering position:
-    // Single line: baseline at labelY - 6 (above the line)
-    // Multi-line: baselines straddle the midpoint
-    let textCenterY: number;
-    let halfH: number;
+    // Compute clip box that covers both the text AND the line.
+    // Text is offset above the midpoint (single line: baseline at labelY - 6).
+    // For horizontal edges this offset is perpendicular to the line, so the
+    // clip box must extend from the text top down to the line position.
+    const ascent = edgeLabelFontSize * 0.8;
+    const descent = edgeLabelFontSize * 0.2;
+    const pad = 3;
+
+    let clipTop: number;
+    let clipBottom: number;
     if (lines.length === 1) {
       const baseline = midpoint.y - 6;
-      // Visual center is above the baseline (ascent > descent)
-      textCenterY = baseline - edgeLabelFontSize * 0.3;
-      halfH = edgeLabelFontSize * 0.6 + 4;
+      clipTop = baseline - ascent - pad;
+      clipBottom = Math.max(baseline + descent, midpoint.y) + pad;
     } else {
-      const startY = midpoint.y - ((lines.length - 1) * lineHeight) / 2;
-      const endY = startY + (lines.length - 1) * lineHeight;
-      textCenterY = (startY + endY) / 2 - edgeLabelFontSize * 0.3;
-      halfH = ((endY - startY) / 2) + edgeLabelFontSize * 0.6 + 4;
+      const firstBaseline = midpoint.y - ((lines.length - 1) * lineHeight) / 2;
+      const lastBaseline = firstBaseline + (lines.length - 1) * lineHeight;
+      clipTop = firstBaseline - ascent - pad;
+      clipBottom = Math.max(lastBaseline + descent, midpoint.y) + pad;
     }
 
-    labelClipInfo = { center: { x: midpoint.x, y: textCenterY }, halfW, halfH, angleDeg };
+    const clipCenterY = (clipTop + clipBottom) / 2;
+    const halfH = (clipBottom - clipTop) / 2;
+
+    labelClipInfo = { center: { x: midpoint.x, y: clipCenterY }, halfW, halfH, angleDeg };
   }
 
   // Path — clip around label if present, otherwise draw full path
