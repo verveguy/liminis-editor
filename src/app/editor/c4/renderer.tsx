@@ -7,6 +7,7 @@
 
 import type { LayoutResult, LayoutNode, LayoutEdge, Point } from './types';
 import { isExternal, isBoundary } from './types';
+import { estimateLabelSize, buildClippedEdgePaths } from './edge-clipping';
 
 // =============================================================================
 // CONSTANTS - OKLCH Color Palette
@@ -140,128 +141,6 @@ function getEdgeMidpoint(points: Point[]): Point {
     x: (points[0].x + points[points.length - 1].x) / 2,
     y: (points[0].y + points[points.length - 1].y) / 2,
   };
-}
-
-/**
- * Estimate the half-width and half-height of a label's bounding box.
- */
-function estimateLabelSize(
-  label: string,
-  fontSize: number
-): { halfW: number; halfH: number } {
-  const avgCharWidth = fontSize * 0.62;
-  const halfW = (label.length * avgCharWidth) / 2 + 6;
-  const halfH = fontSize / 2 + 4;
-  return { halfW, halfH };
-}
-
-/**
- * Build clipped edge path strings that leave a gap where the label sits.
- * Works by transforming points into the label's local coordinate system,
- * finding where segments cross the label bounding box, and splitting the
- * polyline into visible portions.
- */
-function buildClippedEdgePaths(
-  points: Point[],
-  labelCenter: Point,
-  labelHalfW: number,
-  labelHalfH: number,
-  angleDeg: number
-): string[] {
-  const angleRad = (-angleDeg * Math.PI) / 180;
-  const cosA = Math.cos(angleRad);
-  const sinA = Math.sin(angleRad);
-
-  const toLocal = (p: Point): Point => ({
-    x: (p.x - labelCenter.x) * cosA - (p.y - labelCenter.y) * sinA,
-    y: (p.x - labelCenter.x) * sinA + (p.y - labelCenter.y) * cosA,
-  });
-
-  const isInBox = (p: Point): boolean => {
-    const l = toLocal(p);
-    return Math.abs(l.x) < labelHalfW && Math.abs(l.y) < labelHalfH;
-  };
-
-  const findCrossings = (p1: Point, p2: Point): number[] => {
-    const l1 = toLocal(p1);
-    const l2 = toLocal(p2);
-    const dx = l2.x - l1.x;
-    const dy = l2.y - l1.y;
-    const ts: number[] = [];
-
-    for (const bx of [-labelHalfW, labelHalfW]) {
-      if (dx !== 0) {
-        const t = (bx - l1.x) / dx;
-        if (t > 0 && t < 1) {
-          const y = l1.y + t * dy;
-          if (Math.abs(y) <= labelHalfH) ts.push(t);
-        }
-      }
-    }
-    for (const by of [-labelHalfH, labelHalfH]) {
-      if (dy !== 0) {
-        const t = (by - l1.y) / dy;
-        if (t > 0 && t < 1) {
-          const x = l1.x + t * dx;
-          if (Math.abs(x) <= labelHalfW) ts.push(t);
-        }
-      }
-    }
-
-    return ts.sort((a, b) => a - b);
-  };
-
-  const lerp = (p1: Point, p2: Point, t: number): Point => ({
-    x: p1.x + (p2.x - p1.x) * t,
-    y: p1.y + (p2.y - p1.y) * t,
-  });
-
-  const visibleSegments: Point[][] = [];
-  let current: Point[] = [];
-
-  for (let i = 0; i < points.length; i++) {
-    const p = points[i];
-    const inside = isInBox(p);
-
-    if (i === 0) {
-      if (!inside) current.push(p);
-      continue;
-    }
-
-    const prev = points[i - 1];
-    const prevInside = isInBox(prev);
-    const crossings = findCrossings(prev, p);
-
-    if (!prevInside && !inside && crossings.length === 0) {
-      current.push(p);
-    } else if (!prevInside && !inside && crossings.length >= 2) {
-      current.push(lerp(prev, p, crossings[0]));
-      visibleSegments.push(current);
-      current = [lerp(prev, p, crossings[crossings.length - 1]), p];
-    } else if (!prevInside && inside) {
-      if (crossings.length > 0) {
-        current.push(lerp(prev, p, crossings[0]));
-      }
-      if (current.length >= 2) visibleSegments.push(current);
-      current = [];
-    } else if (prevInside && !inside) {
-      if (crossings.length > 0) {
-        current = [lerp(prev, p, crossings[crossings.length - 1])];
-      }
-      current.push(p);
-    }
-    // both inside — skip
-  }
-
-  if (current.length >= 2) {
-    visibleSegments.push(current);
-  }
-
-  return visibleSegments
-    .filter((seg) => seg.length >= 2)
-    .map((seg) =>
-      seg.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
-    );
 }
 
 /**

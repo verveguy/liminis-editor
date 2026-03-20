@@ -17,6 +17,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { parseC4, validateC4 } from '../c4/parser';
 import { layoutC4Diagram } from '../c4/layout';
+import { buildClippedEdgePaths } from '../c4/edge-clipping';
 import { $isC4Node } from './C4Node';
 
 // =============================================================================
@@ -811,114 +812,6 @@ function renderNodeToSVG(
   group.appendChild(g);
 }
 
-/**
- * Build clipped edge path strings that leave a gap where the label sits.
- * Transforms points into label-local coordinates, finds line-box intersections,
- * and splits the polyline into visible segments.
- */
-function buildClippedEdgePathsDOM(
-  points: { x: number; y: number }[],
-  labelCenter: { x: number; y: number },
-  labelHalfW: number,
-  labelHalfH: number,
-  angleDeg: number,
-): string[] {
-  const angleRad = (-angleDeg * Math.PI) / 180;
-  const cosA = Math.cos(angleRad);
-  const sinA = Math.sin(angleRad);
-
-  const toLocal = (p: { x: number; y: number }) => ({
-    x: (p.x - labelCenter.x) * cosA - (p.y - labelCenter.y) * sinA,
-    y: (p.x - labelCenter.x) * sinA + (p.y - labelCenter.y) * cosA,
-  });
-
-  const isInBox = (p: { x: number; y: number }): boolean => {
-    const l = toLocal(p);
-    return Math.abs(l.x) < labelHalfW && Math.abs(l.y) < labelHalfH;
-  };
-
-  const findCrossings = (p1: { x: number; y: number }, p2: { x: number; y: number }): number[] => {
-    const l1 = toLocal(p1);
-    const l2 = toLocal(p2);
-    const dx = l2.x - l1.x;
-    const dy = l2.y - l1.y;
-    const ts: number[] = [];
-
-    for (const bx of [-labelHalfW, labelHalfW]) {
-      if (dx !== 0) {
-        const t = (bx - l1.x) / dx;
-        if (t > 0 && t < 1) {
-          const y = l1.y + t * dy;
-          if (Math.abs(y) <= labelHalfH) ts.push(t);
-        }
-      }
-    }
-    for (const by of [-labelHalfH, labelHalfH]) {
-      if (dy !== 0) {
-        const t = (by - l1.y) / dy;
-        if (t > 0 && t < 1) {
-          const x = l1.x + t * dx;
-          if (Math.abs(x) <= labelHalfW) ts.push(t);
-        }
-      }
-    }
-
-    return ts.sort((a, b) => a - b);
-  };
-
-  const lerp = (p1: { x: number; y: number }, p2: { x: number; y: number }, t: number) => ({
-    x: p1.x + (p2.x - p1.x) * t,
-    y: p1.y + (p2.y - p1.y) * t,
-  });
-
-  const visibleSegments: { x: number; y: number }[][] = [];
-  let current: { x: number; y: number }[] = [];
-
-  for (let i = 0; i < points.length; i++) {
-    const p = points[i];
-    const inside = isInBox(p);
-
-    if (i === 0) {
-      if (!inside) current.push(p);
-      continue;
-    }
-
-    const prev = points[i - 1];
-    const prevInside = isInBox(prev);
-    const crossings = findCrossings(prev, p);
-
-    if (!prevInside && !inside && crossings.length === 0) {
-      current.push(p);
-    } else if (!prevInside && !inside && crossings.length >= 2) {
-      current.push(lerp(prev, p, crossings[0]));
-      visibleSegments.push(current);
-      current = [lerp(prev, p, crossings[crossings.length - 1]), p];
-    } else if (!prevInside && inside) {
-      if (crossings.length > 0) {
-        current.push(lerp(prev, p, crossings[0]));
-      }
-      if (current.length >= 2) visibleSegments.push(current);
-      current = [];
-    } else if (prevInside && !inside) {
-      if (crossings.length > 0) {
-        current = [lerp(prev, p, crossings[crossings.length - 1])];
-      }
-      current.push(p);
-    }
-    // both inside — skip
-  }
-
-  if (current.length >= 2) {
-    visibleSegments.push(current);
-  }
-
-  return visibleSegments
-    .filter((seg) => seg.length >= 2)
-    .map((seg) =>
-      seg.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
-    );
-}
-
 function renderEdgeToSVG(
   group: SVGGElement,
   edge: ReturnType<typeof layoutC4Diagram>['edges'][0] & {
@@ -978,10 +871,10 @@ function renderEdgeToSVG(
       lines = [label];
     }
     const longestLine = lines.reduce((a, b) => (a.length > b.length ? a : b), '');
-    const avgCharWidth = 11 * 0.62;
+    const edgeLabelFontSize = 11;
+    const avgCharWidth = edgeLabelFontSize * 0.62;
     const halfW = (longestLine.length * avgCharWidth) / 2 + 6;
     const lineHeight = 14;
-    const fontSize = 11;
 
     // Match the actual text rendering position:
     // Single line: baseline at labelY - 6 (above the line)
@@ -991,37 +884,35 @@ function renderEdgeToSVG(
     if (lines.length === 1) {
       const baseline = midpoint.y - 6;
       // Visual center is above the baseline (ascent > descent)
-      textCenterY = baseline - fontSize * 0.3;
-      halfH = fontSize * 0.6 + 4;
+      textCenterY = baseline - edgeLabelFontSize * 0.3;
+      halfH = edgeLabelFontSize * 0.6 + 4;
     } else {
       const startY = midpoint.y - ((lines.length - 1) * lineHeight) / 2;
       const endY = startY + (lines.length - 1) * lineHeight;
-      textCenterY = (startY + endY) / 2 - fontSize * 0.3;
-      halfH = ((endY - startY) / 2) + fontSize * 0.6 + 4;
+      textCenterY = (startY + endY) / 2 - edgeLabelFontSize * 0.3;
+      halfH = ((endY - startY) / 2) + edgeLabelFontSize * 0.6 + 4;
     }
 
     labelClipInfo = { center: { x: midpoint.x, y: textCenterY }, halfW, halfH, angleDeg };
   }
 
-  // Path — clip around label if present
+  // Path — clip around label if present, otherwise draw full path
+  const pathDataStrings: string[] = [];
   if (labelClipInfo) {
-    const clipped = buildClippedEdgePathsDOM(
+    pathDataStrings.push(...buildClippedEdgePaths(
       shortenedPoints,
       labelClipInfo.center,
       labelClipInfo.halfW,
       labelClipInfo.halfH,
       labelClipInfo.angleDeg,
-    );
-    for (const pathD of clipped) {
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', pathD);
-      path.setAttribute('fill', 'none');
-      path.setAttribute('stroke', colors.edgeStroke);
-      path.setAttribute('stroke-width', '1.5');
-      g.appendChild(path);
-    }
+    ));
   } else {
-    const pathD = shortenedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    pathDataStrings.push(
+      shortenedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+    );
+  }
+
+  for (const pathD of pathDataStrings) {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', pathD);
     path.setAttribute('fill', 'none');
