@@ -876,10 +876,7 @@ function renderEdgeToSVG(
     const halfW = (longestLine.length * avgCharWidth) / 2 + 6;
     const lineHeight = 14;
 
-    // Compute clip box that covers both the text AND the line.
-    // Text is offset above the midpoint (single line: baseline at labelY - 6).
-    // For horizontal edges this offset is perpendicular to the line, so the
-    // clip box must extend from the text top down to the line position.
+    // Clip box centered on the text (which is now centered on the line).
     const ascent = edgeLabelFontSize * 0.8;
     const descent = edgeLabelFontSize * 0.2;
     const pad = 3;
@@ -887,14 +884,14 @@ function renderEdgeToSVG(
     let clipTop: number;
     let clipBottom: number;
     if (lines.length === 1) {
-      const baseline = midpoint.y - 6;
+      const baseline = midpoint.y + 4; // matches text rendering baseline
       clipTop = baseline - ascent - pad;
-      clipBottom = Math.max(baseline + descent, midpoint.y) + pad;
+      clipBottom = baseline + descent + pad;
     } else {
       const firstBaseline = midpoint.y - ((lines.length - 1) * lineHeight) / 2;
       const lastBaseline = firstBaseline + (lines.length - 1) * lineHeight;
       clipTop = firstBaseline - ascent - pad;
-      clipBottom = Math.max(lastBaseline + descent, midpoint.y) + pad;
+      clipBottom = lastBaseline + descent + pad;
     }
 
     const clipCenterY = (clipTop + clipBottom) / 2;
@@ -1049,9 +1046,9 @@ function renderEdgeToSVG(
       textEl.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
       textEl.setAttribute('transform', transform);
 
-      // Single line: position above the line; multi-line: straddle
+      // Center text on the line — the line is clipped around the label
       const startY = lines.length === 1
-        ? labelY - 6  // above the line
+        ? labelY + 4  // baseline offset to visually center 11px text
         : labelY - ((lines.length - 1) * lineHeight) / 2;
       for (let i = 0; i < lines.length; i++) {
         const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
