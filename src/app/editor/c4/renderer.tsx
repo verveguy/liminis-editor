@@ -359,8 +359,10 @@ function SystemBoundary({ node, colors, allNodes }: ElementProps): JSX.Element {
         strokeDasharray={(isExt || hasChildren) ? '8 4' : 'none'}
       />
       <text
-        x={x + width / 2} y={y + 24}
+        x={x + width / 2}
+        y={hasChildren ? y + 24 : y + height / 2 - (element.properties.tech ? 6 : 0) - (element.properties.description ? 6 : 0)}
         textAnchor="middle"
+        dominantBaseline={hasChildren ? undefined : 'middle'}
         fill={hasChildren ? colors.textOnBoundary : colors.textPrimary}
         fontSize={NAME_FONT_SIZE} fontWeight="600"
         fontFamily="system-ui, -apple-system, sans-serif"
@@ -369,7 +371,8 @@ function SystemBoundary({ node, colors, allNodes }: ElementProps): JSX.Element {
       </text>
       {element.properties.tech && (
         <text
-          x={x + width / 2} y={y + 40}
+          x={x + width / 2}
+          y={hasChildren ? y + 40 : y + height / 2 + 10 - (element.properties.description ? 6 : 0)}
           textAnchor="middle"
           fill={hasChildren ? colors.textOnBoundary : colors.textSecondary}
           fontSize={TECH_FONT_SIZE}
@@ -381,7 +384,8 @@ function SystemBoundary({ node, colors, allNodes }: ElementProps): JSX.Element {
       )}
       {element.properties.description && !hasChildren && (
         <text
-          x={x + width / 2} y={y + (element.properties.tech ? 56 : 42)}
+          x={x + width / 2}
+          y={y + height / 2 + (element.properties.tech ? 26 : 14)}
           textAnchor="middle"
           fill={colors.textSecondary}
           fontSize={DESCRIPTION_FONT_SIZE}
