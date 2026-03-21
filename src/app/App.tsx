@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Editor } from './editor';
 import {
   addMessageHandler,
@@ -69,7 +69,16 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
   const [internalContent, setInternalContent] = useState<string | null>(null);
   const [settings, setSettings] = useState<SlashMDSettings | null>(null);
   const [assetBaseUri, setAssetBaseUri] = useState<string | undefined>(undefined);
-  const [documentDirUri, setDocumentDirUri] = useState<string | undefined>(undefined);
+  const [ipcDocumentDirUri, setIpcDocumentDirUri] = useState<string | undefined>(undefined);
+
+  // Derive documentDirUri from filePath when not provided via IPC (inline mode).
+  // This ensures relative image paths like "image.svg" resolve relative to the document's directory.
+  const documentDirUri = useMemo(() => {
+    if (ipcDocumentDirUri) return ipcDocumentDirUri;
+    if (!filePath) return undefined;
+    const lastSlash = filePath.lastIndexOf('/');
+    return lastSlash >= 0 ? filePath.slice(0, lastSlash + 1) : '';
+  }, [ipcDocumentDirUri, filePath]);
   const [themeOverrides, setThemeOverrides] = useState<ThemeOverrides | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const pendingAssetCallback = useRef<((relPath: string) => void) | null>(null);
@@ -127,7 +136,7 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
           }
           setSettings(message.settings);
           setAssetBaseUri(message.assetBaseUri);
-          setDocumentDirUri(message.documentDirUri);
+          setIpcDocumentDirUri(message.documentDirUri);
           setThemeOverrides(message.themeOverrides);
           break;
 
