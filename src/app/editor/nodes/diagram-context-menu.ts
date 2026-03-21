@@ -1,9 +1,8 @@
 /**
  * Shared "Copy image to clipboard" for diagram nodes (C4, Mermaid).
  *
- * Puts both SVG (text/html wrapper) and PNG on the clipboard so paste
- * targets that understand SVG get crisp vector output while others
- * fall back to a high-res raster image.
+ * Converts the diagram SVG to a high-res PNG and writes it to the
+ * clipboard. Uses devicePixelRatio for crisp retina output.
  */
 
 /**
@@ -37,19 +36,25 @@ function svgToString(svg: SVGSVGElement): string {
 /**
  * Convert an SVG element to a PNG blob via off-screen canvas.
  */
-async function svgToPngBlob(svg: SVGSVGElement, scale: number = 2): Promise<Blob> {
+async function svgToPngBlob(svg: SVGSVGElement, scale?: number): Promise<Blob> {
+  const effectiveScale = scale ?? (window.devicePixelRatio || 2);
   const width = svg.width.baseVal.value || svg.getBoundingClientRect().width;
   const height = svg.height.baseVal.value || svg.getBoundingClientRect().height;
 
   const svgString = svgToString(svg);
   // Use a data URL instead of blob URL to avoid tainting the canvas
-  const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+  const svgBytes = new TextEncoder().encode(svgString);
+  let binary = '';
+  for (const byte of svgBytes) {
+    binary += String.fromCharCode(byte);
+  }
+  const url = 'data:image/svg+xml;base64,' + btoa(binary);
 
   const canvas = document.createElement('canvas');
-  canvas.width = width * scale;
-  canvas.height = height * scale;
+  canvas.width = Math.round(width * effectiveScale);
+  canvas.height = Math.round(height * effectiveScale);
   const ctx = canvas.getContext('2d')!;
-  ctx.scale(scale, scale);
+  ctx.scale(effectiveScale, effectiveScale);
 
   // White background for Confluence compatibility
   ctx.fillStyle = 'white';
@@ -73,7 +78,7 @@ async function svgToPngBlob(svg: SVGSVGElement, scale: number = 2): Promise<Blob
 }
 
 /**
- * Copy the diagram to the clipboard as both SVG (via text/html) and PNG.
+ * Copy the diagram to the clipboard as a high-res PNG.
  * Returns true on success, false on failure.
  */
 export async function copyDiagramToClipboard(container: HTMLElement): Promise<boolean> {

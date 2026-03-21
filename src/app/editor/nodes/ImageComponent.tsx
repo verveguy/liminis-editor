@@ -88,13 +88,18 @@ export function ImageComponent({
       const rect = img.getBoundingClientRect();
       const w = rect.width;
       const h = rect.height;
-      if (!w || !h) return;
+      if (!w || !h) {
+        setContextMenu((prev) => ({ ...prev, visible: false }));
+        return;
+      }
 
       const canvas = document.createElement('canvas');
-      canvas.width = w * scale;
-      canvas.height = h * scale;
+      const canvasWidth = Math.round(w * scale);
+      const canvasHeight = Math.round(h * scale);
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
       const ctx = canvas.getContext('2d')!;
-      ctx.scale(scale, scale);
+      ctx.scale(canvasWidth / w, canvasHeight / h);
       ctx.drawImage(img, 0, 0, w, h);
       const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(
@@ -270,6 +275,7 @@ export function ImageComponent({
         alt={alt}
         title={title}
         draggable={false}
+        crossOrigin={isAbsoluteUrl(displaySrc) && !displaySrc.startsWith('data:') ? 'anonymous' : undefined}
         onLoad={handleImageLoad}
         style={{
           width: displayWidth ? `${displayWidth}px` : '100%',
