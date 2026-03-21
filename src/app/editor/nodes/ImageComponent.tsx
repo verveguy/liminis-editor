@@ -3,6 +3,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { $getNodeByKey, NodeKey } from 'lexical';
 import { $isImageNode } from './ImageNode';
 import { useAssetContext } from '../AssetContext';
+import { DiagramContextMenu } from './DiagramContextMenu';
 
 interface ImageComponentProps {
   src: string;
@@ -65,6 +66,50 @@ export function ImageComponent({
 
   // Use local data URL for relative paths, otherwise use the resolved src directly
   const displaySrc = isAbsoluteUrl(resolvedSrc) ? resolvedSrc : (localDataUrl ?? resolvedSrc);
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{ visible: boolean; x: number; y: number }>({ visible: false, x: 0, y: 0 });
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ visible: true, x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleCopyImage = useCallback(async () => {
+    const img = imageRef.current;
+    if (!img) {
+      setContextMenu((prev) => ({ ...prev, visible: false }));
+      return;
+    }
+    try {
+      // Use rendered size (not naturalWidth which can be 0 for viewBox-only SVGs)
+      const scale = window.devicePixelRatio || 2;
+      const rect = img.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+      if (!w || !h) return;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0, w, h);
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (b) => b ? resolve(b) : reject(new Error('toBlob failed')),
+          'image/png'
+        );
+      });
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+    } catch (err) {
+      console.error('Failed to copy image to clipboard:', err);
+    }
+    setContextMenu((prev) => ({ ...prev, visible: false }));
+  }, []);
 
   const [isResizing, setIsResizing] = useState(false);
   const [isSelected, setIsSelected] = useState(false);
@@ -217,6 +262,7 @@ export function ImageComponent({
     <div
       className={`image-wrapper ${isSelected ? 'selected' : ''} ${isResizing ? 'resizing' : ''} ${!displayWidth ? 'no-dimensions' : ''}`}
       onClick={handleClick}
+      onContextMenu={handleContextMenu}
     >
       <img
         ref={imageRef}
@@ -255,6 +301,13 @@ export function ImageComponent({
           {displayWidth} × {displayHeight}
         </div>
       )}
+      <DiagramContextMenu
+        visible={contextMenu.visible}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        onCopyImage={handleCopyImage}
+        onClose={() => setContextMenu((prev) => ({ ...prev, visible: false }))}
+      />
     </div>
   );
 }
