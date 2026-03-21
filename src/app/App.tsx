@@ -61,9 +61,11 @@ interface AppProps {
   onChange?: (content: string) => void;
   /** Path to the file being edited (used for file-type-specific UI like .mdc) */
   filePath?: string;
+  /** Resolve a workspace-relative file path to a data URL for display */
+  resolveLocalAsset?: (relativePath: string) => Promise<string | null>;
 }
 
-export function App({ editable = true, content: propContent, onChange: propOnChange, filePath }: AppProps) {
+export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset }: AppProps) {
   const [internalContent, setInternalContent] = useState<string | null>(null);
   const [settings, setSettings] = useState<SlashMDSettings | null>(null);
   const [assetBaseUri, setAssetBaseUri] = useState<string | undefined>(undefined);
@@ -239,6 +241,7 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
         assetBaseUri={assetBaseUri}
         documentDirUri={documentDirUri}
         imagePathResolution={settings?.imagePathResolution ?? 'document'}
+        resolveLocalAsset={resolveLocalAsset}
         editable={editable}
         filePath={filePath}
       />

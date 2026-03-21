@@ -13,6 +13,16 @@ interface ImageComponentProps {
   nodeKey: NodeKey;
 }
 
+function isAbsoluteUrl(path: string): boolean {
+  return (
+    path.startsWith('http://') ||
+    path.startsWith('https://') ||
+    path.startsWith('data:') ||
+    path.startsWith('blob:') ||
+    path.startsWith('vscode-webview-resource:')
+  );
+}
+
 export function ImageComponent({
   src,
   alt,
@@ -22,11 +32,40 @@ export function ImageComponent({
   nodeKey,
 }: ImageComponentProps): JSX.Element {
   const [editor] = useLexicalComposerContext();
-  const { resolveAssetPath } = useAssetContext();
+  const { resolveAssetPath, resolveLocalAsset } = useAssetContext();
   const imageRef = useRef<HTMLImageElement>(null);
 
   // Resolve the src path for display
   const resolvedSrc = resolveAssetPath(src);
+  const [localDataUrl, setLocalDataUrl] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    if (isAbsoluteUrl(resolvedSrc) || !resolveLocalAsset) {
+      setLocalDataUrl(null);
+      setLoadError(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadError(false);
+    resolveLocalAsset(resolvedSrc).then((dataUrl) => {
+      if (!cancelled) {
+        if (dataUrl) {
+          setLocalDataUrl(dataUrl);
+        } else {
+          setLoadError(true);
+        }
+      }
+    }).catch(() => {
+      if (!cancelled) setLoadError(true);
+    });
+    return () => { cancelled = true; };
+  }, [resolvedSrc, resolveLocalAsset]);
+
+  // Use local data URL for relative paths, otherwise use the resolved src directly
+  const displaySrc = isAbsoluteUrl(resolvedSrc) ? resolvedSrc : (localDataUrl ?? resolvedSrc);
+
   const [isResizing, setIsResizing] = useState(false);
   const [isSelected, setIsSelected] = useState(false);
   const [currentWidth, setCurrentWidth] = useState<number | undefined>(width);
@@ -153,20 +192,41 @@ export function ImageComponent({
     ? Math.round(displayWidth * (naturalHeight / naturalWidth))
     : height;
 
+  // Show placeholder while loading local assets
+  if (!isAbsoluteUrl(resolvedSrc) && resolveLocalAsset && !localDataUrl && !loadError) {
+    return (
+      <div className="image-wrapper">
+        <div className="image-placeholder" style={{ padding: '1em', opacity: 0.5 }}>
+          Loading image…
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="image-wrapper">
+        <div className="image-placeholder" style={{ padding: '1em', opacity: 0.5 }}>
+          Image not found: {src}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`image-wrapper ${isSelected ? 'selected' : ''} ${isResizing ? 'resizing' : ''}`}
+      className={`image-wrapper ${isSelected ? 'selected' : ''} ${isResizing ? 'resizing' : ''} ${!displayWidth ? 'no-dimensions' : ''}`}
       onClick={handleClick}
     >
       <img
         ref={imageRef}
-        src={resolvedSrc}
+        src={displaySrc}
         alt={alt}
         title={title}
         draggable={false}
         onLoad={handleImageLoad}
         style={{
-          width: displayWidth ? `${displayWidth}px` : undefined,
+          width: displayWidth ? `${displayWidth}px` : '100%',
           height: displayHeight ? `${displayHeight}px` : undefined,
         }}
       />

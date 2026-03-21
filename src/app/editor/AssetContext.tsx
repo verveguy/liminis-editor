@@ -6,6 +6,8 @@ interface AssetContextValue {
   documentDirUri: string | undefined;
   imagePathResolution: ImagePathResolution;
   resolveAssetPath: (path: string) => string;
+  /** Resolve a workspace-relative file path to a data URL for display */
+  resolveLocalAsset?: (relativePath: string) => Promise<string | null>;
 }
 
 export const AssetContext = createContext<AssetContextValue>({
@@ -58,6 +60,8 @@ export interface AssetContextOptions {
   assetBaseUri?: string;
   documentDirUri?: string;
   imagePathResolution?: ImagePathResolution;
+  /** Resolve a workspace-relative file path to a data URL for display */
+  resolveLocalAsset?: (relativePath: string) => Promise<string | null>;
 }
 
 export function createAssetContextValue(options: AssetContextOptions): AssetContextValue {
@@ -65,12 +69,14 @@ export function createAssetContextValue(options: AssetContextOptions): AssetCont
     assetBaseUri,
     documentDirUri,
     imagePathResolution = 'document',
+    resolveLocalAsset,
   } = options;
 
   return {
     assetBaseUri,
     documentDirUri,
     imagePathResolution,
+    resolveLocalAsset,
     resolveAssetPath: (path: string) => {
       // If it's already an absolute URL (http, https, vscode-webview-resource, data), return as-is
       if (

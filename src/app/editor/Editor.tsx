@@ -75,6 +75,8 @@ interface EditorProps {
   assetBaseUri?: string;
   documentDirUri?: string;
   imagePathResolution?: ImagePathResolution;
+  /** Resolve a workspace-relative file path to a data URL for display */
+  resolveLocalAsset?: (relativePath: string) => Promise<string | null>;
   /** When false, the editor is read-only */
   editable?: boolean;
   /** Path to the file being edited (used for file-type-specific UI like .mdc) */
@@ -525,6 +527,7 @@ export function Editor({
   assetBaseUri,
   documentDirUri,
   imagePathResolution,
+  resolveLocalAsset,
   editable = true,
   filePath,
 }: EditorProps) {
@@ -539,8 +542,8 @@ export function Editor({
   const effectiveCursorRef = cursorToRestoreRef ?? fallbackCursorRef;
 
   const assetContextValue = useMemo(
-    () => createAssetContextValue({ assetBaseUri, documentDirUri, imagePathResolution }),
-    [assetBaseUri, documentDirUri, imagePathResolution]
+    () => createAssetContextValue({ assetBaseUri, documentDirUri, imagePathResolution, resolveLocalAsset }),
+    [assetBaseUri, documentDirUri, imagePathResolution, resolveLocalAsset]
   );
 
   // Keep a ref to onChange so the unmount flush always calls the latest handler
