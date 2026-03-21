@@ -94,9 +94,11 @@ export function createAssetContextValue(options: AssetContextOptions): AssetCont
       // Choose the base URI based on settings
       const baseUri = imagePathResolution === 'document' ? documentDirUri : assetBaseUri;
 
-      // If we have a base URI, resolve relative paths
+      // If we have a base URI, resolve relative paths and normalize the
+      // combined result so that "../" segments are resolved (e.g.
+      // "notes/sub/" + "../assets/img.svg" → "notes/assets/img.svg")
       if (baseUri) {
-        return baseUri + normalizedPath;
+        return normalizePath(baseUri + normalizedPath);
       }
 
       // Fallback to original path
