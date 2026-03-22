@@ -234,7 +234,7 @@ describe('C4Renderer', () => {
       const { container } = render(<C4Renderer layout={layout} isDarkMode={false} />);
 
       const rects = container.querySelectorAll('rect');
-      // External systems should have a light grey OKLCH fill
+      // External systems should have a light grey hex fill (#f0f4f8)
       const externalRect = Array.from(rects).find((r) => {
         const fill = r.getAttribute('fill') ?? '';
         return fill.includes('#f0f4f8');
