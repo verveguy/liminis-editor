@@ -24,42 +24,42 @@ import { buildClippedEdgePaths } from './edge-clipping';
 
 /** Colors for light mode (matches imperative renderer — white fills, colored strokes) */
 const LIGHT_COLORS = {
-  containerFill: 'oklch(1.00 0.00 0)',
-  componentFill: 'oklch(0.98 0.00 0)',
-  externalFill: 'oklch(0.96 0.01 240)',
-  personFill: 'oklch(0.45 0.16 152)',
-  boundaryFill: 'oklch(0.98 0.01 240)',
-  containerStroke: 'oklch(0.45 0.15 240)',
-  componentStroke: 'oklch(0.50 0.12 240)',
-  externalStroke: 'oklch(0.55 0.02 240)',
-  personStroke: 'oklch(0.35 0.16 152)',
-  boundaryStroke: 'oklch(0.60 0.05 240)',
-  edgeStroke: 'oklch(0.35 0.00 0)',
-  textPrimary: 'oklch(0.20 0.00 0)',
-  textSecondary: 'oklch(0.40 0.00 0)',
-  textOnBoundary: 'oklch(0.25 0.00 0)',
-  edgeLabel: 'oklch(0.30 0.00 0)',
-  edgeLabelBackground: 'oklch(1.00 0.00 0)',
+  containerFill: '#ffffff',      // oklch(1.00 0.00 0)
+  componentFill: '#f8f8f8',      // oklch(0.98 0.00 0)
+  externalFill: '#f0f4f8',       // oklch(0.96 0.01 240)
+  personFill: '#006b2d',         // oklch(0.45 0.16 152)
+  boundaryFill: '#f4f7fb',       // oklch(0.98 0.01 240)
+  containerStroke: '#005998',    // oklch(0.45 0.15 240)
+  componentStroke: '#0068a0',    // oklch(0.50 0.12 240)
+  externalStroke: '#667280',     // oklch(0.55 0.02 240)
+  personStroke: '#004b1e',       // oklch(0.35 0.16 152)
+  boundaryStroke: '#63869b',     // oklch(0.60 0.05 240)
+  edgeStroke: '#565656',         // oklch(0.35 0.00 0)
+  textPrimary: '#303030',        // oklch(0.20 0.00 0)
+  textSecondary: '#626262',      // oklch(0.40 0.00 0)
+  textOnBoundary: '#3d3d3d',     // oklch(0.25 0.00 0)
+  edgeLabel: '#4a4a4a',          // oklch(0.30 0.00 0)
+  edgeLabelBackground: '#ffffff', // oklch(1.00 0.00 0)
 };
 
 /** Colors for dark mode */
 const DARK_COLORS = {
-  containerFill: 'oklch(0.20 0.01 240)',
-  componentFill: 'oklch(0.20 0.01 240)',
-  externalFill: 'oklch(0.18 0.00 0)',
-  personFill: 'oklch(0.45 0.16 152)',
-  boundaryFill: 'oklch(0.15 0.01 240)',
-  containerStroke: 'oklch(0.65 0.15 240)',
-  componentStroke: 'oklch(0.60 0.12 240)',
-  externalStroke: 'oklch(0.55 0.02 240)',
-  personStroke: 'oklch(0.60 0.16 152)',
-  boundaryStroke: 'oklch(0.50 0.05 240)',
-  edgeStroke: 'oklch(0.70 0.00 0)',
-  textPrimary: 'oklch(0.90 0.00 0)',
-  textSecondary: 'oklch(0.75 0.00 0)',
-  textOnBoundary: 'oklch(0.90 0.00 0)',
-  edgeLabel: 'oklch(0.80 0.00 0)',
-  edgeLabelBackground: 'oklch(0.20 0.01 240)',
+  containerFill: '#16191c',      // oklch(0.20 0.01 240)
+  componentFill: '#16191c',      // oklch(0.20 0.01 240)
+  externalFill: '#2d2d2d',       // oklch(0.18 0.00 0)
+  personFill: '#006b2d',         // oklch(0.45 0.16 152)
+  boundaryFill: '#131619',       // oklch(0.15 0.01 240)
+  containerStroke: '#0098e0',    // oklch(0.65 0.15 240)
+  componentStroke: '#2b89bf',    // oklch(0.60 0.12 240)
+  externalStroke: '#667280',     // oklch(0.55 0.02 240)
+  personStroke: '#009848',       // oklch(0.60 0.16 152)
+  boundaryStroke: '#47657d',     // oklch(0.50 0.05 240)
+  edgeStroke: '#a7a7a7',         // oklch(0.70 0.00 0)
+  textPrimary: '#d6d6d6',        // oklch(0.90 0.00 0)
+  textSecondary: '#b2b2b2',      // oklch(0.75 0.00 0)
+  textOnBoundary: '#d6d6d6',     // oklch(0.90 0.00 0)
+  edgeLabel: '#bebebe',          // oklch(0.80 0.00 0)
+  edgeLabelBackground: '#16191c', // oklch(0.20 0.01 240)
 };
 
 type Colors = typeof LIGHT_COLORS;
@@ -1035,9 +1035,9 @@ export interface C4ErrorDisplayProps {
 }
 
 export function C4ErrorDisplay({ errors, isDarkMode }: C4ErrorDisplayProps): JSX.Element {
-  const errorColor = isDarkMode ? 'oklch(0.70 0.20 25)' : 'oklch(0.55 0.25 25)';
-  const bgColor = isDarkMode ? 'oklch(0.20 0.02 25)' : 'oklch(0.95 0.02 25)';
-  const textColor = isDarkMode ? 'oklch(0.85 0.00 0)' : 'oklch(0.25 0.00 0)';
+  const errorColor = isDarkMode ? '#ff5e5b' : '#de0013'; // oklch(0.70 0.20 25) / oklch(0.55 0.25 25)
+  const bgColor = isDarkMode ? '#201616' : '#fbe9e7';     // oklch(0.20 0.02 25) / oklch(0.95 0.02 25)
+  const textColor = isDarkMode ? '#cacaca' : '#3d3d3d';   // oklch(0.85 0.00 0) / oklch(0.25 0.00 0)
 
   return (
     <div
