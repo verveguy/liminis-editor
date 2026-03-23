@@ -454,8 +454,11 @@ function convertBlockquote(node: Blockquote): LexicalBlockNode[] {
     }
   }
 
-  // Regular blockquote
+  // Regular blockquote — Lexical's QuoteNode is flat (can't nest quotes),
+  // so we return the outer quote with its direct paragraph content,
+  // then recursively convert nested blockquotes as separate quote nodes.
   const quote = $createQuoteNode();
+  const results: LexicalBlockNode[] = [];
 
   for (const child of node.children) {
     if (child.type === 'paragraph') {
@@ -465,10 +468,37 @@ function convertBlockquote(node: Blockquote): LexicalBlockNode[] {
           quote.append(n);
         }
       }
+    } else if (child.type === 'blockquote') {
+      // Nested blockquote: convert recursively.
+      // Flush the current quote first, then add nested results.
+      if (quote.getChildrenSize() > 0 && results.length === 0) {
+        results.push(quote);
+      }
+      const nestedResults = convertBlockquote(child as Blockquote);
+      // Indent nested quotes to show depth
+      for (const n of nestedResults) {
+        if ('setIndent' in n && typeof n.setIndent === 'function') {
+          n.setIndent(n.getIndent() + 1);
+        }
+      }
+      results.push(...nestedResults);
+    } else {
+      // Other block content inside blockquote (lists, code, etc.)
+      const blockNodes = convertBlockNode(child);
+      for (const n of blockNodes) {
+        quote.append(n as any);
+      }
     }
   }
 
-  return [quote];
+  // If we haven't pushed the quote yet (no nested blockquotes), push it now
+  if (results.length === 0) {
+    results.push(quote);
+  } else if (quote.getChildrenSize() > 0 && !results.includes(quote)) {
+    results.unshift(quote);
+  }
+
+  return results;
 }
 
 function convertList(node: List): ListNode {
