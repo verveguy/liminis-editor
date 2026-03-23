@@ -22,6 +22,7 @@ import {
   $createToggleTitleNode,
   $createToggleContentNode,
   $createEquationNode,
+  $createFootnoteNode,
   $createMermaidNode,
   $createC4Node,
   $createFrontmatterNode,
@@ -31,6 +32,7 @@ import {
   CalloutNode,
   ToggleContainerNode,
   EquationNode,
+  FootnoteNode,
   MermaidNode,
   C4Node,
   FrontmatterNode,
@@ -238,23 +240,29 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
       return [paragraph];
     }
     case 'footnoteDefinition': {
-      // Footnote definition: render as a small indented paragraph with the label
+      // Footnote definition: render as indented paragraphs with superscript label.
+      // The footnoteDefinition mdast node is preserved in the stringify pipeline
+      // via gfmFootnoteToMarkdown, so we just need a visual representation here.
+      // The raw mdast node passes through the tree unchanged during round-trip
+      // because we store the original mdast and only merge Lexical changes for
+      // nodes that have corresponding Lexical types.
       const fnDef = node as { identifier: string; label?: string; children: Content[] };
       const results: LexicalBlockNode[] = [];
-      // Add a horizontal rule to visually separate footnotes
-      results.push($createHorizontalRuleNode());
       for (const child of fnDef.children) {
         const nodes = convertBlockNode(child);
-        for (const n of nodes) {
-          // Prepend footnote label to the first paragraph
-          if (n.getType() === 'paragraph' && 'getFirstChild' in n) {
-            const label = $createTextNode(`[${fnDef.label || fnDef.identifier}] `);
-            label.toggleFormat('superscript');
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+          // Prepend footnote label to the first paragraph only
+          if (i === 0 && n.getType() === 'paragraph' && 'getFirstChild' in n) {
+            const label = $createFootnoteNode(`^${fnDef.identifier}`);
+            const colon = $createTextNode(': ');
             const firstChild = (n as ParagraphNode).getFirstChild();
             if (firstChild) {
-              firstChild.insertBefore(label);
+              firstChild.insertBefore(colon);
+              colon.insertBefore(label);
             } else {
               (n as ParagraphNode).append(label);
+              (n as ParagraphNode).append(colon);
             }
           }
           if ('setIndent' in n && typeof n.setIndent === 'function') {
@@ -802,7 +810,7 @@ interface WikiLink {
   };
 }
 
-function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | EquationNode | LineBreakNode)[] {
+function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | EquationNode | FootnoteNode | LineBreakNode)[] {
   // Defensive: handle null/undefined nodes
   if (!node?.type) {
     console.warn('[mdastToLexical] convertInlineNode received invalid node:', node);
@@ -835,11 +843,9 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | Equati
       // Inline math from mdast-util-math: $...$
       return [$createEquationNode((node as { value: string }).value, true)];
     case 'footnoteReference': {
-      // Footnote reference: render as superscript [1]
+      // Footnote reference: use FootnoteNode to preserve identity for round-trip
       const fnRef = node as unknown as { identifier: string; label?: string };
-      const refText = $createTextNode(`[${fnRef.label || fnRef.identifier}]`);
-      refText.toggleFormat('superscript');
-      return [refText];
+      return [$createFootnoteNode(fnRef.identifier)];
     }
     case 'wikiLink': {
       // Wiki-links from mdast-util-wiki-link: [[path|alias]]

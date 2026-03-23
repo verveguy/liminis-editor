@@ -56,6 +56,7 @@ import {
   MermaidNode,
   C4Node,
   FrontmatterNode,
+  FootnoteNode,
   CustomLinkNode,
 } from './nodes';
 import { importMarkdownToLexical, importMarkdownToLexicalInEditorState } from '../mapper/mdastToLexical';
@@ -176,6 +177,7 @@ const editorNodes = [
   MermaidNode,
   C4Node,
   FrontmatterNode,
+  FootnoteNode,
 ];
 
 // Plugin to enable syntax highlighting in code blocks

@@ -24,6 +24,7 @@ import {
   $isMermaidNode,
   $isC4Node,
   $isFrontmatterNode,
+  $isFootnoteNode,
   ImageNode,
   CalloutNode,
   ToggleContainerNode,
@@ -537,6 +538,13 @@ function convertInlineChildren(node: ElementNode): PhrasingContentLike[] {
       const equationNode = child;
       const equation = equationNode.getEquation();
       children.push({ type: 'inlineMath', value: equation } as InlineMath as unknown as PhrasingContent);
+    } else if ($isFootnoteNode(child)) {
+      // Footnote reference: convert back to footnoteReference mdast node
+      children.push({
+        type: 'footnoteReference',
+        identifier: child.getFootnoteId(),
+        label: child.getFootnoteId(),
+      } as unknown as PhrasingContent);
     }
   }
 
