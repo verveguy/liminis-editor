@@ -255,7 +255,7 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
             }
           }
           results.push(termPara);
-        } else if (child.type === 'defListContent') {
+        } else if (child.type === 'defListDescription') {
           // Definition: convert children as block nodes (usually paragraphs)
           if (child.children) {
             for (const contentChild of child.children as Content[]) {
