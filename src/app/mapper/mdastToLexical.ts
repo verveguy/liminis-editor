@@ -256,10 +256,16 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
           }
           results.push(termPara);
         } else if (child.type === 'defListDescription') {
-          // Definition: convert children as block nodes (usually paragraphs)
+          // Definition: convert children as indented block nodes
           if (child.children) {
             for (const contentChild of child.children as Content[]) {
-              results.push(...convertBlockNode(contentChild));
+              const nodes = convertBlockNode(contentChild);
+              for (const n of nodes) {
+                if ('setIndent' in n && typeof n.setIndent === 'function') {
+                  n.setIndent(1);
+                }
+              }
+              results.push(...nodes);
             }
           }
         }
