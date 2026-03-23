@@ -254,7 +254,7 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
           const n = nodes[i];
           // Prepend footnote label to the first paragraph only
           if (i === 0 && n.getType() === 'paragraph' && 'getFirstChild' in n) {
-            const label = $createFootnoteNode(`^${fnDef.identifier}`);
+            const label = $createFootnoteNode(fnDef.identifier);
             const colon = $createTextNode(': ');
             const firstChild = (n as ParagraphNode).getFirstChild();
             if (firstChild) {
