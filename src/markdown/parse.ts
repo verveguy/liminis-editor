@@ -5,6 +5,8 @@ import { math } from 'micromark-extension-math';
 import { mathFromMarkdown } from 'mdast-util-math';
 import { frontmatter } from 'micromark-extension-frontmatter';
 import { frontmatterFromMarkdown } from 'mdast-util-frontmatter';
+import { defList } from 'micromark-extension-definition-list';
+import { defListFromMarkdown } from 'mdast-util-definition-list';
 import { syntax as wikiLinkSyntax } from 'micromark-extension-wiki-link';
 import * as wikiLinkMdast from 'mdast-util-wiki-link';
 import type { Root, Content, PhrasingContent } from 'mdast';
@@ -358,10 +360,11 @@ export function parseMarkdown(text: string, _options: ParseOptions = {}): ParseR
   const replacements = combineReplacements(pipeReplacements, aliasReplacements);
 
   let root = fromMarkdown(normalizedText, {
-    extensions: [gfm(), math(), frontmatter(['yaml']), wikiLinkSyntax(wikiLinkOptions as any)],
+    extensions: [gfm(), math(), defList, frontmatter(['yaml']), wikiLinkSyntax(wikiLinkOptions as any)],
     mdastExtensions: [
       gfmFromMarkdown(),
       mathFromMarkdown(),
+      defListFromMarkdown,
       frontmatterFromMarkdown(['yaml']),
       wikiLinkMdast.fromMarkdown(wikiLinkOptions as any),
     ],

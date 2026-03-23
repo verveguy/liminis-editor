@@ -2,6 +2,7 @@ import {
   $createParagraphNode,
   $createTextNode,
   $createLineBreakNode,
+  $isTextNode,
   $getRoot,
   LexicalEditor,
   ParagraphNode,
@@ -235,6 +236,35 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
       link.append(textNode);
       paragraph.append(link);
       return [paragraph];
+    }
+    case 'defList': {
+      // Definition list: convert to paragraphs since Lexical has no native <dl>
+      const defListNode = node as { children: Array<{ type: string; children?: any[] }> };
+      const results: LexicalBlockNode[] = [];
+      for (const child of defListNode.children) {
+        if (child.type === 'defListTerm') {
+          // Term: bold paragraph
+          const termPara = $createParagraphNode();
+          for (const inlineChild of (child.children || []) as PhrasingContent[]) {
+            const nodes = convertInlineNode(inlineChild);
+            for (const n of nodes) {
+              if ($isTextNode(n)) {
+                n.toggleFormat('bold');
+              }
+              termPara.append(n);
+            }
+          }
+          results.push(termPara);
+        } else if (child.type === 'defListContent') {
+          // Definition: convert children as block nodes (usually paragraphs)
+          if (child.children) {
+            for (const contentChild of child.children as Content[]) {
+              results.push(...convertBlockNode(contentChild));
+            }
+          }
+        }
+      }
+      return results;
     }
     default:
       // For unknown nodes, log a warning and create an empty paragraph
