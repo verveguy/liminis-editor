@@ -2,6 +2,7 @@ import { toMarkdown } from 'mdast-util-to-markdown';
 import { gfmToMarkdown } from 'mdast-util-gfm';
 import { mathToMarkdown } from 'mdast-util-math';
 import { defListToMarkdown } from 'mdast-util-definition-list';
+import { gfmFootnoteToMarkdown } from 'mdast-util-gfm-footnote';
 import { frontmatterToMarkdown } from 'mdast-util-frontmatter';
 import type { Root } from 'mdast';
 
@@ -189,6 +190,7 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
       }),
       mathToMarkdown(),
       defListToMarkdown,
+      gfmFootnoteToMarkdown(),
       frontmatterToMarkdown(['yaml']),
       {
         // Custom handlers for emphasis markers and wiki links

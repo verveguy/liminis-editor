@@ -237,6 +237,34 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
       paragraph.append(link);
       return [paragraph];
     }
+    case 'footnoteDefinition': {
+      // Footnote definition: render as a small indented paragraph with the label
+      const fnDef = node as { identifier: string; label?: string; children: Content[] };
+      const results: LexicalBlockNode[] = [];
+      // Add a horizontal rule to visually separate footnotes
+      results.push($createHorizontalRuleNode());
+      for (const child of fnDef.children) {
+        const nodes = convertBlockNode(child);
+        for (const n of nodes) {
+          // Prepend footnote label to the first paragraph
+          if (n.getType() === 'paragraph' && 'getFirstChild' in n) {
+            const label = $createTextNode(`[${fnDef.label || fnDef.identifier}] `);
+            label.toggleFormat('superscript');
+            const firstChild = (n as ParagraphNode).getFirstChild();
+            if (firstChild) {
+              firstChild.insertBefore(label);
+            } else {
+              (n as ParagraphNode).append(label);
+            }
+          }
+          if ('setIndent' in n && typeof n.setIndent === 'function') {
+            n.setIndent(1);
+          }
+        }
+        results.push(...nodes);
+      }
+      return results;
+    }
     case 'defList': {
       // Definition list: convert to paragraphs since Lexical has no native <dl>
       const defListNode = node as { children: Array<{ type: string; children?: any[] }> };
@@ -770,6 +798,13 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | Equati
     case 'inlineMath':
       // Inline math from mdast-util-math: $...$
       return [$createEquationNode((node as { value: string }).value, true)];
+    case 'footnoteReference': {
+      // Footnote reference: render as superscript [1]
+      const fnRef = node as unknown as { identifier: string; label?: string };
+      const refText = $createTextNode(`[${fnRef.label || fnRef.identifier}]`);
+      refText.toggleFormat('superscript');
+      return [refText];
+    }
     case 'wikiLink': {
       // Wiki-links from mdast-util-wiki-link: [[path|alias]]
       const wikiLink = node as unknown as WikiLink;
