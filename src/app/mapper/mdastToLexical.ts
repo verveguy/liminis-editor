@@ -548,6 +548,12 @@ function convertListItem(node: ListItem, parentList: List): ListItemNode {
       // Nested list
       const nestedList = convertList(child);
       listItem.append(nestedList);
+    } else {
+      // Other block content inside list items (blockquotes, code, etc.)
+      const blockNodes = convertBlockNode(child);
+      for (const n of blockNodes) {
+        listItem.append(n as any);
+      }
     }
   }
 
