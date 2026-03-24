@@ -60,17 +60,117 @@ export function exportLexicalToMdast(editor: LexicalEditor): Root {
 
   editor.getEditorState().read(() => {
     const lexicalRoot = $getRoot();
+    const allChildren = lexicalRoot.getChildren();
+
+    // Detect the footnote definitions section appended at the end by mdastToLexical.
+    // Pattern: [HR, indented paragraph with FootnoteNode label, ...]
+    // These need to be exported as footnoteDefinition MDAST nodes, not plain paragraphs.
+    const { bodyChildren, footnoteChildren } = splitFootnoteSection(allChildren);
+
     const children: Content[] = [];
 
-    for (const child of lexicalRoot.getChildren()) {
+    for (const child of bodyChildren) {
       const nodes = convertLexicalNode(child);
       children.push(...nodes);
+    }
+
+    // Convert footnote definition paragraphs back to footnoteDefinition MDAST nodes
+    for (const defNode of footnoteChildren) {
+      const fnDef = convertFootnoteDefinitionNode(defNode);
+      if (fnDef) {
+        children.push(fnDef);
+      }
     }
 
     root = { type: 'root', children };
   });
 
   return root;
+}
+
+// Detect the trailing footnote definitions section:
+// An HR followed by indented paragraphs that start with a FootnoteNode label.
+function splitFootnoteSection(allChildren: LexicalNode[]): {
+  bodyChildren: LexicalNode[];
+  footnoteChildren: LexicalNode[];
+} {
+  // Walk backwards to find the start of the footnote section
+  let footnoteStart = allChildren.length;
+
+  // Find trailing paragraphs that look like footnote definitions (indent=1, starts with FootnoteNode)
+  for (let i = allChildren.length - 1; i >= 0; i--) {
+    const child = allChildren[i];
+    if ($isParagraphNode(child) && child.getIndent() === 1) {
+      const firstChild = child.getFirstChild();
+      if (firstChild && $isFootnoteNode(firstChild)) {
+        footnoteStart = i;
+        continue;
+      }
+    }
+    break;
+  }
+
+  // Check if the node just before the footnote paragraphs is an HR separator
+  if (footnoteStart < allChildren.length && footnoteStart > 0) {
+    const maybeHR = allChildren[footnoteStart - 1];
+    if ($isHorizontalRuleNode(maybeHR)) {
+      return {
+        bodyChildren: allChildren.slice(0, footnoteStart - 1),
+        footnoteChildren: allChildren.slice(footnoteStart),
+      };
+    }
+  }
+
+  // No footnote section found
+  return { bodyChildren: allChildren, footnoteChildren: [] };
+}
+
+// Convert a Lexical paragraph (indent=1, starts with FootnoteNode) back to a footnoteDefinition MDAST node
+function convertFootnoteDefinitionNode(node: LexicalNode): Content | null {
+  if (!$isParagraphNode(node)) return null;
+
+  const firstChild = node.getFirstChild();
+  if (!firstChild || !$isFootnoteNode(firstChild)) return null;
+
+  const identifier = firstChild.getFootnoteId();
+
+  // Skip the FootnoteNode label and the following space to get the definition content
+  const contentChildren: PhrasingContent[] = [];
+  let child = firstChild.getNextSibling();
+
+  // Skip the space TextNode that follows the label
+  if (child && $isTextNode(child) && child.getTextContent() === ' ') {
+    child = child.getNextSibling();
+  }
+
+  while (child) {
+    if ($isTextNode(child)) {
+      contentChildren.push(...convertTextNode(child));
+    } else if ($isFootnoteNode(child)) {
+      contentChildren.push({
+        type: 'footnoteReference',
+        identifier: child.getFootnoteId(),
+        label: child.getFootnoteId(),
+      } as unknown as PhrasingContent);
+    } else if ($isLinkNode(child)) {
+      contentChildren.push(convertLinkNode(child as unknown as ElementNode) as unknown as PhrasingContent);
+    } else if ($isLineBreakNode(child)) {
+      contentChildren.push({ type: 'break' } as Break);
+    }
+    child = child.getNextSibling();
+  }
+
+  const paragraph: Paragraph = {
+    type: 'paragraph',
+    children: contentChildren.length > 0 ? contentChildren : [{ type: 'text', value: '' }],
+  };
+
+  return {
+    type: 'footnoteDefinition',
+    identifier,
+    label: identifier,
+    children: [paragraph],
+  } as unknown as Content;
 }
 
 function convertLexicalNode(node: LexicalNode): Content[] {

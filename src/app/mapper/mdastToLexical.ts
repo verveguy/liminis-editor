@@ -115,7 +115,6 @@ interface ToggleContentMarker {
   contentNodes: Content[];
 }
 
-
 // Pre-process mdast children to combine details blocks and preserve content nodes
 function preprocessDetailsBlocks(children: Content[]): (Content | ToggleContentMarker)[] {
   const result: (Content | ToggleContentMarker)[] = [];
@@ -215,12 +214,18 @@ function preprocessFootnoteDefinitions(
     if ('children' in node && Array.isArray((node as { children?: unknown }).children)) {
       const typedNode = node as Content & { children: Content[] };
       const filteredChildren: Content[] = [];
+      let changed = false;
       for (const child of typedNode.children) {
         const result = extractFromNode(child);
         if (result !== null) {
           filteredChildren.push(result);
+          if (result !== child) changed = true;
+        } else {
+          changed = true;
         }
       }
+      // Only create a new node if children actually changed
+      if (!changed) return node;
       return { ...typedNode, children: filteredChildren } as Content;
     }
 
@@ -308,11 +313,8 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
     }
     case 'footnoteDefinition': {
       // Footnote definition: render as indented paragraphs with superscript label.
-      // The footnoteDefinition mdast node is preserved in the stringify pipeline
-      // via gfmFootnoteToMarkdown, so we just need a visual representation here.
-      // The raw mdast node passes through the tree unchanged during round-trip
-      // because we store the original mdast and only merge Lexical changes for
-      // nodes that have corresponding Lexical types.
+      // On export, lexicalToMdast detects this pattern (indent=1, starts with FootnoteNode)
+      // and reconstructs the footnoteDefinition MDAST node for round-trip preservation.
       const fnDef = node as { identifier: string; label?: string; children: Content[] };
       const results: LexicalBlockNode[] = [];
       for (const child of fnDef.children) {
