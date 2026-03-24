@@ -14,8 +14,21 @@ import {
   Spread,
   $applyNodeReplacement,
 } from 'lexical';
-import katex from 'katex';
+import { mathjax } from 'mathjax-full/js/mathjax.js';
+import { TeX } from 'mathjax-full/js/input/tex.js';
+import { SVG } from 'mathjax-full/js/output/svg.js';
+import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor.js';
+import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js';
+import { AllPackages } from 'mathjax-full/js/input/tex/AllPackages.js';
 import { createElement, lazy, Suspense } from 'react';
+
+// Lightweight MathJax instance for DOM export (copy/paste serialization)
+const exportAdaptor = liteAdaptor();
+RegisterHTMLHandler(exportAdaptor);
+const exportDocument = mathjax.document('', {
+  InputJax: new TeX({ packages: AllPackages }),
+  OutputJax: new SVG({ fontCache: 'none' }),
+});
 
 const EquationComponent = lazy(() => import('./EquationComponent'));
 
@@ -87,14 +100,12 @@ export class EquationNode extends DecoratorNode<JSX.Element> {
     const equation = btoa(this.__equation);
     element.setAttribute('data-lexical-equation', equation);
     element.setAttribute('data-lexical-inline', `${this.__inline}`);
-    katex.render(this.__equation, element, {
-      displayMode: !this.__inline,
-      errorColor: '#cc0000',
-      output: 'html',
-      strict: 'warn',
-      throwOnError: false,
-      trust: false,
-    });
+    try {
+      const node = exportDocument.convert(this.__equation, { display: !this.__inline });
+      element.innerHTML = exportAdaptor.innerHTML(node);
+    } catch {
+      element.textContent = this.__equation;
+    }
     return { element };
   }
 

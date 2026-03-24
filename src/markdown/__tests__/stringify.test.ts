@@ -229,7 +229,7 @@ describe('stringifyMarkdown', () => {
             children: [
               {
                 type: 'emphasis',
-                data: { _emphasisMarker: '*' },
+                data: { _emphasisMarker: '*' } as any,
                 children: [{ type: 'text', value: 'italic' }],
               },
             ],
@@ -249,7 +249,7 @@ describe('stringifyMarkdown', () => {
             children: [
               {
                 type: 'emphasis',
-                data: { _emphasisMarker: '_' },
+                data: { _emphasisMarker: '_' } as any,
                 children: [{ type: 'text', value: 'italic' }],
               },
             ],
@@ -269,7 +269,7 @@ describe('stringifyMarkdown', () => {
             children: [
               {
                 type: 'strong',
-                data: { _strongMarker: '*' },
+                data: { _strongMarker: '*' } as any,
                 children: [{ type: 'text', value: 'bold' }],
               },
             ],
@@ -289,7 +289,7 @@ describe('stringifyMarkdown', () => {
             children: [
               {
                 type: 'strong',
-                data: { _strongMarker: '_' },
+                data: { _strongMarker: '_' } as any,
                 children: [{ type: 'text', value: 'bold' }],
               },
             ],

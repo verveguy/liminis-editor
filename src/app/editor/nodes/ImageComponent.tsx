@@ -278,8 +278,13 @@ export function ImageComponent({
         crossOrigin={isAbsoluteUrl(displaySrc) && !displaySrc.startsWith('data:') ? 'anonymous' : undefined}
         onLoad={handleImageLoad}
         style={{
-          width: displayWidth ? `${displayWidth}px` : '100%',
+          // If an explicit width is set (from resize), use it.
+          // Otherwise, let the image display at natural size but cap at 100%
+          // of the container — raster images should never scale up beyond
+          // their natural dimensions.
+          width: displayWidth ? `${displayWidth}px` : undefined,
           height: displayHeight ? `${displayHeight}px` : undefined,
+          maxWidth: '100%',
         }}
       />
       {isSelected && (

@@ -88,6 +88,14 @@ export function createAssetContextValue(options: AssetContextOptions): AssetCont
         return path;
       }
 
+      // Paths starting with / are absolute from workspace root, regardless of
+      // imagePathResolution setting. Strip the leading / so the path is
+      // workspace-relative (readBinaryFile joins with workspace root).
+      // Check BEFORE normalizePath which strips the leading /.
+      if (path.startsWith('/')) {
+        return normalizePath(path.slice(1));
+      }
+
       // Normalize the path to handle ./ and ../ correctly
       const normalizedPath = normalizePath(path);
 

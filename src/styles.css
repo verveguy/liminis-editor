@@ -1563,6 +1563,19 @@ body {
   display: inline;
 }
 
+/* MathJax SVG output: ensure inline math flows with text and block math centers */
+.equation-renderer mjx-container {
+  display: inline !important;
+}
+
+.equation-renderer.block mjx-container {
+  display: block !important;
+}
+
+.equation-renderer mjx-container svg {
+  display: inline;
+}
+
 /* Equation Editor Styles */
 .equation-editor-background {
   background-color: var(--vscode-code-bg);

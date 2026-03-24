@@ -20,13 +20,24 @@ import {
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
 import { useCallback, useEffect, useRef, useState, ChangeEvent, forwardRef, RefObject } from 'react';
-import katex from 'katex';
-// Import KaTeX CSS as a string for injection into Shadow DOM (uses raw-css-loader plugin)
-import katexCss from 'katex/dist/katex.min.css?raw';
+import { mathjax } from 'mathjax-full/js/mathjax.js';
+import { TeX } from 'mathjax-full/js/input/tex.js';
+import { SVG } from 'mathjax-full/js/output/svg.js';
+import { browserAdaptor } from 'mathjax-full/js/adaptors/browserAdaptor.js';
+import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js';
+import { AllPackages } from 'mathjax-full/js/input/tex/AllPackages.js';
 import { $isEquationNode } from './EquationNode';
 
-// KaTeX Renderer component using Shadow DOM for style isolation
-function KatexRenderer({
+// Initialize MathJax once for the renderer process
+const mathjaxAdaptor = browserAdaptor();
+RegisterHTMLHandler(mathjaxAdaptor);
+const mathjaxDocument = mathjax.document(document, {
+  InputJax: new TeX({ packages: AllPackages }),
+  OutputJax: new SVG({ fontCache: 'local' }),
+});
+
+// MathJax SVG Renderer component — replaces KaTeX with MathJax for higher quality rendering
+function MathJaxRenderer({
   equation,
   inline,
   onDoubleClick,
@@ -36,63 +47,30 @@ function KatexRenderer({
   onDoubleClick: () => void;
 }): JSX.Element {
   const containerRef = useRef<HTMLSpanElement>(null);
-  const shadowRootRef = useRef<ShadowRoot | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
     if (container === null) return;
 
-    // Create shadow root if it doesn't exist
-    if (!shadowRootRef.current) {
-      shadowRootRef.current = container.attachShadow({ mode: 'open' });
-      
-      // Inject KaTeX CSS into shadow DOM with custom overrides
-      const style = document.createElement('style');
-      style.textContent = katexCss + `
-        /* Custom overrides for SlashMD */
-        :host {
-          display: block;
-        }
-        :host(.block) .katex-render-target {
-          display: block;
-          text-align: center;
-        }
-        :host(.inline) .katex-render-target {
-          display: inline;
-        }
-        .katex-display {
-          margin: 0;
-        }
-      `;
-      shadowRootRef.current.appendChild(style);
-    }
-
-    const shadowRoot = shadowRootRef.current;
-    
-    // Find or create the render target
-    let renderTarget = shadowRoot.querySelector('.katex-render-target');
-    if (!renderTarget) {
-      renderTarget = document.createElement('span');
-      renderTarget.className = 'katex-render-target';
-      shadowRoot.appendChild(renderTarget);
-    }
-
-    // Render the equation
     try {
-      // KaTeX expects single backslashes for commands. Some markdown sources
-      // escape backslashes (e.g. \\int), which KaTeX treats as newlines.
-      // Normalize common escaped command sequences for rendering only.
+      // Normalize escaped backslashes from markdown sources
       const renderEquation = equation.replace(/\\\\([a-zA-Z])/g, '\\$1');
-      katex.render(renderEquation, renderTarget as HTMLElement, {
-        displayMode: !inline,
-        errorColor: '#cc0000',
-        output: 'html',
-        strict: 'warn',
-        throwOnError: false,
-        trust: false,
-      });
+
+      // Clear previous render
+      container.innerHTML = '';
+
+      // Render with MathJax
+      const node = mathjaxDocument.convert(renderEquation, { display: !inline });
+
+      // MathJax returns an element — append it directly
+      if (node instanceof Node) {
+        container.appendChild(node);
+      } else {
+        // Fallback: use innerHTML from adaptor
+        container.innerHTML = mathjaxAdaptor.innerHTML(node);
+      }
     } catch {
-      // KaTeX will handle the error display
+      container.textContent = equation;
     }
   }, [equation, inline]);
 
@@ -261,7 +239,7 @@ export default function EquationComponent({
   }
 
   return (
-    <KatexRenderer
+    <MathJaxRenderer
       equation={equationValue}
       inline={inline}
       onDoubleClick={() => {

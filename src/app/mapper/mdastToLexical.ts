@@ -2,6 +2,7 @@ import {
   $createParagraphNode,
   $createTextNode,
   $createLineBreakNode,
+  $isTextNode,
   $getRoot,
   LexicalEditor,
   ParagraphNode,
@@ -21,6 +22,7 @@ import {
   $createToggleTitleNode,
   $createToggleContentNode,
   $createEquationNode,
+  $createFootnoteNode,
   $createMermaidNode,
   $createC4Node,
   $createFrontmatterNode,
@@ -30,6 +32,7 @@ import {
   CalloutNode,
   ToggleContainerNode,
   EquationNode,
+  FootnoteNode,
   MermaidNode,
   C4Node,
   FrontmatterNode,
@@ -236,6 +239,75 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
       paragraph.append(link);
       return [paragraph];
     }
+    case 'footnoteDefinition': {
+      // Footnote definition: render as indented paragraphs with superscript label.
+      // The footnoteDefinition mdast node is preserved in the stringify pipeline
+      // via gfmFootnoteToMarkdown, so we just need a visual representation here.
+      // The raw mdast node passes through the tree unchanged during round-trip
+      // because we store the original mdast and only merge Lexical changes for
+      // nodes that have corresponding Lexical types.
+      const fnDef = node as { identifier: string; label?: string; children: Content[] };
+      const results: LexicalBlockNode[] = [];
+      for (const child of fnDef.children) {
+        const nodes = convertBlockNode(child);
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+          // Prepend footnote label to the first paragraph only
+          if (i === 0 && n.getType() === 'paragraph' && 'getFirstChild' in n) {
+            const label = $createFootnoteNode(fnDef.identifier);
+            const space = $createTextNode(' ');
+            const firstChild = (n as ParagraphNode).getFirstChild();
+            if (firstChild) {
+              firstChild.insertBefore(space);
+              space.insertBefore(label);
+            } else {
+              (n as ParagraphNode).append(label);
+              (n as ParagraphNode).append(space);
+            }
+          }
+          if ('setIndent' in n && typeof n.setIndent === 'function') {
+            n.setIndent(1);
+          }
+        }
+        results.push(...nodes);
+      }
+      return results;
+    }
+    case 'defList': {
+      // Definition list: convert to paragraphs since Lexical has no native <dl>
+      const defListNode = node as { children: { type: string; children?: any[] }[] };
+      const results: LexicalBlockNode[] = [];
+      for (const child of defListNode.children) {
+        if (child.type === 'defListTerm') {
+          // Term: bold paragraph
+          const termPara = $createParagraphNode();
+          for (const inlineChild of (child.children || []) as PhrasingContent[]) {
+            const nodes = convertInlineNode(inlineChild);
+            for (const n of nodes) {
+              if ($isTextNode(n)) {
+                n.toggleFormat('bold');
+              }
+              termPara.append(n);
+            }
+          }
+          results.push(termPara);
+        } else if (child.type === 'defListDescription') {
+          // Definition: convert children as indented block nodes
+          if (child.children) {
+            for (const contentChild of child.children as Content[]) {
+              const nodes = convertBlockNode(contentChild);
+              for (const n of nodes) {
+                if ('setIndent' in n && typeof n.setIndent === 'function') {
+                  n.setIndent(1);
+                }
+              }
+              results.push(...nodes);
+            }
+          }
+        }
+      }
+      return results;
+    }
     default:
       // For unknown nodes, log a warning and create an empty paragraph
       // Do NOT use String(node) as it produces "[object Object]"
@@ -390,8 +462,11 @@ function convertBlockquote(node: Blockquote): LexicalBlockNode[] {
     }
   }
 
-  // Regular blockquote
+  // Regular blockquote — Lexical's QuoteNode is flat (can't nest quotes),
+  // so we return the outer quote with its direct paragraph content,
+  // then recursively convert nested blockquotes as separate quote nodes.
   const quote = $createQuoteNode();
+  const results: LexicalBlockNode[] = [];
 
   for (const child of node.children) {
     if (child.type === 'paragraph') {
@@ -401,10 +476,37 @@ function convertBlockquote(node: Blockquote): LexicalBlockNode[] {
           quote.append(n);
         }
       }
+    } else if (child.type === 'blockquote') {
+      // Nested blockquote: convert recursively.
+      // Flush the current quote first, then add nested results.
+      if (quote.getChildrenSize() > 0 && results.length === 0) {
+        results.push(quote);
+      }
+      const nestedResults = convertBlockquote(child);
+      // Indent nested quotes to show depth
+      for (const n of nestedResults) {
+        if ('setIndent' in n && typeof n.setIndent === 'function') {
+          n.setIndent(n.getIndent() + 1);
+        }
+      }
+      results.push(...nestedResults);
+    } else {
+      // Other block content inside blockquote (lists, code, etc.)
+      const blockNodes = convertBlockNode(child);
+      for (const n of blockNodes) {
+        quote.append(n as any);
+      }
     }
   }
 
-  return [quote];
+  // If we haven't pushed the quote yet (no nested blockquotes), push it now
+  if (results.length === 0) {
+    results.push(quote);
+  } else if (quote.getChildrenSize() > 0 && !results.includes(quote)) {
+    results.unshift(quote);
+  }
+
+  return results;
 }
 
 function convertList(node: List): ListNode {
@@ -454,6 +556,12 @@ function convertListItem(node: ListItem, parentList: List): ListItemNode {
       // Nested list
       const nestedList = convertList(child);
       listItem.append(nestedList);
+    } else {
+      // Other block content inside list items (blockquotes, code, etc.)
+      const blockNodes = convertBlockNode(child);
+      for (const n of blockNodes) {
+        listItem.append(n as any);
+      }
     }
   }
 
@@ -702,7 +810,7 @@ interface WikiLink {
   };
 }
 
-function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | EquationNode | LineBreakNode)[] {
+function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | EquationNode | FootnoteNode | LineBreakNode)[] {
   // Defensive: handle null/undefined nodes
   if (!node?.type) {
     console.warn('[mdastToLexical] convertInlineNode received invalid node:', node);
@@ -734,6 +842,11 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | Equati
     case 'inlineMath':
       // Inline math from mdast-util-math: $...$
       return [$createEquationNode((node as { value: string }).value, true)];
+    case 'footnoteReference': {
+      // Footnote reference: use FootnoteNode to preserve identity for round-trip
+      const fnRef = node as unknown as { identifier: string; label?: string };
+      return [$createFootnoteNode(fnRef.identifier)];
+    }
     case 'wikiLink': {
       // Wiki-links from mdast-util-wiki-link: [[path|alias]]
       const wikiLink = node as unknown as WikiLink;
