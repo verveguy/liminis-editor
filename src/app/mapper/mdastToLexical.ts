@@ -275,7 +275,7 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
     }
     case 'defList': {
       // Definition list: convert to paragraphs since Lexical has no native <dl>
-      const defListNode = node as { children: Array<{ type: string; children?: any[] }> };
+      const defListNode = node as { children: { type: string; children?: any[] }[] };
       const results: LexicalBlockNode[] = [];
       for (const child of defListNode.children) {
         if (child.type === 'defListTerm') {
@@ -482,7 +482,7 @@ function convertBlockquote(node: Blockquote): LexicalBlockNode[] {
       if (quote.getChildrenSize() > 0 && results.length === 0) {
         results.push(quote);
       }
-      const nestedResults = convertBlockquote(child as Blockquote);
+      const nestedResults = convertBlockquote(child);
       // Indent nested quotes to show depth
       for (const n of nestedResults) {
         if ('setIndent' in n && typeof n.setIndent === 'function') {
