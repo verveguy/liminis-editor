@@ -441,4 +441,143 @@ Rel(api, email, "SMTP")
       expect(horizontalOverlap && verticalOverlap).toBe(false);
     });
   });
+
+  // ===========================================================================
+  // MANUAL LAYOUT TESTS
+  // ===========================================================================
+
+  describe('manual layout', () => {
+    it('should apply manual positions to elements', () => {
+      const elements = [
+        createElement('container', 'a', 'Service A'),
+        createElement('container', 'b', 'Service B'),
+      ];
+      const diagram = createDiagram(elements);
+
+      const manualPositions = {
+        a: { x: 100, y: 200 },
+        b: { x: 400, y: 300 },
+      };
+
+      const result = layoutC4Diagram(diagram, undefined, manualPositions);
+
+      const nodeA = result.nodes.find((n) => n.id === 'a')!;
+      const nodeB = result.nodes.find((n) => n.id === 'b')!;
+
+      expect(nodeA.x).toBe(100);
+      expect(nodeA.y).toBe(200);
+      expect(nodeB.x).toBe(400);
+      expect(nodeB.y).toBe(300);
+    });
+
+    it('should fall back to default placement for missing positions', () => {
+      const elements = [
+        createElement('container', 'a', 'Service A'),
+        createElement('container', 'b', 'Service B'),
+      ];
+      const diagram = createDiagram(elements);
+
+      // Only provide position for one element
+      const manualPositions = {
+        a: { x: 100, y: 200 },
+      };
+
+      const result = layoutC4Diagram(diagram, undefined, manualPositions);
+
+      const nodeA = result.nodes.find((n) => n.id === 'a')!;
+      const nodeB = result.nodes.find((n) => n.id === 'b')!;
+
+      expect(nodeA.x).toBe(100);
+      expect(nodeA.y).toBe(200);
+      // Node B should get a default position (not at 0,0 - it uses defaultX/defaultY)
+      expect(nodeB.x).toBeGreaterThanOrEqual(0);
+      expect(nodeB.y).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should use auto-layout when manualPositions is empty', () => {
+      const elements = [
+        createElement('container', 'a', 'Service A'),
+      ];
+      const diagram = createDiagram(elements);
+
+      const autoResult = layoutC4Diagram(diagram);
+      const manualResult = layoutC4Diagram(diagram, undefined, {});
+
+      // With empty positions, should use auto-layout (same result)
+      expect(manualResult.nodes[0].x).toBe(autoResult.nodes[0].x);
+      expect(manualResult.nodes[0].y).toBe(autoResult.nodes[0].y);
+    });
+
+    it('should resize boundaries to contain manually positioned children', () => {
+      const children = [
+        createElement('container', 'webapp', 'Web App'),
+        createElement('container', 'api', 'API'),
+      ];
+      const boundary = createElement('system', 'sys', 'System', { style: 'boundary' as const }, children);
+      children.forEach(c => c.parent = 'sys');
+      const diagram = createDiagram([boundary]);
+
+      // Position children far apart to force boundary expansion
+      const manualPositions = {
+        sys: { x: 0, y: 0 },
+        webapp: { x: 50, y: 80 },
+        api: { x: 500, y: 400 },
+      };
+
+      const result = layoutC4Diagram(diagram, undefined, manualPositions);
+
+      const sysNode = result.nodes.find((n) => n.id === 'sys')!;
+      const apiNode = result.nodes.find((n) => n.id === 'api')!;
+
+      // Boundary must be large enough to contain the child at (500, 400) + child dimensions
+      expect(sysNode.width).toBeGreaterThan(apiNode.x - sysNode.x);
+      expect(sysNode.height).toBeGreaterThan(apiNode.y - sysNode.y);
+    });
+
+    it('should calculate edges correctly with manual positions', () => {
+      const elements = [
+        createElement('container', 'a', 'Service A'),
+        createElement('container', 'b', 'Service B'),
+      ];
+      const relationships = [
+        { sourceId: 'a', targetId: 'b', label: 'calls' },
+      ];
+      const diagram = createDiagram(elements, relationships);
+
+      const manualPositions = {
+        a: { x: 0, y: 0 },
+        b: { x: 400, y: 0 },
+      };
+
+      const result = layoutC4Diagram(diagram, undefined, manualPositions);
+
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].source).toBe('a');
+      expect(result.edges[0].target).toBe('b');
+      // Edge endpoints should be valid numbers
+      expect(result.edges[0].points.length).toBeGreaterThan(0);
+      for (const point of result.edges[0].points) {
+        expect(Number.isFinite(point.x)).toBe(true);
+        expect(Number.isFinite(point.y)).toBe(true);
+      }
+    });
+
+    it('should produce positive diagram dimensions with manual positions', () => {
+      const elements = [
+        createElement('container', 'a', 'Service A'),
+        createElement('container', 'b', 'Service B'),
+      ];
+      const diagram = createDiagram(elements);
+
+      const manualPositions = {
+        a: { x: 50, y: 50 },
+        b: { x: 300, y: 200 },
+      };
+
+      const result = layoutC4Diagram(diagram, undefined, manualPositions);
+
+      expect(result.width).toBeGreaterThan(300);
+      expect(result.height).toBeGreaterThan(200);
+    });
+  });
 });

@@ -735,10 +735,9 @@ function buildLayoutNodesWithManualPositions(
       };
 
       nodeWidth = Math.max(baseDimensions.width, childBounds.width);
-      nodeHeight = Math.max(
-        baseDimensions.height,
-        childBounds.height + BOUNDARY_HEADER_HEIGHT
-      );
+      // childBounds.height already includes BOUNDARY_HEADER_HEIGHT offset
+      // from the defaultY passed to child recursion, so don't add it again
+      nodeHeight = Math.max(baseDimensions.height, childBounds.height);
     }
 
     // Apply manual position if available, otherwise use default placement
@@ -757,9 +756,13 @@ function buildLayoutNodesWithManualPositions(
     };
 
     // Offset children to be inside parent's coordinate space
+    // Children with manual positions are already in absolute coordinates,
+    // so only offset auto-placed children
     if (layoutNode.children) {
       for (const child of layoutNode.children) {
-        offsetLayoutNode(child, x, y);
+        if (!positions[child.id]) {
+          offsetLayoutNode(child, x, y);
+        }
       }
     }
 

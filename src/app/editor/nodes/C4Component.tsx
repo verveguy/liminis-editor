@@ -137,6 +137,8 @@ function C4DiagramDisplay({
   }, [code, manualLayout, parseResult.diagram, editor, nodeKey]);
 
   // TASK 6: Handle position changes with Lexical undo integration
+  // The update listener above will sync manualLayout state from the node,
+  // so we only need to write to the Lexical node here.
   const handlePositionChange = useCallback((newPositions: Record<string, { x: number; y: number }>) => {
     editor.update(() => {
       const node = $getNodeByKey(nodeKey);
@@ -144,7 +146,6 @@ function C4DiagramDisplay({
         node.setManualLayout({ positions: newPositions });
       }
     });
-    setManualLayout({ positions: newPositions });
   }, [editor, nodeKey]);
 
   // Handle reset to auto layout
@@ -169,8 +170,21 @@ function C4DiagramDisplay({
       }
     };
 
+    const handleMouseDown = (e: MouseEvent) => {
+      const container = containerRef.current;
+      if (!container) return;
+      if (e.target instanceof Node && !container.contains(e.target)) {
+        setIsEditingLayout(false);
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleMouseDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleMouseDown);
+    };
   }, [isEditingLayout]);
 
   if (!layout || !parseResult.diagram) {
@@ -218,11 +232,13 @@ function C4DiagramDisplay({
           }}
         >
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               setIsEditingLayout(!isEditingLayout);
             }}
             title={isEditingLayout ? 'Exit layout mode' : 'Edit layout'}
+            aria-label={isEditingLayout ? 'Exit layout mode' : 'Edit layout'}
             style={{
               width: '28px',
               height: '28px',
@@ -244,11 +260,13 @@ function C4DiagramDisplay({
           </button>
           {manualLayout && (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 handleResetLayout();
               }}
               title="Reset to auto layout"
+              aria-label="Reset to auto layout"
               style={{
                 width: '28px',
                 height: '28px',

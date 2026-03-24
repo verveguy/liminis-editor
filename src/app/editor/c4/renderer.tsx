@@ -1025,6 +1025,61 @@ export function C4Renderer({ layout, isDarkMode }: C4RendererProps): JSX.Element
   );
 }
 
+/**
+ * Renders C4 diagram content (nodes, edges, legend) as SVG group elements.
+ * Exported for use by C4InteractiveRenderer to embed diagram content
+ * inside a custom SVG wrapper without depending on C4Renderer's DOM structure.
+ */
+export function C4RendererContent({ layout, isDarkMode }: C4RendererProps): JSX.Element {
+  const colors = getColors(isDarkMode);
+
+  const boundaryNodes = layout.nodes.filter(
+    (n) =>
+      n.element.type === 'system' &&
+      ((n.children?.length ?? 0) > 0 || n.element.properties.style === 'boundary')
+  );
+  const regularNodes = layout.nodes.filter(
+    (n) =>
+      !(
+        n.element.type === 'system' &&
+        ((n.children?.length ?? 0) > 0 || n.element.properties.style === 'boundary')
+      )
+  );
+
+  const parentMap = buildParentMap(layout.nodes);
+  const { edges: processedEdges, legendEntries } = processEdgesForLegend(layout.edges);
+
+  let legendPlacement: { x: number; y: number } | null = null;
+
+  if (legendEntries.length > 0) {
+    const lp = computeLegendPlacement(legendEntries, layout);
+    legendPlacement = { x: lp.x, y: lp.y };
+  }
+
+  return (
+    <>
+      <g className="boundaries-layer">
+        {boundaryNodes.map((node) => renderNode(node, colors, layout.nodes, parentMap))}
+      </g>
+      <g className="nodes-layer">
+        {regularNodes.map((node) => renderNode(node, colors, layout.nodes, parentMap))}
+      </g>
+      <g className="edges-layer">
+        {processedEdges.map((edge, i) => (
+          <EdgeComponent
+            key={`${edge.source}-${edge.target}-${i}`}
+            edge={edge}
+            colors={colors}
+          />
+        ))}
+      </g>
+      {legendPlacement && legendEntries.length > 0 && (
+        <Legend entries={legendEntries} placement={legendPlacement} colors={colors} />
+      )}
+    </>
+  );
+}
+
 // =============================================================================
 // ERROR DISPLAY
 // =============================================================================

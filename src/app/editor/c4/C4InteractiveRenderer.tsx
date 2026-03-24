@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { C4Renderer } from './renderer';
+import { C4RendererContent } from './renderer';
 import { layoutC4Diagram } from './layout';
 import type { LayoutResult, LayoutNode, C4Diagram } from './types';
 import { useC4DiagramDrag } from './hooks/useC4DiagramDrag';
@@ -25,31 +25,17 @@ export interface C4InteractiveRendererProps {
 }
 
 /**
- * Find the node in a layout tree by ID (handles nested children).
+ * Collect all node IDs and their positions from the layout tree.
  */
-function findNodeInLayout(nodes: LayoutNode[], id: string): LayoutNode | undefined {
+function collectNodePositions(nodes: LayoutNode[]): Record<string, { x: number; y: number }> {
+  const positions: Record<string, { x: number; y: number }> = {};
   for (const node of nodes) {
-    if (node.id === id) return node;
+    positions[node.id] = { x: node.x, y: node.y };
     if (node.children) {
-      const found = findNodeInLayout(node.children, id);
-      if (found) return found;
+      Object.assign(positions, collectNodePositions(node.children));
     }
   }
-  return undefined;
-}
-
-/**
- * Collect all node IDs from the layout tree.
- */
-function collectNodeIds(nodes: LayoutNode[]): string[] {
-  const ids: string[] = [];
-  for (const node of nodes) {
-    ids.push(node.id);
-    if (node.children) {
-      ids.push(...collectNodeIds(node.children));
-    }
-  }
-  return ids;
+  return positions;
 }
 
 /**
@@ -70,6 +56,15 @@ export function C4InteractiveRenderer({
   // Local positions during drag (merged with persisted positions)
   const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({});
 
+  // rAF handle for throttling drag updates
+  const rafRef = useRef<number | null>(null);
+  const pendingDragRef = useRef<{ nodeId: string; x: number; y: number } | null>(null);
+
+  // Compute the auto-layout once for seeding positions on first drag
+  const autoLayout = useMemo(() => {
+    return layoutC4Diagram(diagram);
+  }, [diagram]);
+
   // Merge persisted positions with drag positions
   const effectivePositions = useMemo(() => ({
     ...manualPositions,
@@ -82,16 +77,41 @@ export function C4InteractiveRenderer({
     return layoutC4Diagram(diagram, undefined, hasPositions ? effectivePositions : undefined);
   }, [diagram, effectivePositions]);
 
-  // Handle real-time position updates during drag
+  // Handle real-time position updates during drag, throttled to rAF
   const handleNodeDrag = useCallback((nodeId: string, x: number, y: number) => {
-    setDragPositions(prev => ({
-      ...prev,
-      [nodeId]: { x, y },
-    }));
-  }, []);
+    pendingDragRef.current = { nodeId, x, y };
+
+    if (rafRef.current === null) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        const pending = pendingDragRef.current;
+        if (pending) {
+          setDragPositions(prev => {
+            // On first drag, seed all node positions from current layout
+            // to prevent other nodes from jumping to default placement
+            if (Object.keys(prev).length === 0 && Object.keys(manualPositions).length === 0) {
+              const seeded = collectNodePositions(autoLayout.nodes);
+              seeded[pending.nodeId] = { x: pending.x, y: pending.y };
+              return seeded;
+            }
+            return {
+              ...prev,
+              [pending.nodeId]: { x: pending.x, y: pending.y },
+            };
+          });
+        }
+      });
+    }
+  }, [manualPositions, autoLayout.nodes]);
 
   // Handle drag end - persist positions
   const handleNodeDragEnd = useCallback((nodeId: string, x: number, y: number) => {
+    // Cancel any pending rAF
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+
     // Merge all positions and persist
     const newPositions = {
       ...manualPositions,
@@ -99,22 +119,19 @@ export function C4InteractiveRenderer({
       [nodeId]: { x, y },
     };
 
-    // If this is the first drag, populate all other nodes with their current positions
+    // If this is the first drag, populate all other nodes with their current auto-layout positions
     if (Object.keys(manualPositions).length === 0) {
-      const allIds = collectNodeIds(layout.nodes);
-      for (const id of allIds) {
+      const autoPositions = collectNodePositions(autoLayout.nodes);
+      for (const [id, pos] of Object.entries(autoPositions)) {
         if (!newPositions[id]) {
-          const node = findNodeInLayout(layout.nodes, id);
-          if (node) {
-            newPositions[id] = { x: node.x, y: node.y };
-          }
+          newPositions[id] = pos;
         }
       }
     }
 
     onPositionChange(newPositions);
     setDragPositions({});
-  }, [manualPositions, dragPositions, layout.nodes, onPositionChange]);
+  }, [manualPositions, dragPositions, autoLayout.nodes, onPositionChange]);
 
   // Set up drag hook
   const { draggedNodeId, startNodeDrag, handlers } = useC4DiagramDrag({
@@ -197,7 +214,7 @@ function C4InteractiveSvg({
 
   return (
     <div style={{ position: 'relative' }}>
-      {/* Base renderer */}
+      {/* Base renderer - use full rendered size including legend */}
       <svg
         ref={svgRef}
         width={layout.width}
@@ -210,7 +227,7 @@ function C4InteractiveSvg({
         }}
         {...handlers}
       >
-        {/* Use the standard renderer for all the complex rendering */}
+        {/* Use the exported renderer content for stable API */}
         <C4RendererContent layout={layout} isDarkMode={isDarkMode} />
 
         {/* Overlay interactive hit areas in edit mode */}
@@ -252,19 +269,6 @@ function C4InteractiveSvg({
       </svg>
     </div>
   );
-}
-
-/**
- * Renders the C4 diagram content (nodes and edges).
- * Extracted to avoid re-implementing all the complex rendering logic.
- */
-function C4RendererContent({ layout, isDarkMode }: { layout: LayoutResult; isDarkMode: boolean }): JSX.Element {
-  // Re-use the full C4Renderer but extract just the content
-  // This is a workaround - we render C4Renderer and extract its children
-  const rendered = C4Renderer({ layout, isDarkMode });
-
-  // The C4Renderer returns an SVG element, we want its children
-  return <>{rendered.props.children}</>;
 }
 
 /**
