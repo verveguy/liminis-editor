@@ -42,6 +42,7 @@ import { getFileType } from '../../../renderer/utils/fileTypes';
  * parseFormattedAlias('***both***')   // { text: 'both', formats: ['bold', 'italic'] }
  * parseFormattedAlias('~~strike~~')   // { text: 'strike', formats: ['strikethrough'] }
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function parseFormattedAlias(alias: string): { text: string; formats: TextFormatType[] } {
   const formats: TextFormatType[] = [];
   let text = alias;

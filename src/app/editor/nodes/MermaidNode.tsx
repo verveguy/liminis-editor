@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * MermaidNode - Renders Mermaid diagrams
  * Uses DecoratorNode pattern similar to EquationNode

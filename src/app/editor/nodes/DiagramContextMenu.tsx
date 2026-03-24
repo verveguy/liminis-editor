@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * Shared context menu overlay for diagram nodes (C4, Mermaid).
  * Provides "Copy image to clipboard" as a PNG.

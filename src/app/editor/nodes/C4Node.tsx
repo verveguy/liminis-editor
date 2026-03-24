@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * C4Node - Renders C4 architecture diagrams
  * Uses DecoratorNode pattern similar to MermaidNode
