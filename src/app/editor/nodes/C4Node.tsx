@@ -15,12 +15,14 @@ import {
   $applyNodeReplacement,
 } from 'lexical';
 import { createElement, lazy, Suspense } from 'react';
+import type { ManualLayout } from '../c4/types';
 
 const C4Component = lazy(() => import('./C4Component'));
 
 export type SerializedC4Node = Spread<
   {
     code: string;
+    manualLayout?: ManualLayout;
   },
   SerializedLexicalNode
 >;
@@ -40,30 +42,44 @@ function $convertC4Element(
 
 export class C4Node extends DecoratorNode<JSX.Element> {
   __code: string;
+  __manualLayout: ManualLayout | undefined;
 
   static getType(): string {
     return 'c4';
   }
 
   static clone(node: C4Node): C4Node {
-    return new C4Node(node.__code, node.__key);
+    const cloned = new C4Node(node.__code, node.__key);
+    cloned.__manualLayout = node.__manualLayout
+      ? { positions: { ...node.__manualLayout.positions } }
+      : undefined;
+    return cloned;
   }
 
   constructor(code: string, key?: NodeKey) {
     super(key);
     this.__code = code;
+    this.__manualLayout = undefined;
   }
 
   static importJSON(serializedNode: SerializedC4Node): C4Node {
-    return $createC4Node(serializedNode.code);
+    const node = $createC4Node(serializedNode.code);
+    if (serializedNode.manualLayout) {
+      node.__manualLayout = serializedNode.manualLayout;
+    }
+    return node;
   }
 
   exportJSON(): SerializedC4Node {
-    return {
+    const json: SerializedC4Node = {
       type: 'c4',
       version: 1,
       code: this.getCode(),
     };
+    if (this.__manualLayout) {
+      json.manualLayout = this.__manualLayout;
+    }
+    return json;
   }
 
   createDOM(): HTMLElement {
@@ -114,6 +130,15 @@ export class C4Node extends DecoratorNode<JSX.Element> {
   setCode(code: string): void {
     const writable = this.getWritable();
     writable.__code = code;
+  }
+
+  getManualLayout(): ManualLayout | undefined {
+    return this.__manualLayout;
+  }
+
+  setManualLayout(layout: ManualLayout | undefined): void {
+    const writable = this.getWritable();
+    writable.__manualLayout = layout;
   }
 
   decorate(): JSX.Element {

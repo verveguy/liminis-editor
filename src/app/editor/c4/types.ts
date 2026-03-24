@@ -235,3 +235,16 @@ export function isExternal(element: C4Element): boolean {
 export function isBoundary(element: C4Element): boolean {
   return element.properties.style === 'boundary';
 }
+
+// =============================================================================
+// MANUAL LAYOUT TYPES
+// =============================================================================
+
+/**
+ * Manual layout data for user-positioned diagram elements.
+ * When present, positions are user-defined instead of computed by dagre.
+ */
+export interface ManualLayout {
+  /** Element positions keyed by element ID */
+  positions: Record<string, { x: number; y: number }>;
+}
