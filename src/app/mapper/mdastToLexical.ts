@@ -255,14 +255,14 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
           // Prepend footnote label to the first paragraph only
           if (i === 0 && n.getType() === 'paragraph' && 'getFirstChild' in n) {
             const label = $createFootnoteNode(fnDef.identifier);
-            const colon = $createTextNode(': ');
+            const space = $createTextNode(' ');
             const firstChild = (n as ParagraphNode).getFirstChild();
             if (firstChild) {
-              firstChild.insertBefore(colon);
-              colon.insertBefore(label);
+              firstChild.insertBefore(space);
+              space.insertBefore(label);
             } else {
               (n as ParagraphNode).append(label);
-              (n as ParagraphNode).append(colon);
+              (n as ParagraphNode).append(space);
             }
           }
           if ('setIndent' in n && typeof n.setIndent === 'function') {
