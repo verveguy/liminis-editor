@@ -98,7 +98,7 @@ export class FootnoteNode extends DecoratorNode<JSX.Element> {
   exportDOM(): DOMExportOutput {
     const el = document.createElement('sup');
     el.setAttribute('data-footnote-id', this.__footnoteId);
-    el.textContent = `[${this.__footnoteId}]`;
+    el.textContent = `[^${this.__footnoteId}]`;
     return { element: el };
   }
 
