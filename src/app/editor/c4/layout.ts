@@ -16,6 +16,7 @@ import type {
   LayoutEdge,
   LayoutOptions,
   Point,
+  ManualLayout,
 } from './types';
 
 // =============================================================================
@@ -679,24 +680,209 @@ function alignCrossBoundaryElements(
 }
 
 // =============================================================================
+// MANUAL LAYOUT
+// =============================================================================
+
+/**
+ * Build layout nodes with computed dimensions, applying manual positions.
+ * Recursively processes nested elements, computing dimensions and applying positions.
+ */
+function buildLayoutNodesWithManualPositions(
+  elements: C4Element[],
+  positions: Record<string, { x: number; y: number }>,
+  options: Required<LayoutOptions>,
+  defaultX: number,
+  defaultY: number
+): LayoutNode[] {
+  const nodes: LayoutNode[] = [];
+  const currentX = defaultX;
+  let currentY = defaultY;
+
+  for (const element of elements) {
+    // First, recursively process children
+    let childNodes: LayoutNode[] = [];
+
+    if (element.children.length > 0) {
+      // Position children inside the boundary header area
+      childNodes = buildLayoutNodesWithManualPositions(
+        element.children,
+        positions,
+        options,
+        BOUNDARY_PADDING,
+        BOUNDARY_HEADER_HEIGHT
+      );
+    }
+
+    // Calculate this node's base dimensions
+    const baseDimensions = calculateNodeDimensions(element, options);
+
+    // If this is a boundary with children, expand to contain them
+    const isBoundary =
+      element.type === 'system' ||
+      element.properties.style === 'boundary' ||
+      element.children.length > 0;
+
+    let nodeWidth = baseDimensions.width;
+    let nodeHeight = baseDimensions.height;
+
+    if (isBoundary && childNodes.length > 0) {
+      // Calculate children bounding box
+      const childMaxX = Math.max(...childNodes.map((n) => n.x + n.width));
+      const childMaxY = Math.max(...childNodes.map((n) => n.y + n.height));
+      const childBounds = {
+        width: childMaxX + BOUNDARY_PADDING,
+        height: childMaxY + BOUNDARY_PADDING,
+      };
+
+      nodeWidth = Math.max(baseDimensions.width, childBounds.width);
+      nodeHeight = Math.max(
+        baseDimensions.height,
+        childBounds.height + BOUNDARY_HEADER_HEIGHT
+      );
+    }
+
+    // Apply manual position if available, otherwise use default placement
+    const manualPos = positions[element.id];
+    const x = manualPos?.x ?? currentX;
+    const y = manualPos?.y ?? currentY;
+
+    const layoutNode: LayoutNode = {
+      id: element.id,
+      x,
+      y,
+      width: nodeWidth,
+      height: nodeHeight,
+      element,
+      children: childNodes.length > 0 ? childNodes : undefined,
+    };
+
+    // Offset children to be inside parent's coordinate space
+    if (layoutNode.children) {
+      for (const child of layoutNode.children) {
+        offsetLayoutNode(child, x, y);
+      }
+    }
+
+    nodes.push(layoutNode);
+
+    // Update default position for next element without manual position
+    currentY += nodeHeight + options.nodePadding;
+  }
+
+  return nodes;
+}
+
+/**
+ * Recursively resize boundaries to contain their children.
+ * Must be called after children positions are finalized (bottom-up resize).
+ */
+function resizeBoundariesToContainChildren(nodes: LayoutNode[]): void {
+  for (const node of nodes) {
+    if (node.children && node.children.length > 0) {
+      // First resize nested boundaries
+      resizeBoundariesToContainChildren(node.children);
+
+      // Then resize this boundary to contain its children
+      const childMaxX = Math.max(
+        ...node.children.map((n) => n.x + n.width)
+      );
+      const childMaxY = Math.max(
+        ...node.children.map((n) => n.y + n.height)
+      );
+
+      // Boundary must contain all children with padding
+      const requiredWidth = childMaxX - node.x + BOUNDARY_PADDING;
+      const requiredHeight = childMaxY - node.y + BOUNDARY_PADDING;
+
+      node.width = Math.max(node.width, requiredWidth);
+      node.height = Math.max(node.height, requiredHeight);
+    }
+  }
+}
+
+/**
+ * Layout a C4 diagram using manual positions instead of dagre auto-layout.
+ * Used when the user has positioned elements manually.
+ */
+function layoutWithManualPositions(
+  diagram: C4Diagram,
+  options: Required<LayoutOptions>,
+  manualPositions: Record<string, { x: number; y: number }>
+): LayoutResult {
+  const topLevelElements = getTopLevelElements(diagram.elements);
+
+  // Build layout nodes with manual positions applied
+  const layoutNodes = buildLayoutNodesWithManualPositions(
+    topLevelElements,
+    manualPositions,
+    options,
+    BOUNDARY_PADDING,
+    BOUNDARY_PADDING
+  );
+
+  // Resize boundaries to contain their children (bottom-up)
+  resizeBoundariesToContainChildren(layoutNodes);
+
+  // Flatten all nodes for the result
+  const allNodes = flattenLayoutNodes(layoutNodes);
+
+  // Build node lookup for edge calculation
+  const nodeMap = new Map<string, LayoutNode>();
+  for (const node of allNodes) {
+    nodeMap.set(node.id, node);
+  }
+
+  // Calculate edges using existing function
+  const edges = calculateEdges(diagram.relationships, nodeMap);
+
+  // Calculate total diagram dimensions
+  let width = 0;
+  let height = 0;
+
+  for (const node of allNodes) {
+    width = Math.max(width, node.x + node.width);
+    height = Math.max(height, node.y + node.height);
+  }
+
+  // Add margin
+  width += BOUNDARY_PADDING;
+  height += BOUNDARY_PADDING;
+
+  return {
+    nodes: allNodes,
+    edges,
+    width,
+    height,
+  };
+}
+
+// =============================================================================
 // PUBLIC API
 // =============================================================================
 
 /**
- * Layout a C4 diagram using dagre for auto-positioning.
+ * Layout a C4 diagram using dagre for auto-positioning,
+ * or manual positions if provided.
  *
  * @param diagram - The parsed C4 diagram AST
  * @param options - Layout configuration options
+ * @param manualPositions - Optional manual positions for elements (bypasses dagre)
  * @returns Layout result with positioned nodes and routed edges
  */
 export function layoutC4Diagram(
   diagram: C4Diagram,
-  options?: LayoutOptions
+  options?: LayoutOptions,
+  manualPositions?: Record<string, { x: number; y: number }>
 ): LayoutResult {
   const mergedOptions: Required<LayoutOptions> = {
     ...DEFAULT_OPTIONS,
     ...options,
   };
+
+  // Use manual layout if positions are provided
+  if (manualPositions && Object.keys(manualPositions).length > 0) {
+    return layoutWithManualPositions(diagram, mergedOptions, manualPositions);
+  }
 
   const topLevelElements = getTopLevelElements(diagram.elements);
 
@@ -747,4 +933,4 @@ export function layoutC4Diagram(
 /**
  * Re-export types for convenience.
  */
-export type { LayoutResult, LayoutNode, LayoutEdge, LayoutOptions, Point };
+export type { LayoutResult, LayoutNode, LayoutEdge, LayoutOptions, Point, ManualLayout };
