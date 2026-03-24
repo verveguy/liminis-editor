@@ -7,6 +7,7 @@ import { writeAsset, addMessageHandler } from '../../messaging-electron';
 import type { HostToUIMessage } from '../../types';
 
 // Command to open the image modal
+// eslint-disable-next-line react-refresh/only-export-components
 export const INSERT_IMAGE_COMMAND: LexicalCommand<void> = createCommand('INSERT_IMAGE_COMMAND');
 
 export function ImagePlugin() {
