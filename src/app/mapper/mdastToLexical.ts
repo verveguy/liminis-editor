@@ -77,7 +77,10 @@ export function importMarkdownToLexicalInEditorState(root: Root): void {
   // Pre-process: combine details blocks
   const processedChildren = preprocessDetailsBlocks(root.children);
 
-  for (const child of processedChildren) {
+  // Pre-process: extract footnote definitions for bottom rendering
+  const { processed: childrenWithoutFootnotes, definitions } = preprocessFootnoteDefinitions(processedChildren);
+
+  for (const child of childrenWithoutFootnotes) {
     // Check if this is a toggle marker
     if ((child as ToggleContentMarker).type === 'toggle-marker') {
       const nodes = convertToggleMarker(child as ToggleContentMarker);
@@ -86,6 +89,17 @@ export function importMarkdownToLexicalInEditorState(root: Root): void {
       }
     } else {
       const nodes = convertBlockNode(child as Content);
+      for (const node of nodes) {
+        lexicalRoot.append(node);
+      }
+    }
+  }
+
+  // Append footnote definitions at the end with HR separator
+  if (definitions.length > 0) {
+    lexicalRoot.append($createHorizontalRuleNode());
+    for (const def of definitions) {
+      const nodes = convertBlockNode(def);
       for (const node of nodes) {
         lexicalRoot.append(node);
       }
@@ -100,6 +114,7 @@ interface ToggleContentMarker {
   summary: string;
   contentNodes: Content[];
 }
+
 
 // Pre-process mdast children to combine details blocks and preserve content nodes
 function preprocessDetailsBlocks(children: Content[]): (Content | ToggleContentMarker)[] {
@@ -182,6 +197,58 @@ function preprocessDetailsBlocks(children: Content[]): (Content | ToggleContentM
   }
 
   return result;
+}
+
+// Pre-process mdast children to extract footnote definitions for bottom-of-document rendering
+function preprocessFootnoteDefinitions(
+  children: (Content | ToggleContentMarker)[]
+): { processed: (Content | ToggleContentMarker)[]; definitions: Content[] } {
+  const definitions: Content[] = [];
+
+  function extractFromNode(node: Content): Content | null {
+    if (node.type === 'footnoteDefinition') {
+      definitions.push(node);
+      return null; // Remove from tree
+    }
+
+    // Recursively process nodes with children (blockquote, list, listItem, etc.)
+    if ('children' in node && Array.isArray((node as { children?: unknown }).children)) {
+      const typedNode = node as Content & { children: Content[] };
+      const filteredChildren: Content[] = [];
+      for (const child of typedNode.children) {
+        const result = extractFromNode(child);
+        if (result !== null) {
+          filteredChildren.push(result);
+        }
+      }
+      return { ...typedNode, children: filteredChildren } as Content;
+    }
+
+    return node;
+  }
+
+  const processed: (Content | ToggleContentMarker)[] = [];
+  for (const child of children) {
+    // Handle toggle markers separately - they have their own contentNodes to process
+    if ((child as ToggleContentMarker).type === 'toggle-marker') {
+      const marker = child as ToggleContentMarker;
+      const filteredContentNodes: Content[] = [];
+      for (const contentNode of marker.contentNodes) {
+        const result = extractFromNode(contentNode);
+        if (result !== null) {
+          filteredContentNodes.push(result);
+        }
+      }
+      processed.push({ ...marker, contentNodes: filteredContentNodes });
+    } else {
+      const result = extractFromNode(child as Content);
+      if (result !== null) {
+        processed.push(result);
+      }
+    }
+  }
+
+  return { processed, definitions };
 }
 
 function convertBlockNode(node: Content): LexicalBlockNode[] {
