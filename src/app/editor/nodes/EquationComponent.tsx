@@ -20,21 +20,12 @@ import {
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
 import { useCallback, useEffect, useRef, useState, ChangeEvent, forwardRef, RefObject } from 'react';
-import { mathjax } from 'mathjax-full/js/mathjax.js';
-import { TeX } from 'mathjax-full/js/input/tex.js';
-import { SVG } from 'mathjax-full/js/output/svg.js';
-import { browserAdaptor } from 'mathjax-full/js/adaptors/browserAdaptor.js';
-import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html.js';
-import { AllPackages } from 'mathjax-full/js/input/tex/AllPackages.js';
+import { createBrowserAdaptorDocument, browserAdaptor } from '../../../../shared/mathjax-config';
 import { $isEquationNode } from './EquationNode';
 
 // Initialize MathJax once for the renderer process
 const mathjaxAdaptor = browserAdaptor();
-RegisterHTMLHandler(mathjaxAdaptor);
-const mathjaxDocument = mathjax.document(document, {
-  InputJax: new TeX({ packages: AllPackages }),
-  OutputJax: new SVG({ fontCache: 'local' }),
-});
+const mathjaxDocument = createBrowserAdaptorDocument(document);
 
 // MathJax SVG Renderer component — replaces KaTeX with MathJax for higher quality rendering
 function MathJaxRenderer({
@@ -67,7 +58,7 @@ function MathJaxRenderer({
         container.appendChild(node);
       } else {
         // Fallback: use innerHTML from adaptor
-        container.innerHTML = mathjaxAdaptor.innerHTML(node);
+        container.innerHTML = mathjaxAdaptor.innerHTML(node as any);
       }
     } catch {
       container.textContent = equation;
