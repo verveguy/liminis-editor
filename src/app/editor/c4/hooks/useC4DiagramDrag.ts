@@ -2,10 +2,11 @@
  * useC4DiagramDrag - Hook for drag interaction on C4 diagram elements
  *
  * Provides drag-and-drop functionality for repositioning C4 diagram elements.
- * Follows patterns from useGraphInteractions for SVG coordinate conversion.
+ * Uses window-level listeners during drag so the interaction continues even
+ * when the cursor leaves the SVG bounds.
  */
 
-import { useCallback, useRef, useState, RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, RefObject } from 'react';
 
 export interface UseC4DiagramDragProps {
   /** Reference to the SVG element */
@@ -25,12 +26,6 @@ export interface UseC4DiagramDragReturn {
   isDragging: boolean;
   /** Start dragging a node */
   startNodeDrag: (nodeId: string, nodeX: number, nodeY: number, e: React.MouseEvent) => void;
-  /** Event handlers to attach to the SVG element */
-  handlers: {
-    onMouseMove: (e: React.MouseEvent) => void;
-    onMouseUp: (e: React.MouseEvent) => void;
-    onMouseLeave: (e: React.MouseEvent) => void;
-  };
   /** Convert screen coordinates to SVG coordinates */
   screenToSvg: (clientX: number, clientY: number) => { x: number; y: number } | null;
 }
@@ -38,21 +33,8 @@ export interface UseC4DiagramDragReturn {
 /**
  * Hook for managing drag interactions on C4 diagram nodes.
  *
- * Usage:
- * ```tsx
- * const { draggedNodeId, startNodeDrag, handlers } = useC4DiagramDrag({
- *   svgRef,
- *   onNodeDrag: (nodeId, x, y) => updatePosition(nodeId, x, y),
- *   onNodeDragEnd: (nodeId, x, y) => persistPosition(nodeId, x, y),
- *   enabled: isEditMode,
- * });
- *
- * <svg ref={svgRef} {...handlers}>
- *   <g onMouseDown={(e) => startNodeDrag(nodeId, node.x, node.y, e)}>
- *     ...
- *   </g>
- * </svg>
- * ```
+ * During a drag, mousemove and mouseup are handled on `window` so the
+ * interaction continues seamlessly when the cursor moves outside the SVG.
  */
 export function useC4DiagramDrag({
   svgRef,
@@ -68,10 +50,15 @@ export function useC4DiagramDrag({
   // Track the last known position for dragEnd callback
   const lastPositionRef = useRef({ x: 0, y: 0 });
 
+  // Refs for callbacks so window listeners always see latest values
+  const onNodeDragRef = useRef(onNodeDrag);
+  onNodeDragRef.current = onNodeDrag;
+  const onNodeDragEndRef = useRef(onNodeDragEnd);
+  onNodeDragEndRef.current = onNodeDragEnd;
+  const draggedNodeIdRef = useRef<string | null>(null);
+
   /**
    * Convert screen (client) coordinates to SVG coordinates.
-   * Uses the SVG's CTM (Current Transform Matrix) for accurate conversion
-   * that accounts for viewBox and any transforms.
    */
   const screenToSvg = useCallback(
     (clientX: number, clientY: number): { x: number; y: number } | null => {
@@ -91,10 +78,11 @@ export function useC4DiagramDrag({
     [svgRef]
   );
 
+  const screenToSvgRef = useRef(screenToSvg);
+  screenToSvgRef.current = screenToSvg;
+
   /**
    * Start dragging a node.
-   * Records the offset from cursor to node origin so the node
-   * doesn't jump to center on the cursor.
    */
   const startNodeDrag = useCallback(
     (nodeId: string, nodeX: number, nodeY: number, e: React.MouseEvent) => {
@@ -106,83 +94,62 @@ export function useC4DiagramDrag({
       const svgPoint = screenToSvg(e.clientX, e.clientY);
       if (!svgPoint) return;
 
-      // Calculate offset from cursor to node's top-left corner
       dragOffsetRef.current = {
         x: svgPoint.x - nodeX,
         y: svgPoint.y - nodeY,
       };
 
       lastPositionRef.current = { x: nodeX, y: nodeY };
+      draggedNodeIdRef.current = nodeId;
       setDraggedNodeId(nodeId);
     },
     [enabled, screenToSvg]
   );
 
-  /**
-   * Handle mouse move during drag.
-   * Updates node position via callback.
-   */
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!draggedNodeId || !enabled) return;
+  // Attach window-level listeners while dragging
+  useEffect(() => {
+    if (!draggedNodeId) return;
 
-      const svgPoint = screenToSvg(e.clientX, e.clientY);
+    const handleMouseMove = (e: MouseEvent) => {
+      const nodeId = draggedNodeIdRef.current;
+      if (!nodeId) return;
+
+      const svgPoint = screenToSvgRef.current(e.clientX, e.clientY);
       if (!svgPoint) return;
 
-      // Calculate new position accounting for drag offset
       const newX = svgPoint.x - dragOffsetRef.current.x;
       const newY = svgPoint.y - dragOffsetRef.current.y;
 
       lastPositionRef.current = { x: newX, y: newY };
-      onNodeDrag?.(draggedNodeId, newX, newY);
-    },
-    [draggedNodeId, enabled, screenToSvg, onNodeDrag]
-  );
+      onNodeDragRef.current?.(nodeId, newX, newY);
+    };
 
-  /**
-   * Handle mouse up to end drag.
-   */
-  const handleMouseUp = useCallback(
-    (_e: React.MouseEvent) => {
-      if (!draggedNodeId) return;
+    const handleMouseUp = () => {
+      const nodeId = draggedNodeIdRef.current;
+      if (!nodeId) return;
 
-      onNodeDragEnd?.(
-        draggedNodeId,
+      onNodeDragEndRef.current?.(
+        nodeId,
         lastPositionRef.current.x,
         lastPositionRef.current.y
       );
+      draggedNodeIdRef.current = null;
       setDraggedNodeId(null);
-    },
-    [draggedNodeId, onNodeDragEnd]
-  );
+    };
 
-  /**
-   * Handle mouse leave to cancel drag gracefully.
-   * Same behavior as mouse up - commits the last known position.
-   */
-  const handleMouseLeave = useCallback(
-    (_e: React.MouseEvent) => {
-      if (!draggedNodeId) return;
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
 
-      onNodeDragEnd?.(
-        draggedNodeId,
-        lastPositionRef.current.x,
-        lastPositionRef.current.y
-      );
-      setDraggedNodeId(null);
-    },
-    [draggedNodeId, onNodeDragEnd]
-  );
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [draggedNodeId]);
 
   return {
     draggedNodeId,
     isDragging: draggedNodeId !== null,
     startNodeDrag,
-    handlers: {
-      onMouseMove: handleMouseMove,
-      onMouseUp: handleMouseUp,
-      onMouseLeave: handleMouseLeave,
-    },
     screenToSvg,
   };
 }

@@ -254,8 +254,8 @@ export function C4InteractiveRenderer({
     }
   }, [manualPositions]);
 
-  // Set up drag hook
-  const { draggedNodeId, startNodeDrag, handlers } = useC4DiagramDrag({
+  // Set up drag hook (window-level listeners handle mousemove/mouseup)
+  const { draggedNodeId, startNodeDrag } = useC4DiagramDrag({
     svgRef,
     onNodeDrag: handleNodeDrag,
     onNodeDragEnd: handleNodeDragEnd,
@@ -277,7 +277,6 @@ export function C4InteractiveRenderer({
       isEditMode={isEditMode}
       draggedNodeId={draggedNodeId}
       svgRef={svgRef}
-      handlers={handlers}
       onNodeMouseDown={startNodeDrag}
       legendInfo={legendInfo}
       legendPositionOverride={legendPositionOverride}
@@ -291,11 +290,6 @@ interface C4InteractiveSvgProps {
   isEditMode: boolean;
   draggedNodeId: string | null;
   svgRef: React.RefObject<SVGSVGElement | null>;
-  handlers: {
-    onMouseMove: (e: React.MouseEvent) => void;
-    onMouseUp: (e: React.MouseEvent) => void;
-    onMouseLeave: (e: React.MouseEvent) => void;
-  };
   onNodeMouseDown: (nodeId: string, nodeX: number, nodeY: number, e: React.MouseEvent) => void;
   legendInfo: { x: number; y: number; width: number; height: number } | null;
   legendPositionOverride: { x: number; y: number } | null;
@@ -310,7 +304,6 @@ function C4InteractiveSvg({
   isEditMode,
   draggedNodeId,
   svgRef,
-  handlers,
   onNodeMouseDown,
   legendInfo,
   legendPositionOverride,
@@ -371,7 +364,6 @@ function C4InteractiveSvg({
           fontFamily: 'system-ui, -apple-system, sans-serif',
           cursor: isEditMode ? (draggedNodeId ? 'grabbing' : 'default') : 'default',
         }}
-        {...handlers}
       >
         {/* Use the exported renderer content for stable API */}
         <C4RendererContent layout={layout} isDarkMode={isDarkMode} legendPositionOverride={legendPositionOverride} />
