@@ -5,7 +5,7 @@
  * Maintains local position state during drag and recalculates edges in real-time.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { C4RendererContent, computeLegendInfo } from './renderer';
 import { layoutC4Diagram } from './layout';
 import type { LayoutResult, LayoutNode, C4Diagram, C4Element } from './types';
@@ -235,11 +235,24 @@ export function C4InteractiveRenderer({
     Object.assign(newPositions, updates);
 
     onPositionChange(newPositions);
-    dragPositionsRef.current = {};
-    setDragPositions({});
+    // Don't clear dragPositions here — manualPositions hasn't absorbed the
+    // new values yet (Lexical update listener is async). Clearing now would
+    // cause effectivePositions to revert to stale manualPositions, producing
+    // a visual snap-back. Instead, clear in the effect below when
+    // manualPositions catches up.
     dragStartPosRef.current = null;
     dragStartPositionsRef.current = {};
   }, [manualPositions, autoLayout.nodes, onPositionChange, applyDragWithChildren]);
+
+  // Clear drag positions once manualPositions has absorbed the persisted values.
+  // This avoids the snap-back race between setDragPositions({}) and the async
+  // Lexical update listener that feeds manualPositions.
+  useEffect(() => {
+    if (Object.keys(dragPositionsRef.current).length > 0) {
+      dragPositionsRef.current = {};
+      setDragPositions({});
+    }
+  }, [manualPositions]);
 
   // Set up drag hook
   const { draggedNodeId, startNodeDrag, handlers } = useC4DiagramDrag({
