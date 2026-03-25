@@ -787,6 +787,8 @@ function buildLayoutNodesWithManualPositions(
 /**
  * Recursively resize boundaries to contain their children.
  * Must be called after children positions are finalized (bottom-up resize).
+ * Handles expansion in all four directions — if a child is dragged above
+ * or left of the boundary origin, the boundary shifts position and expands.
  */
 function resizeBoundariesToContainChildren(nodes: LayoutNode[]): void {
   for (const node of nodes) {
@@ -794,7 +796,13 @@ function resizeBoundariesToContainChildren(nodes: LayoutNode[]): void {
       // First resize nested boundaries
       resizeBoundariesToContainChildren(node.children);
 
-      // Then resize this boundary to contain its children
+      // Find the bounding box of all children
+      const childMinX = Math.min(
+        ...node.children.map((n) => n.x)
+      );
+      const childMinY = Math.min(
+        ...node.children.map((n) => n.y)
+      );
       const childMaxX = Math.max(
         ...node.children.map((n) => n.x + n.width)
       );
@@ -802,7 +810,22 @@ function resizeBoundariesToContainChildren(nodes: LayoutNode[]): void {
         ...node.children.map((n) => n.y + n.height)
       );
 
-      // Boundary must contain all children with padding
+      // Expand leftward/upward if children extend beyond boundary origin
+      const requiredLeft = childMinX - BOUNDARY_PADDING;
+      const requiredTop = childMinY - BOUNDARY_HEADER_HEIGHT;
+
+      if (requiredLeft < node.x) {
+        const shift = node.x - requiredLeft;
+        node.width += shift;
+        node.x = requiredLeft;
+      }
+      if (requiredTop < node.y) {
+        const shift = node.y - requiredTop;
+        node.height += shift;
+        node.y = requiredTop;
+      }
+
+      // Expand rightward/downward
       const requiredWidth = childMaxX - node.x + BOUNDARY_PADDING;
       const requiredHeight = childMaxY - node.y + BOUNDARY_PADDING;
 
