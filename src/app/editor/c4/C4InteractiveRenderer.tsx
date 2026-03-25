@@ -8,7 +8,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { C4RendererContent } from './renderer';
 import { layoutC4Diagram } from './layout';
-import type { LayoutResult, LayoutNode, C4Diagram } from './types';
+import type { LayoutResult, LayoutNode, C4Diagram, C4Element } from './types';
 import { useC4DiagramDrag } from './hooks/useC4DiagramDrag';
 
 export interface C4InteractiveRendererProps {
@@ -39,6 +39,38 @@ function collectNodePositions(nodes: LayoutNode[]): Record<string, { x: number; 
 }
 
 /**
+ * Build a map from element ID to all its descendant IDs (recursive).
+ */
+function collectDescendantIds(elements: C4Element[]): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+
+  function getDescendants(element: C4Element): string[] {
+    const ids: string[] = [];
+    for (const child of element.children) {
+      ids.push(child.id);
+      ids.push(...getDescendants(child));
+    }
+    return ids;
+  }
+
+  function visit(element: C4Element): void {
+    const descendants = getDescendants(element);
+    if (descendants.length > 0) {
+      map.set(element.id, descendants);
+    }
+    for (const child of element.children) {
+      visit(child);
+    }
+  }
+
+  for (const element of elements) {
+    visit(element);
+  }
+
+  return map;
+}
+
+/**
  * Interactive C4 diagram renderer with drag support.
  *
  * When isEditMode is true, nodes can be dragged to new positions.
@@ -60,6 +92,14 @@ export function C4InteractiveRenderer({
   const rafRef = useRef<number | null>(null);
   const pendingDragRef = useRef<{ nodeId: string; x: number; y: number } | null>(null);
 
+  // Track drag start position for computing delta (used to move children)
+  const dragStartPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Map from element ID to its descendant IDs (for moving children with boundary)
+  const descendantMap = useMemo(() => {
+    return collectDescendantIds(diagram.elements);
+  }, [diagram.elements]);
+
   // Compute the auto-layout once for seeding positions on first drag
   const autoLayout = useMemo(() => {
     return layoutC4Diagram(diagram);
@@ -77,6 +117,36 @@ export function C4InteractiveRenderer({
     return layoutC4Diagram(diagram, undefined, hasPositions ? effectivePositions : undefined);
   }, [diagram, effectivePositions]);
 
+  /**
+   * Apply drag delta to a node and all its descendants.
+   * Returns an object with updated positions for the node and its children.
+   */
+  const applyDragWithChildren = useCallback((
+    nodeId: string,
+    x: number,
+    y: number,
+    basePositions: Record<string, { x: number; y: number }>,
+  ): Record<string, { x: number; y: number }> => {
+    const updates: Record<string, { x: number; y: number }> = { [nodeId]: { x, y } };
+
+    const childIds = descendantMap.get(nodeId);
+    if (childIds && dragStartPosRef.current) {
+      const dx = x - dragStartPosRef.current.x;
+      const dy = y - dragStartPosRef.current.y;
+      for (const childId of childIds) {
+        const childPos = basePositions[childId];
+        if (childPos) {
+          updates[childId] = { x: childPos.x + dx, y: childPos.y + dy };
+        }
+      }
+    }
+
+    return updates;
+  }, [descendantMap]);
+
+  // Snapshot of positions at drag start (before any delta is applied to children)
+  const dragStartPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
+
   // Handle real-time position updates during drag, throttled to rAF
   const handleNodeDrag = useCallback((nodeId: string, x: number, y: number) => {
     pendingDragRef.current = { nodeId, x, y };
@@ -91,18 +161,29 @@ export function C4InteractiveRenderer({
             // to prevent other nodes from jumping to default placement
             if (Object.keys(prev).length === 0 && Object.keys(manualPositions).length === 0) {
               const seeded = collectNodePositions(autoLayout.nodes);
-              seeded[pending.nodeId] = { x: pending.x, y: pending.y };
-              return seeded;
+              // Record start positions for delta calculation
+              if (!dragStartPosRef.current) {
+                dragStartPosRef.current = seeded[pending.nodeId] ?? { x: pending.x, y: pending.y };
+                dragStartPositionsRef.current = { ...seeded };
+              }
+              const updates = applyDragWithChildren(pending.nodeId, pending.x, pending.y, dragStartPositionsRef.current);
+              return { ...seeded, ...updates };
             }
-            return {
-              ...prev,
-              [pending.nodeId]: { x: pending.x, y: pending.y },
-            };
+
+            // Record start position on first move if not already set
+            if (!dragStartPosRef.current) {
+              const currentPos = { ...manualPositions, ...prev };
+              dragStartPosRef.current = currentPos[pending.nodeId] ?? { x: pending.x, y: pending.y };
+              dragStartPositionsRef.current = { ...currentPos };
+            }
+
+            const updates = applyDragWithChildren(pending.nodeId, pending.x, pending.y, dragStartPositionsRef.current);
+            return { ...prev, ...updates };
           });
         }
       });
     }
-  }, [manualPositions, autoLayout.nodes]);
+  }, [manualPositions, autoLayout.nodes, applyDragWithChildren]);
 
   // Handle drag end - persist positions
   const handleNodeDragEnd = useCallback((nodeId: string, x: number, y: number) => {
@@ -116,7 +197,6 @@ export function C4InteractiveRenderer({
     const newPositions = {
       ...manualPositions,
       ...dragPositions,
-      [nodeId]: { x, y },
     };
 
     // If this is the first drag, populate all other nodes with their current auto-layout positions
@@ -129,9 +209,16 @@ export function C4InteractiveRenderer({
       }
     }
 
+    // Apply final position with children
+    const basePositions = dragStartPositionsRef.current;
+    const updates = applyDragWithChildren(nodeId, x, y, basePositions);
+    Object.assign(newPositions, updates);
+
     onPositionChange(newPositions);
     setDragPositions({});
-  }, [manualPositions, dragPositions, autoLayout.nodes, onPositionChange]);
+    dragStartPosRef.current = null;
+    dragStartPositionsRef.current = {};
+  }, [manualPositions, dragPositions, autoLayout.nodes, onPositionChange, applyDragWithChildren]);
 
   // Set up drag hook
   const { draggedNodeId, startNodeDrag, handlers } = useC4DiagramDrag({

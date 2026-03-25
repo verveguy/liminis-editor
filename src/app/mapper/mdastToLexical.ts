@@ -576,7 +576,13 @@ function convertCode(node: Code): CodeNode | MermaidNode | C4Node {
 
   // Check if this is a C4 architecture diagram
   if (node.lang === 'c4' || (node.lang === 'plantuml' && isC4PlantUML(node.value))) {
-    return $createC4Node(node.value);
+    // Extract manual layout from special comment if present
+    const { code, manualLayout } = extractC4Layout(node.value);
+    const c4Node = $createC4Node(code);
+    if (manualLayout) {
+      c4Node.setManualLayout(manualLayout);
+    }
+    return c4Node;
   }
 
   // If no language was specified, use 'plain' to avoid Lexical defaulting to 'javascript'
@@ -590,6 +596,22 @@ function convertCode(node: Code): CodeNode | MermaidNode | C4Node {
 const C4_MACRO_PATTERN = /\b(?:Person|System|Container|Component|Boundary|Rel|BiRel)(?:_Ext|Db|Queue|_Boundary)?\s*[(_]/;
 function isC4PlantUML(code: string): boolean {
   return C4_MACRO_PATTERN.test(code);
+}
+
+/** Extract manual layout data from a C4 DSL code block's `' @layout {...}` comment */
+const C4_LAYOUT_PATTERN = /\n' @layout (.+)$/;
+function extractC4Layout(value: string): { code: string; manualLayout?: import('../editor/c4/types').ManualLayout } {
+  const match = C4_LAYOUT_PATTERN.exec(value);
+  if (!match) {
+    return { code: value };
+  }
+  try {
+    const manualLayout = JSON.parse(match[1]);
+    const code = value.slice(0, match.index);
+    return { code, manualLayout };
+  } catch {
+    return { code: value };
+  }
 }
 
 function convertThematicBreak(): HorizontalRuleNode {

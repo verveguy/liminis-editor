@@ -400,10 +400,18 @@ function convertMermaidNode(node: MermaidNode): Code {
 
 function convertC4Node(node: C4Node): Code {
   // Export as a fenced code block with lang="c4"
+  let value = node.getCode();
+
+  // Persist manual layout positions as a special comment at the end of the DSL
+  const manualLayout = node.getManualLayout();
+  if (manualLayout && Object.keys(manualLayout.positions).length > 0) {
+    value = value + '\n\' @layout ' + JSON.stringify(manualLayout);
+  }
+
   return {
     type: 'code',
     lang: 'c4',
-    value: node.getCode(),
+    value,
   };
 }
 
