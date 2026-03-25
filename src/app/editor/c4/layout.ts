@@ -699,7 +699,12 @@ function buildLayoutNodesWithManualPositions(
   let currentY = defaultY;
 
   for (const element of elements) {
-    // First, recursively process children
+    // Determine this node's position first (needed for boundary size calculation)
+    const manualPos = positions[element.id];
+    const x = manualPos?.x ?? currentX;
+    const y = manualPos?.y ?? currentY;
+
+    // Recursively process children
     let childNodes: LayoutNode[] = [];
 
     if (element.children.length > 0) {
@@ -729,21 +734,25 @@ function buildLayoutNodesWithManualPositions(
       // Calculate children bounding box
       const childMaxX = Math.max(...childNodes.map((n) => n.x + n.width));
       const childMaxY = Math.max(...childNodes.map((n) => n.y + n.height));
-      const childBounds = {
-        width: childMaxX + BOUNDARY_PADDING,
-        height: childMaxY + BOUNDARY_PADDING,
-      };
 
-      nodeWidth = Math.max(baseDimensions.width, childBounds.width);
-      // childBounds.height already includes BOUNDARY_HEADER_HEIGHT offset
-      // from the defaultY passed to child recursion, so don't add it again
-      nodeHeight = Math.max(baseDimensions.height, childBounds.height);
+      // Children may have absolute positions (manual) or relative positions (auto-placed).
+      // Check if any children have manual positions to determine coordinate mode.
+      const hasAbsoluteChildren = childNodes.some((n) => positions[n.id]);
+
+      if (hasAbsoluteChildren) {
+        // Children are in absolute coordinates — compute size relative to parent
+        nodeWidth = Math.max(baseDimensions.width, childMaxX - x + BOUNDARY_PADDING);
+        nodeHeight = Math.max(baseDimensions.height, childMaxY - y + BOUNDARY_PADDING);
+      } else {
+        // Children are in relative coordinates (starting from BOUNDARY_PADDING, BOUNDARY_HEADER_HEIGHT)
+        const childBounds = {
+          width: childMaxX + BOUNDARY_PADDING,
+          height: childMaxY + BOUNDARY_PADDING,
+        };
+        nodeWidth = Math.max(baseDimensions.width, childBounds.width);
+        nodeHeight = Math.max(baseDimensions.height, childBounds.height);
+      }
     }
-
-    // Apply manual position if available, otherwise use default placement
-    const manualPos = positions[element.id];
-    const x = manualPos?.x ?? currentX;
-    const y = manualPos?.y ?? currentY;
 
     const layoutNode: LayoutNode = {
       id: element.id,
