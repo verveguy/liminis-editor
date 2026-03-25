@@ -87,6 +87,8 @@ export function C4InteractiveRenderer({
 
   // Local positions during drag (merged with persisted positions)
   const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({});
+  // Ref mirror of dragPositions — always current, avoids stale closure in handleNodeDragEnd
+  const dragPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
 
   // rAF handle for throttling drag updates
   const rafRef = useRef<number | null>(null);
@@ -147,6 +149,17 @@ export function C4InteractiveRenderer({
   // Snapshot of positions at drag start (before any delta is applied to children)
   const dragStartPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
 
+  // Helper to update both drag state and ref mirror
+  const updateDragPositions = useCallback((
+    updater: (prev: Record<string, { x: number; y: number }>) => Record<string, { x: number; y: number }>
+  ) => {
+    setDragPositions(prev => {
+      const next = updater(prev);
+      dragPositionsRef.current = next;
+      return next;
+    });
+  }, []);
+
   // Handle real-time position updates during drag, throttled to rAF
   const handleNodeDrag = useCallback((nodeId: string, x: number, y: number) => {
     pendingDragRef.current = { nodeId, x, y };
@@ -156,7 +169,7 @@ export function C4InteractiveRenderer({
         rafRef.current = null;
         const pending = pendingDragRef.current;
         if (pending) {
-          setDragPositions(prev => {
+          updateDragPositions(prev => {
             // On first drag, seed all node positions from current layout
             // to prevent other nodes from jumping to default placement
             if (Object.keys(prev).length === 0 && Object.keys(manualPositions).length === 0) {
@@ -183,9 +196,10 @@ export function C4InteractiveRenderer({
         }
       });
     }
-  }, [manualPositions, autoLayout.nodes, applyDragWithChildren]);
+  }, [manualPositions, autoLayout.nodes, applyDragWithChildren, updateDragPositions]);
 
   // Handle drag end - persist positions
+  // Uses dragPositionsRef (not dragPositions state) to avoid stale closure race
   const handleNodeDragEnd = useCallback((nodeId: string, x: number, y: number) => {
     // Cancel any pending rAF
     if (rafRef.current !== null) {
@@ -193,10 +207,13 @@ export function C4InteractiveRenderer({
       rafRef.current = null;
     }
 
+    // Read latest drag positions from ref (immune to stale closure)
+    const currentDragPositions = dragPositionsRef.current;
+
     // Merge all positions and persist
     const newPositions = {
       ...manualPositions,
-      ...dragPositions,
+      ...currentDragPositions,
     };
 
     // If this is the first drag, populate all other nodes with their current auto-layout positions
@@ -215,10 +232,11 @@ export function C4InteractiveRenderer({
     Object.assign(newPositions, updates);
 
     onPositionChange(newPositions);
+    dragPositionsRef.current = {};
     setDragPositions({});
     dragStartPosRef.current = null;
     dragStartPositionsRef.current = {};
-  }, [manualPositions, dragPositions, autoLayout.nodes, onPositionChange, applyDragWithChildren]);
+  }, [manualPositions, autoLayout.nodes, onPositionChange, applyDragWithChildren]);
 
   // Set up drag hook
   const { draggedNodeId, startNodeDrag, handlers } = useC4DiagramDrag({
