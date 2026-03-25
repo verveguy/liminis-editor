@@ -165,6 +165,12 @@ export function C4InteractiveRenderer({
 
   // Handle real-time position updates during drag, throttled to rAF
   const handleNodeDrag = useCallback((nodeId: string, x: number, y: number) => {
+    // On first move of a new drag, clear any stale positions from previous drag
+    if (!dragStartPosRef.current && Object.keys(dragPositionsRef.current).length > 0) {
+      dragPositionsRef.current = {};
+      setDragPositions({});
+    }
+
     pendingDragRef.current = { nodeId, x, y };
 
     if (rafRef.current === null) {
@@ -253,11 +259,27 @@ export function C4InteractiveRenderer({
   });
 
   // Clear drag positions once manualPositions has absorbed the persisted values.
-  // Only clear when NOT dragging — unrelated editor updates can trigger the
-  // Lexical update listener with a new object reference for the same layout,
-  // which would wipe dragPositions mid-drag and cause flicker.
+  // We verify absorption by comparing values — this avoids both:
+  // - Clearing mid-drag (draggedNodeId guard)
+  // - Clearing before Lexical propagates (value comparison)
   useEffect(() => {
-    if (!draggedNodeId && Object.keys(dragPositionsRef.current).length > 0) {
+    if (draggedNodeId || Object.keys(dragPositionsRef.current).length === 0) return;
+
+    // Reset case: manualPositions was cleared (e.g., "Reset to Auto Layout")
+    if (Object.keys(manualPositions).length === 0) {
+      dragPositionsRef.current = {};
+      setDragPositions({});
+      return;
+    }
+
+    // Normal case: only clear once manualPositions contains the drag values
+    const absorbed = Object.entries(dragPositionsRef.current).every(
+      ([id, pos]) => {
+        const mp = manualPositions[id];
+        return mp?.x === pos.x && mp?.y === pos.y;
+      }
+    );
+    if (absorbed) {
       dragPositionsRef.current = {};
       setDragPositions({});
     }
