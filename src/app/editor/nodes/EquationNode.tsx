@@ -16,11 +16,10 @@ import {
   $applyNodeReplacement,
 } from 'lexical';
 import { createElement, lazy, Suspense } from 'react';
-import { createLiteAdaptorDocument, liteAdaptor } from '../../../../shared/mathjax-config';
+import { createLiteAdaptorDocument } from '../../../../shared/mathjax-config';
 
 // Lightweight MathJax instance for DOM export (copy/paste serialization)
-const exportAdaptor = liteAdaptor();
-const exportDocument = createLiteAdaptorDocument({ fontCache: 'none' });
+const { adaptor: exportAdaptor, document: exportDocument } = createLiteAdaptorDocument({ fontCache: 'none' });
 
 const EquationComponent = lazy(() => import('./EquationComponent'));
 

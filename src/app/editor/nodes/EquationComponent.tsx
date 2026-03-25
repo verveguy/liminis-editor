@@ -20,12 +20,11 @@ import {
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
 import { useCallback, useEffect, useRef, useState, ChangeEvent, forwardRef, RefObject } from 'react';
-import { createBrowserAdaptorDocument, browserAdaptor } from '../../../../shared/mathjax-config';
+import { createBrowserAdaptorDocument } from '../../../../shared/mathjax-config';
 import { $isEquationNode } from './EquationNode';
 
 // Initialize MathJax once for the renderer process
-const mathjaxAdaptor = browserAdaptor();
-const mathjaxDocument = createBrowserAdaptorDocument(document);
+const { adaptor: mathjaxAdaptor, document: mathjaxDocument } = createBrowserAdaptorDocument(document);
 
 // MathJax SVG Renderer component — replaces KaTeX with MathJax for higher quality rendering
 function MathJaxRenderer({
