@@ -836,6 +836,76 @@ function resizeBoundariesToContainChildren(nodes: LayoutNode[]): void {
 }
 
 /**
+ * Push sibling nodes apart when they overlap after boundary expansion.
+ * Nodes with manual positions are anchored — only unanchored nodes or
+ * the node further from center gets pushed.
+ */
+function resolveTopLevelOverlaps(
+  nodes: LayoutNode[],
+  manualPositions: Record<string, { x: number; y: number }>
+): void {
+  const gap = BOUNDARY_PADDING;
+  // Multiple passes to handle cascading pushes
+  for (let pass = 0; pass < 3; pass++) {
+    let changed = false;
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
+
+        // Check for overlap (with gap)
+        const overlapX = Math.min(a.x + a.width + gap, b.x + b.width + gap) -
+                         Math.max(a.x, b.x);
+        const overlapY = Math.min(a.y + a.height + gap, b.y + b.height + gap) -
+                         Math.max(a.y, b.y);
+
+        if (overlapX <= 0 || overlapY <= 0) continue; // No overlap
+
+        // Decide which node to push: prefer pushing the one without
+        // a manual position. If both have manual positions, push the
+        // one further right/down.
+        const aAnchored = !!manualPositions[a.id];
+        const bAnchored = !!manualPositions[b.id];
+        let target: LayoutNode;
+        if (aAnchored && !bAnchored) {
+          target = b;
+        } else if (!aAnchored && bAnchored) {
+          target = a;
+        } else {
+          // Both anchored or neither — push the one further right/down
+          target = (a.x + a.y > b.x + b.y) ? a : b;
+        }
+
+        // Push along the axis of least overlap, away from the other node
+        const other = target === b ? a : b;
+        if (overlapX < overlapY) {
+          const pushDir = (target.x + target.width / 2 > other.x + other.width / 2) ? 1 : -1;
+          shiftNodeAndChildren(target, overlapX * pushDir, 0);
+        } else {
+          const pushDir = (target.y + target.height / 2 > other.y + other.height / 2) ? 1 : -1;
+          shiftNodeAndChildren(target, 0, overlapY * pushDir);
+        }
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+}
+
+/**
+ * Shift a node and all its children by the given delta.
+ */
+function shiftNodeAndChildren(node: LayoutNode, dx: number, dy: number): void {
+  node.x += dx;
+  node.y += dy;
+  if (node.children) {
+    for (const child of node.children) {
+      shiftNodeAndChildren(child, dx, dy);
+    }
+  }
+}
+
+/**
  * Layout a C4 diagram using manual positions instead of dagre auto-layout.
  * Used when the user has positioned elements manually.
  */
@@ -857,6 +927,9 @@ function layoutWithManualPositions(
 
   // Resize boundaries to contain their children (bottom-up)
   resizeBoundariesToContainChildren(layoutNodes);
+
+  // Push sibling nodes apart if boundary expansion caused overlaps
+  resolveTopLevelOverlaps(layoutNodes, manualPositions);
 
   // Flatten all nodes for the result
   const allNodes = flattenLayoutNodes(layoutNodes);
