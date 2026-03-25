@@ -400,18 +400,17 @@ function convertMermaidNode(node: MermaidNode): Code {
 
 function convertC4Node(node: C4Node): Code {
   // Export as a fenced code block with lang="c4"
-  let value = node.getCode();
-
-  // Persist manual layout positions as a special comment at the end of the DSL
+  // Persist manual layout positions in the code fence meta field
   const manualLayout = node.getManualLayout();
-  if (manualLayout && Object.keys(manualLayout.positions).length > 0) {
-    value = value + '\n\' @layout ' + JSON.stringify(manualLayout);
-  }
+  const meta = manualLayout && Object.keys(manualLayout.positions).length > 0
+    ? '@layout ' + JSON.stringify(manualLayout)
+    : undefined;
 
   return {
     type: 'code',
     lang: 'c4',
-    value,
+    meta: meta ?? null,
+    value: node.getCode(),
   };
 }
 

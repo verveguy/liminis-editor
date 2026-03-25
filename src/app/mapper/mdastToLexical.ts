@@ -576,11 +576,12 @@ function convertCode(node: Code): CodeNode | MermaidNode | C4Node {
 
   // Check if this is a C4 architecture diagram
   if (node.lang === 'c4' || (node.lang === 'plantuml' && isC4PlantUML(node.value))) {
-    // Extract manual layout from special comment if present
-    const { code, manualLayout } = extractC4Layout(node.value);
-    const c4Node = $createC4Node(code);
+    const c4Node = $createC4Node(node.value);
+    // Restore manual layout from code fence meta field
+    const manualLayout = extractC4LayoutFromMeta(node.meta);
     if (manualLayout) {
-      c4Node.setManualLayout(manualLayout);
+      // Set directly (like importJSON) to avoid getWritable() on unattached node
+      c4Node.__manualLayout = manualLayout;
     }
     return c4Node;
   }
@@ -598,19 +599,13 @@ function isC4PlantUML(code: string): boolean {
   return C4_MACRO_PATTERN.test(code);
 }
 
-/** Extract manual layout data from a C4 DSL code block's `' @layout {...}` comment */
-const C4_LAYOUT_PATTERN = /\n' @layout (.+)$/;
-function extractC4Layout(value: string): { code: string; manualLayout?: import('../editor/c4/types').ManualLayout } {
-  const match = C4_LAYOUT_PATTERN.exec(value);
-  if (!match) {
-    return { code: value };
-  }
+/** Extract manual layout data from a C4 code fence's meta string */
+function extractC4LayoutFromMeta(meta: string | null | undefined): import('../editor/c4/types').ManualLayout | undefined {
+  if (!meta?.startsWith('@layout ')) return undefined;
   try {
-    const manualLayout = JSON.parse(match[1]);
-    const code = value.slice(0, match.index);
-    return { code, manualLayout };
+    return JSON.parse(meta.slice('@layout '.length));
   } catch {
-    return { code: value };
+    return undefined;
   }
 }
 
