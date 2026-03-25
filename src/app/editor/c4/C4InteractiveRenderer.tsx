@@ -244,16 +244,6 @@ export function C4InteractiveRenderer({
     dragStartPositionsRef.current = {};
   }, [manualPositions, autoLayout.nodes, onPositionChange, applyDragWithChildren]);
 
-  // Clear drag positions once manualPositions has absorbed the persisted values.
-  // This avoids the snap-back race between setDragPositions({}) and the async
-  // Lexical update listener that feeds manualPositions.
-  useEffect(() => {
-    if (Object.keys(dragPositionsRef.current).length > 0) {
-      dragPositionsRef.current = {};
-      setDragPositions({});
-    }
-  }, [manualPositions]);
-
   // Set up drag hook (window-level listeners handle mousemove/mouseup)
   const { draggedNodeId, startNodeDrag } = useC4DiagramDrag({
     svgRef,
@@ -261,6 +251,17 @@ export function C4InteractiveRenderer({
     onNodeDragEnd: handleNodeDragEnd,
     enabled: isEditMode,
   });
+
+  // Clear drag positions once manualPositions has absorbed the persisted values.
+  // Only clear when NOT dragging — unrelated editor updates can trigger the
+  // Lexical update listener with a new object reference for the same layout,
+  // which would wipe dragPositions mid-drag and cause flicker.
+  useEffect(() => {
+    if (!draggedNodeId && Object.keys(dragPositionsRef.current).length > 0) {
+      dragPositionsRef.current = {};
+      setDragPositions({});
+    }
+  }, [manualPositions, draggedNodeId]);
 
   // Compute legend info for hit area and position override
   const legendInfo = useMemo(() => computeLegendInfo(layout), [layout]);
