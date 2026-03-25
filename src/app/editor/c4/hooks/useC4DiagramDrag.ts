@@ -50,6 +50,10 @@ export function useC4DiagramDrag({
   // Track the last known position for dragEnd callback
   const lastPositionRef = useRef({ x: 0, y: 0 });
 
+  // Locked CTM inverse captured at drag start — prevents the accelerating
+  // feedback loop where canvas expansion changes the scale mid-drag
+  const lockedCtmInverseRef = useRef<DOMMatrix | null>(null);
+
   // Refs for callbacks so window listeners always see latest values
   const onNodeDragRef = useRef(onNodeDrag);
   onNodeDragRef.current = onNodeDrag;
@@ -59,6 +63,7 @@ export function useC4DiagramDrag({
 
   /**
    * Convert screen (client) coordinates to SVG coordinates.
+   * Uses the locked CTM from drag start if available, otherwise live CTM.
    */
   const screenToSvg = useCallback(
     (clientX: number, clientY: number): { x: number; y: number } | null => {
@@ -69,10 +74,10 @@ export function useC4DiagramDrag({
       point.x = clientX;
       point.y = clientY;
 
-      const ctm = svg.getScreenCTM();
-      if (!ctm) return null;
+      const inverse = lockedCtmInverseRef.current ?? svg.getScreenCTM()?.inverse();
+      if (!inverse) return null;
 
-      const svgPoint = point.matrixTransform(ctm.inverse());
+      const svgPoint = point.matrixTransform(inverse);
       return { x: svgPoint.x, y: svgPoint.y };
     },
     [svgRef]
@@ -83,6 +88,8 @@ export function useC4DiagramDrag({
 
   /**
    * Start dragging a node.
+   * Locks the screen-to-SVG transform so canvas resizing during drag
+   * doesn't cause accelerating movement.
    */
   const startNodeDrag = useCallback(
     (nodeId: string, nodeX: number, nodeY: number, e: React.MouseEvent) => {
@@ -90,6 +97,11 @@ export function useC4DiagramDrag({
 
       e.stopPropagation();
       e.preventDefault();
+
+      // Lock the CTM at drag start
+      const svg = svgRef.current;
+      const ctm = svg?.getScreenCTM();
+      lockedCtmInverseRef.current = ctm ? ctm.inverse() : null;
 
       const svgPoint = screenToSvg(e.clientX, e.clientY);
       if (!svgPoint) return;
@@ -103,7 +115,7 @@ export function useC4DiagramDrag({
       draggedNodeIdRef.current = nodeId;
       setDraggedNodeId(nodeId);
     },
-    [enabled, screenToSvg]
+    [enabled, screenToSvg, svgRef]
   );
 
   // Attach window-level listeners while dragging
@@ -134,6 +146,7 @@ export function useC4DiagramDrag({
         lastPositionRef.current.y
       );
       draggedNodeIdRef.current = null;
+      lockedCtmInverseRef.current = null;
       setDraggedNodeId(null);
     };
 
