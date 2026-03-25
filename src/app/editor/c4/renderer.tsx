@@ -1013,7 +1013,7 @@ export function C4Renderer({ layout, isDarkMode }: C4RendererProps): JSX.Element
     <svg
       width={totalWidth}
       height={totalHeight}
-      viewBox={`0 0 ${totalWidth} ${totalHeight}`}
+      viewBox={`${layout.viewBoxX} ${layout.viewBoxY} ${totalWidth} ${totalHeight}`}
       xmlns="http://www.w3.org/2000/svg"
       style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
     >

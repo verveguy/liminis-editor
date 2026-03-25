@@ -884,36 +884,20 @@ function layoutWithManualPositions(
     maxY = Math.max(maxY, node.y + node.height);
   }
 
-  // If nodes extend past the top or left edge, shift everything so the
-  // diagram starts at (BOUNDARY_PADDING, BOUNDARY_PADDING)
-  if (minX < BOUNDARY_PADDING || minY < BOUNDARY_PADDING) {
-    const shiftX = minX < BOUNDARY_PADDING ? BOUNDARY_PADDING - minX : 0;
-    const shiftY = minY < BOUNDARY_PADDING ? BOUNDARY_PADDING - minY : 0;
-
-    for (const node of allNodes) {
-      node.x += shiftX;
-      node.y += shiftY;
-    }
-    for (const edge of edges) {
-      for (const point of edge.points) {
-        point.x += shiftX;
-        point.y += shiftY;
-      }
-    }
-
-    maxX += shiftX;
-    maxY += shiftY;
-  }
-
-  // Add margin
-  const width = maxX + BOUNDARY_PADDING;
-  const height = maxY + BOUNDARY_PADDING;
+  // Use viewBox origin to handle negative coordinates instead of shifting
+  // nodes — this keeps stored positions and rendered positions in sync
+  const viewBoxX = Math.min(0, minX - BOUNDARY_PADDING);
+  const viewBoxY = Math.min(0, minY - BOUNDARY_PADDING);
+  const width = maxX + BOUNDARY_PADDING - viewBoxX;
+  const height = maxY + BOUNDARY_PADDING - viewBoxY;
 
   return {
     nodes: allNodes,
     edges,
     width,
     height,
+    viewBoxX,
+    viewBoxY,
   };
 }
 
@@ -988,6 +972,8 @@ export function layoutC4Diagram(
     edges,
     width,
     height,
+    viewBoxX: 0,
+    viewBoxY: 0,
   };
 }
 

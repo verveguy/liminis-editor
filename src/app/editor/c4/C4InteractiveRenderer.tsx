@@ -381,7 +381,7 @@ function C4InteractiveSvg({
         ref={svgRef}
         width={layout.width}
         height={layout.height}
-        viewBox={`0 0 ${layout.width} ${layout.height}`}
+        viewBox={`${layout.viewBoxX} ${layout.viewBoxY} ${layout.width} ${layout.height}`}
         xmlns="http://www.w3.org/2000/svg"
         style={{
           fontFamily: 'system-ui, -apple-system, sans-serif',

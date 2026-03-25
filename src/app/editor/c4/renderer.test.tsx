@@ -14,7 +14,7 @@ function createLayoutResult(
   width = 500,
   height = 400
 ): LayoutResult {
-  return { nodes, edges, width, height };
+  return { nodes, edges, width, height, viewBoxX: 0, viewBoxY: 0 };
 }
 
 /**

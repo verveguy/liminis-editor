@@ -146,6 +146,10 @@ export interface LayoutResult {
   width: number;
   /** Total diagram height */
   height: number;
+  /** ViewBox origin X (non-zero when nodes have negative coordinates) */
+  viewBoxX: number;
+  /** ViewBox origin Y (non-zero when nodes have negative coordinates) */
+  viewBoxY: number;
 }
 
 /**
