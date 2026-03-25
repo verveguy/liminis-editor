@@ -6,10 +6,13 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { C4RendererContent } from './renderer';
+import { C4RendererContent, computeLegendInfo } from './renderer';
 import { layoutC4Diagram } from './layout';
 import type { LayoutResult, LayoutNode, C4Diagram, C4Element } from './types';
 import { useC4DiagramDrag } from './hooks/useC4DiagramDrag';
+
+/** Synthetic ID used to store legend position in manual positions map */
+export const LEGEND_POSITION_ID = '__legend__';
 
 export interface C4InteractiveRendererProps {
   /** Parsed C4 diagram */
@@ -246,6 +249,13 @@ export function C4InteractiveRenderer({
     enabled: isEditMode,
   });
 
+  // Compute legend info for hit area and position override
+  const legendInfo = useMemo(() => computeLegendInfo(layout), [layout]);
+  const legendPositionOverride = useMemo(() => {
+    const pos = effectivePositions[LEGEND_POSITION_ID];
+    return pos ?? null;
+  }, [effectivePositions]);
+
   // Render with interactive wrappers
   return (
     <C4InteractiveSvg
@@ -256,6 +266,8 @@ export function C4InteractiveRenderer({
       svgRef={svgRef}
       handlers={handlers}
       onNodeMouseDown={startNodeDrag}
+      legendInfo={legendInfo}
+      legendPositionOverride={legendPositionOverride}
     />
   );
 }
@@ -272,6 +284,8 @@ interface C4InteractiveSvgProps {
     onMouseLeave: (e: React.MouseEvent) => void;
   };
   onNodeMouseDown: (nodeId: string, nodeX: number, nodeY: number, e: React.MouseEvent) => void;
+  legendInfo: { x: number; y: number; width: number; height: number } | null;
+  legendPositionOverride: { x: number; y: number } | null;
 }
 
 /**
@@ -285,11 +299,13 @@ function C4InteractiveSvg({
   svgRef,
   handlers,
   onNodeMouseDown,
+  legendInfo,
+  legendPositionOverride,
 }: C4InteractiveSvgProps): JSX.Element {
   // Get colors based on theme
   const handleColor = isDarkMode ? '#a0a0a0' : '#505050';
 
-  // Create hit areas for each node
+  // Create hit areas for each node (and legend if present)
   const hitAreas = useMemo(() => {
     const areas: {
       id: string;
@@ -308,14 +324,26 @@ function C4InteractiveSvg({
           width: node.width,
           height: node.height,
         });
-        // Don't add hit areas for children - they're positioned relative to parent
-        // and already have absolute positions in the flattened layout
       }
     }
 
     collectNodes(layout.nodes);
+
+    // Add legend as a draggable hit area
+    if (legendInfo) {
+      const lx = legendPositionOverride?.x ?? legendInfo.x;
+      const ly = legendPositionOverride?.y ?? legendInfo.y;
+      areas.push({
+        id: LEGEND_POSITION_ID,
+        x: lx,
+        y: ly,
+        width: legendInfo.width,
+        height: legendInfo.height,
+      });
+    }
+
     return areas;
-  }, [layout.nodes]);
+  }, [layout.nodes, legendInfo, legendPositionOverride]);
 
   return (
     <div style={{ position: 'relative' }}>
@@ -333,7 +361,7 @@ function C4InteractiveSvg({
         {...handlers}
       >
         {/* Use the exported renderer content for stable API */}
-        <C4RendererContent layout={layout} isDarkMode={isDarkMode} />
+        <C4RendererContent layout={layout} isDarkMode={isDarkMode} legendPositionOverride={legendPositionOverride} />
 
         {/* Overlay interactive hit areas in edit mode */}
         {isEditMode && (

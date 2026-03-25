@@ -397,6 +397,20 @@ function computeLegendPlacement(
   };
 }
 
+/**
+ * Compute legend placement and dimensions for a layout.
+ * Exported for use by C4InteractiveRenderer to create a legend hit area.
+ * Returns null if the layout has no legend entries.
+ */
+export function computeLegendInfo(layout: LayoutResult): {
+  x: number; y: number; width: number; height: number;
+} | null {
+  const { legendEntries } = processEdgesForLegend(layout.edges);
+  if (legendEntries.length === 0) return null;
+  const lp = computeLegendPlacement(legendEntries, layout);
+  return { x: lp.x, y: lp.y, width: lp.width, height: lp.height };
+}
+
 // =============================================================================
 // SVG ELEMENT RENDERERS
 // =============================================================================
@@ -1030,7 +1044,12 @@ export function C4Renderer({ layout, isDarkMode }: C4RendererProps): JSX.Element
  * Exported for use by C4InteractiveRenderer to embed diagram content
  * inside a custom SVG wrapper without depending on C4Renderer's DOM structure.
  */
-export function C4RendererContent({ layout, isDarkMode }: C4RendererProps): JSX.Element {
+export interface C4RendererContentProps extends C4RendererProps {
+  /** Override legend position (for manual layout mode) */
+  legendPositionOverride?: { x: number; y: number } | null;
+}
+
+export function C4RendererContent({ layout, isDarkMode, legendPositionOverride }: C4RendererContentProps): JSX.Element {
   const colors = getColors(isDarkMode);
 
   const boundaryNodes = layout.nodes.filter(
@@ -1052,8 +1071,12 @@ export function C4RendererContent({ layout, isDarkMode }: C4RendererProps): JSX.
   let legendPlacement: { x: number; y: number } | null = null;
 
   if (legendEntries.length > 0) {
-    const lp = computeLegendPlacement(legendEntries, layout);
-    legendPlacement = { x: lp.x, y: lp.y };
+    if (legendPositionOverride) {
+      legendPlacement = legendPositionOverride;
+    } else {
+      const lp = computeLegendPlacement(legendEntries, layout);
+      legendPlacement = { x: lp.x, y: lp.y };
+    }
   }
 
   return (
