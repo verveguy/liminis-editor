@@ -870,18 +870,44 @@ function layoutWithManualPositions(
   // Calculate edges using existing function
   const edges = calculateEdges(diagram.relationships, nodeMap);
 
-  // Calculate total diagram dimensions
-  let width = 0;
-  let height = 0;
+  // Calculate diagram bounding box (nodes may have negative coordinates
+  // when dragged past the top/left edge)
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = 0;
+  let maxY = 0;
 
   for (const node of allNodes) {
-    width = Math.max(width, node.x + node.width);
-    height = Math.max(height, node.y + node.height);
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x + node.width);
+    maxY = Math.max(maxY, node.y + node.height);
+  }
+
+  // If nodes extend past the top or left edge, shift everything so the
+  // diagram starts at (BOUNDARY_PADDING, BOUNDARY_PADDING)
+  if (minX < BOUNDARY_PADDING || minY < BOUNDARY_PADDING) {
+    const shiftX = minX < BOUNDARY_PADDING ? BOUNDARY_PADDING - minX : 0;
+    const shiftY = minY < BOUNDARY_PADDING ? BOUNDARY_PADDING - minY : 0;
+
+    for (const node of allNodes) {
+      node.x += shiftX;
+      node.y += shiftY;
+    }
+    for (const edge of edges) {
+      for (const point of edge.points) {
+        point.x += shiftX;
+        point.y += shiftY;
+      }
+    }
+
+    maxX += shiftX;
+    maxY += shiftY;
   }
 
   // Add margin
-  width += BOUNDARY_PADDING;
-  height += BOUNDARY_PADDING;
+  const width = maxX + BOUNDARY_PADDING;
+  const height = maxY + BOUNDARY_PADDING;
 
   return {
     nodes: allNodes,
