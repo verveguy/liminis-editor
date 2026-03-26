@@ -1015,6 +1015,7 @@ export function C4Renderer({ layout, isDarkMode }: C4RendererProps): JSX.Element
       height={totalHeight}
       viewBox={`${layout.viewBoxX} ${layout.viewBoxY} ${totalWidth} ${totalHeight}`}
       xmlns="http://www.w3.org/2000/svg"
+      data-diagram="c4"
       style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
     >
       <g className="boundaries-layer">
