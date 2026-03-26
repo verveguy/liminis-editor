@@ -146,6 +146,10 @@ export interface LayoutResult {
   width: number;
   /** Total diagram height */
   height: number;
+  /** ViewBox origin X (non-zero when nodes have negative coordinates) */
+  viewBoxX: number;
+  /** ViewBox origin Y (non-zero when nodes have negative coordinates) */
+  viewBoxY: number;
 }
 
 /**
@@ -234,4 +238,17 @@ export function isExternal(element: C4Element): boolean {
  */
 export function isBoundary(element: C4Element): boolean {
   return element.properties.style === 'boundary';
+}
+
+// =============================================================================
+// MANUAL LAYOUT TYPES
+// =============================================================================
+
+/**
+ * Manual layout data for user-positioned diagram elements.
+ * When present, positions are user-defined instead of computed by dagre.
+ */
+export interface ManualLayout {
+  /** Element positions keyed by element ID */
+  positions: Record<string, { x: number; y: number }>;
 }

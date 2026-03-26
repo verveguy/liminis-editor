@@ -576,7 +576,8 @@ function convertCode(node: Code): CodeNode | MermaidNode | C4Node {
 
   // Check if this is a C4 architecture diagram
   if (node.lang === 'c4' || (node.lang === 'plantuml' && isC4PlantUML(node.value))) {
-    return $createC4Node(node.value);
+    const manualLayout = extractC4LayoutFromMeta(node.meta);
+    return $createC4Node(node.value, manualLayout);
   }
 
   // If no language was specified, use 'plain' to avoid Lexical defaulting to 'javascript'
@@ -590,6 +591,27 @@ function convertCode(node: Code): CodeNode | MermaidNode | C4Node {
 const C4_MACRO_PATTERN = /\b(?:Person|System|Container|Component|Boundary|Rel|BiRel)(?:_Ext|Db|Queue|_Boundary)?\s*[(_]/;
 function isC4PlantUML(code: string): boolean {
   return C4_MACRO_PATTERN.test(code);
+}
+
+/** Extract and validate manual layout data from a C4 code fence's meta string */
+function extractC4LayoutFromMeta(meta: string | null | undefined): import('../editor/c4/types').ManualLayout | undefined {
+  if (!meta?.startsWith('@layout ')) return undefined;
+  try {
+    const raw = JSON.parse(meta.slice('@layout '.length));
+    if (!raw || typeof raw !== 'object') return undefined;
+    const positions = raw.positions;
+    if (!positions || typeof positions !== 'object') return undefined;
+    for (const key of Object.keys(positions)) {
+      const pos = positions[key];
+      if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number' ||
+          !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
+        return undefined;
+      }
+    }
+    return raw as import('../editor/c4/types').ManualLayout;
+  } catch {
+    return undefined;
+  }
 }
 
 function convertThematicBreak(): HorizontalRuleNode {

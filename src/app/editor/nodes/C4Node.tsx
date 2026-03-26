@@ -16,12 +16,14 @@ import {
   $applyNodeReplacement,
 } from 'lexical';
 import { createElement, lazy, Suspense } from 'react';
+import type { ManualLayout } from '../c4/types';
 
 const C4Component = lazy(() => import('./C4Component'));
 
 export type SerializedC4Node = Spread<
   {
     code: string;
+    manualLayout?: ManualLayout;
   },
   SerializedLexicalNode
 >;
@@ -41,30 +43,39 @@ function $convertC4Element(
 
 export class C4Node extends DecoratorNode<JSX.Element> {
   __code: string;
+  __manualLayout: ManualLayout | undefined;
 
   static getType(): string {
     return 'c4';
   }
 
   static clone(node: C4Node): C4Node {
-    return new C4Node(node.__code, node.__key);
+    const layout = node.__manualLayout
+      ? { positions: { ...node.__manualLayout.positions } }
+      : undefined;
+    return new C4Node(node.__code, layout, node.__key);
   }
 
-  constructor(code: string, key?: NodeKey) {
+  constructor(code: string, manualLayout?: ManualLayout, key?: NodeKey) {
     super(key);
     this.__code = code;
+    this.__manualLayout = manualLayout;
   }
 
   static importJSON(serializedNode: SerializedC4Node): C4Node {
-    return $createC4Node(serializedNode.code);
+    return $createC4Node(serializedNode.code, serializedNode.manualLayout);
   }
 
   exportJSON(): SerializedC4Node {
-    return {
+    const json: SerializedC4Node = {
       type: 'c4',
       version: 1,
       code: this.getCode(),
     };
+    if (this.__manualLayout) {
+      json.manualLayout = this.__manualLayout;
+    }
+    return json;
   }
 
   createDOM(): HTMLElement {
@@ -117,6 +128,15 @@ export class C4Node extends DecoratorNode<JSX.Element> {
     writable.__code = code;
   }
 
+  getManualLayout(): ManualLayout | undefined {
+    return this.__manualLayout;
+  }
+
+  setManualLayout(layout: ManualLayout | undefined): void {
+    const writable = this.getWritable();
+    writable.__manualLayout = layout;
+  }
+
   decorate(): JSX.Element {
     return createElement(
       Suspense,
@@ -129,8 +149,8 @@ export class C4Node extends DecoratorNode<JSX.Element> {
   }
 }
 
-export function $createC4Node(code = ''): C4Node {
-  const c4Node = new C4Node(code);
+export function $createC4Node(code = '', manualLayout?: ManualLayout): C4Node {
+  const c4Node = new C4Node(code, manualLayout);
   return $applyNodeReplacement(c4Node);
 }
 
