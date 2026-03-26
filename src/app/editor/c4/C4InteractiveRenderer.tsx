@@ -374,14 +374,30 @@ function C4InteractiveSvg({
     return areas;
   }, [layout.nodes, legendInfo, legendPositionOverride]);
 
+  // Compute SVG dimensions that include potential legend overflow,
+  // mirroring the behavior of the non-interactive C4Renderer.
+  const { svgWidth, svgHeight } = useMemo(() => {
+    let w = layout.width;
+    let h = layout.height;
+    if (legendInfo) {
+      const lx = legendPositionOverride?.x ?? legendInfo.x;
+      const ly = legendPositionOverride?.y ?? legendInfo.y;
+      const legendRight = lx + legendInfo.width - layout.viewBoxX;
+      const legendBottom = ly + legendInfo.height - layout.viewBoxY;
+      if (legendRight > w) w = legendRight;
+      if (legendBottom > h) h = legendBottom;
+    }
+    return { svgWidth: w, svgHeight: h };
+  }, [layout.width, layout.height, layout.viewBoxX, layout.viewBoxY, legendInfo, legendPositionOverride]);
+
   return (
     <div style={{ position: 'relative' }}>
       {/* Base renderer - use full rendered size including legend */}
       <svg
         ref={svgRef}
-        width={layout.width}
-        height={layout.height}
-        viewBox={`${layout.viewBoxX} ${layout.viewBoxY} ${layout.width} ${layout.height}`}
+        width={svgWidth}
+        height={svgHeight}
+        viewBox={`${layout.viewBoxX} ${layout.viewBoxY} ${svgWidth} ${svgHeight}`}
         xmlns="http://www.w3.org/2000/svg"
         style={{
           fontFamily: 'system-ui, -apple-system, sans-serif',

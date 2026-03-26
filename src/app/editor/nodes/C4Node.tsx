@@ -49,25 +49,20 @@ export class C4Node extends DecoratorNode<JSX.Element> {
   }
 
   static clone(node: C4Node): C4Node {
-    const cloned = new C4Node(node.__code, node.__key);
-    cloned.__manualLayout = node.__manualLayout
+    const layout = node.__manualLayout
       ? { positions: { ...node.__manualLayout.positions } }
       : undefined;
-    return cloned;
+    return new C4Node(node.__code, layout, node.__key);
   }
 
-  constructor(code: string, key?: NodeKey) {
+  constructor(code: string, manualLayout?: ManualLayout, key?: NodeKey) {
     super(key);
     this.__code = code;
-    this.__manualLayout = undefined;
+    this.__manualLayout = manualLayout;
   }
 
   static importJSON(serializedNode: SerializedC4Node): C4Node {
-    const node = $createC4Node(serializedNode.code);
-    if (serializedNode.manualLayout) {
-      node.__manualLayout = serializedNode.manualLayout;
-    }
-    return node;
+    return $createC4Node(serializedNode.code, serializedNode.manualLayout);
   }
 
   exportJSON(): SerializedC4Node {
@@ -153,8 +148,8 @@ export class C4Node extends DecoratorNode<JSX.Element> {
   }
 }
 
-export function $createC4Node(code = ''): C4Node {
-  const c4Node = new C4Node(code);
+export function $createC4Node(code = '', manualLayout?: ManualLayout): C4Node {
+  const c4Node = new C4Node(code, manualLayout);
   return $applyNodeReplacement(c4Node);
 }
 

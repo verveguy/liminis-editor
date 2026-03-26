@@ -862,17 +862,19 @@ function resolveTopLevelOverlaps(
         if (overlapX <= 0 || overlapY <= 0) continue; // No overlap
 
         // Decide which node to push: prefer pushing the one without
-        // a manual position. If both have manual positions, push the
-        // one further right/down.
+        // a manual position. If both have manual positions, don't move
+        // either — keep rendered positions consistent with stored positions.
         const aAnchored = !!manualPositions[a.id];
         const bAnchored = !!manualPositions[b.id];
         let target: LayoutNode;
-        if (aAnchored && !bAnchored) {
+        if (aAnchored && bAnchored) {
+          continue; // Both anchored — allow overlap to avoid jitter
+        } else if (aAnchored && !bAnchored) {
           target = b;
         } else if (!aAnchored && bAnchored) {
           target = a;
         } else {
-          // Both anchored or neither — push the one further right/down
+          // Neither anchored — push the one further right/down
           target = (a.x + a.y > b.x + b.y) ? a : b;
         }
 

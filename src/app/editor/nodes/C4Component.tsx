@@ -114,7 +114,9 @@ function C4DiagramDisplay({
   useEffect(() => {
     if (manualLayout && code !== previousCodeRef.current && parseResult.diagram) {
       const newElementIds = new Set(parseResult.diagram.elements.map(e => e.id));
-      const oldElementIds = new Set(Object.keys(manualLayout.positions));
+      const oldElementIds = new Set(
+        Object.keys(manualLayout.positions).filter(id => !id.startsWith('__'))
+      );
 
       // Check if elements were added or removed
       const hasChanges =
