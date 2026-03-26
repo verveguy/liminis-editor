@@ -862,13 +862,21 @@ function resolveTopLevelOverlaps(
         if (overlapX <= 0 || overlapY <= 0) continue; // No overlap
 
         // Decide which node to push: prefer pushing the one without
-        // a manual position. If both have manual positions, don't move
-        // either — keep rendered positions consistent with stored positions.
+        // a manual position. If both have manual positions AND neither
+        // is a boundary that may have expanded, allow the overlap to
+        // avoid jitter. But if one is an expanded boundary, push the other.
         const aAnchored = !!manualPositions[a.id];
         const bAnchored = !!manualPositions[b.id];
+        const aBoundary = !!(a.children && a.children.length > 0);
+        const bBoundary = !!(b.children && b.children.length > 0);
         let target: LayoutNode;
-        if (aAnchored && bAnchored) {
-          continue; // Both anchored — allow overlap to avoid jitter
+        if (aAnchored && bAnchored && !aBoundary && !bBoundary) {
+          continue; // Both anchored leaves — allow overlap to avoid jitter
+        } else if (aBoundary && !bBoundary) {
+          // A is an expanded boundary — push B away
+          target = b;
+        } else if (bBoundary && !aBoundary) {
+          target = a;
         } else if (aAnchored && !bAnchored) {
           target = b;
         } else if (!aAnchored && bAnchored) {
