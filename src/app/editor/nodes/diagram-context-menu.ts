@@ -61,8 +61,9 @@ async function svgToPngBlob(svg: SVGSVGElement, scale?: number): Promise<Blob> {
   const ctx = canvas.getContext('2d')!;
   ctx.scale(effectiveScale, effectiveScale);
 
-  // White background for Confluence compatibility
-  ctx.fillStyle = 'white';
+  // Theme-aware background
+  const isDark = document.documentElement.classList.contains('dark');
+  ctx.fillStyle = isDark ? '#131619' : '#ffffff';
   ctx.fillRect(0, 0, width, height);
 
   const img = new Image();
