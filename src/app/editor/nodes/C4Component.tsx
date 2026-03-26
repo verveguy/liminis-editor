@@ -301,7 +301,14 @@ function C4DiagramDisplay({
         <C4Renderer layout={layout} isDarkMode={isDarkMode} />
       )}
 
-      <DiagramContextMenu {...contextMenu.props} />
+      <DiagramContextMenu
+        {...contextMenu.props}
+        onEditText={isEditable ? onDoubleClick : undefined}
+        onEditLayout={isEditable ? () => setIsEditingLayout(!isEditingLayout) : undefined}
+        onResetLayout={isEditable ? handleResetLayout : undefined}
+        isEditingLayout={isEditingLayout}
+        hasManualLayout={!!manualLayout}
+      />
     </div>
   );
 }
