@@ -10,9 +10,9 @@
  * Checks both direct children and shadow DOM.
  */
 function findSvgElement(container: HTMLElement): SVGSVGElement | null {
-  // Direct child SVG (React renderer — C4)
+  // Descendant SVG (React renderer — C4)
   // Prefer svg[data-diagram] to skip toolbar icon SVGs (Lucide),
-  // then fall back to any svg
+  // then fall back to any descendant svg
   const directSvg = container.querySelector<SVGSVGElement>('svg[data-diagram]')
     ?? container.querySelector('svg');
   if (directSvg) return directSvg;

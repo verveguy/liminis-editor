@@ -304,7 +304,7 @@ function C4DiagramDisplay({
       <DiagramContextMenu
         {...contextMenu.props}
         onEditText={isEditable ? onDoubleClick : undefined}
-        onEditLayout={isEditable ? () => setIsEditingLayout(!isEditingLayout) : undefined}
+        onEditLayout={isEditable ? () => setIsEditingLayout(prev => !prev) : undefined}
         onResetLayout={isEditable ? handleResetLayout : undefined}
         isEditingLayout={isEditingLayout}
         hasManualLayout={!!manualLayout}

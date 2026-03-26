@@ -103,8 +103,8 @@ const separatorStyle: React.CSSProperties = {
 };
 
 /**
- * Context menu overlay component. Theme-aware via CSS variables
- * with appropriate light/dark fallbacks.
+ * Context menu overlay component. Uses CSS variables for theming
+ * with light/dark hex fallbacks for environments without VS Code vars.
  */
 export function DiagramContextMenu({
   visible,
@@ -121,11 +121,11 @@ export function DiagramContextMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
 
-  const bgColor = isDark ? '#252526' : '#ffffff';
-  const borderColor = isDark ? '#454545' : '#d4d4d4';
-  const textColor = isDark ? '#cccccc' : '#333333';
-  const hoverBg = isDark ? '#094771' : '#e8e8e8';
-  const separatorColor = isDark ? '#454545' : '#d4d4d4';
+  const bgColor = `var(--vscode-menu-background, ${isDark ? '#252526' : '#ffffff'})`;
+  const borderColor = `var(--vscode-menu-border, ${isDark ? '#454545' : '#d4d4d4'})`;
+  const textColor = `var(--vscode-menu-foreground, ${isDark ? '#cccccc' : '#333333'})`;
+  const hoverBg = `var(--vscode-menu-selectionBackground, ${isDark ? '#094771' : '#e8e8e8'})`;
+  const separatorColor = `var(--vscode-menu-separatorBackground, ${isDark ? '#454545' : '#d4d4d4'})`;
 
   // Close on click outside or Escape
   useEffect(() => {
@@ -151,7 +151,7 @@ export function DiagramContextMenu({
   if (!visible) return null;
 
   const handleHover = (e: React.MouseEvent, entering: boolean) => {
-    (e.target as HTMLElement).style.background = entering ? hoverBg : 'transparent';
+    (e.currentTarget as HTMLElement).style.background = entering ? hoverBg : 'transparent';
   };
 
   return (
