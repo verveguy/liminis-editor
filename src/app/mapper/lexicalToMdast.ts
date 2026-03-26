@@ -74,12 +74,9 @@ export function exportLexicalToMdast(editor: LexicalEditor): Root {
       children.push(...nodes);
     }
 
-    // Convert footnote definition paragraphs back to footnoteDefinition MDAST nodes
-    for (const defNode of footnoteChildren) {
-      const fnDef = convertFootnoteDefinitionNode(defNode);
-      if (fnDef) {
-        children.push(fnDef);
-      }
+    // Group footnote paragraphs into definitions and convert to MDAST nodes
+    for (const fnDef of groupFootnoteChildren(footnoteChildren)) {
+      children.push(fnDef);
     }
 
     root = { type: 'root', children };
@@ -89,25 +86,34 @@ export function exportLexicalToMdast(editor: LexicalEditor): Root {
 }
 
 // Detect the trailing footnote definitions section:
-// An HR followed by indented paragraphs that start with a FootnoteNode label.
+// An HR followed by indented paragraphs — each definition starts with a FootnoteNode label,
+// and may be followed by continuation paragraphs (indent=1, no FootnoteNode) for multi-paragraph definitions.
 function splitFootnoteSection(allChildren: LexicalNode[]): {
   bodyChildren: LexicalNode[];
   footnoteChildren: LexicalNode[];
 } {
-  // Walk backwards to find the start of the footnote section
+  // Walk backwards to find the start of the footnote section.
+  // Accept any indent=1 paragraph — both labeled (starts with FootnoteNode) and
+  // continuation paragraphs (no FootnoteNode, part of a multi-paragraph definition).
   let footnoteStart = allChildren.length;
+  let hasLabeledParagraph = false;
 
-  // Find trailing paragraphs that look like footnote definitions (indent=1, starts with FootnoteNode)
   for (let i = allChildren.length - 1; i >= 0; i--) {
     const child = allChildren[i];
     if ($isParagraphNode(child) && child.getIndent() === 1) {
       const firstChild = child.getFirstChild();
       if (firstChild && $isFootnoteNode(firstChild)) {
-        footnoteStart = i;
-        continue;
+        hasLabeledParagraph = true;
       }
+      footnoteStart = i;
+      continue;
     }
     break;
+  }
+
+  // Must have at least one paragraph that starts with a FootnoteNode label
+  if (!hasLabeledParagraph) {
+    return { bodyChildren: allChildren, footnoteChildren: [] };
   }
 
   // Check if the node just before the footnote paragraphs is an HR separator
@@ -125,52 +131,96 @@ function splitFootnoteSection(allChildren: LexicalNode[]): {
   return { bodyChildren: allChildren, footnoteChildren: [] };
 }
 
-// Convert a Lexical paragraph (indent=1, starts with FootnoteNode) back to a footnoteDefinition MDAST node
-function convertFootnoteDefinitionNode(node: LexicalNode): Content | null {
-  if (!$isParagraphNode(node)) return null;
+// Group consecutive footnote paragraphs into footnoteDefinition MDAST nodes.
+// Each labeled paragraph (starts with FootnoteNode) begins a new definition.
+// Subsequent unlabeled indent=1 paragraphs are continuation paragraphs of the same definition.
+function groupFootnoteChildren(footnoteChildren: LexicalNode[]): Content[] {
+  const results: Content[] = [];
+  let currentIdentifier: string | null = null;
+  let currentParagraphs: Paragraph[] = [];
 
-  const firstChild = node.getFirstChild();
-  if (!firstChild || !$isFootnoteNode(firstChild)) return null;
+  function flushDefinition() {
+    if (currentIdentifier && currentParagraphs.length > 0) {
+      results.push({
+        type: 'footnoteDefinition',
+        identifier: currentIdentifier,
+        label: currentIdentifier,
+        children: currentParagraphs,
+      } as unknown as Content);
+    }
+    currentIdentifier = null;
+    currentParagraphs = [];
+  }
 
-  const identifier = firstChild.getFootnoteId();
+  for (const node of footnoteChildren) {
+    if (!$isParagraphNode(node)) continue;
 
-  // Skip the FootnoteNode label and the following space to get the definition content
+    const firstChild = node.getFirstChild();
+    if (firstChild && $isFootnoteNode(firstChild)) {
+      // New definition — flush any previous one
+      flushDefinition();
+      currentIdentifier = firstChild.getFootnoteId();
+
+      // Convert inline content, skipping the FootnoteNode label and its trailing space
+      const contentChildren = convertFootnoteInlineChildren(firstChild);
+      currentParagraphs.push({
+        type: 'paragraph',
+        children: contentChildren.length > 0 ? contentChildren : [{ type: 'text', value: '' }],
+      });
+    } else if (currentIdentifier) {
+      // Continuation paragraph for the current definition
+      const contentChildren = convertInlineChildren(node) as PhrasingContent[];
+      currentParagraphs.push({
+        type: 'paragraph',
+        children: contentChildren.length > 0 ? contentChildren : [{ type: 'text', value: '' }],
+      });
+    }
+  }
+
+  flushDefinition();
+  return results;
+}
+
+// Convert inline children of a footnote definition's first paragraph,
+// skipping the leading FootnoteNode label and its trailing space separator.
+function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[] {
   const contentChildren: PhrasingContent[] = [];
-  let child = firstChild.getNextSibling();
+  let child = labelNode.getNextSibling();
 
   // Skip the space TextNode that follows the label
   if (child && $isTextNode(child) && child.getTextContent() === ' ') {
     child = child.getNextSibling();
   }
 
+  // Use the same inline conversion logic as convertInlineChildren
   while (child) {
     if ($isTextNode(child)) {
       contentChildren.push(...convertTextNode(child));
+    } else if ($isLineBreakNode(child)) {
+      contentChildren.push({ type: 'break' } as Break);
+    } else if ($isLinkNode(child)) {
+      contentChildren.push(convertLinkNode(child as unknown as ElementNode) as unknown as PhrasingContent);
+    } else if ($isImageNode(child)) {
+      const image: Image = {
+        type: 'image',
+        url: child.getSrc(),
+        alt: child.getAlt(),
+        title: child.getTitle(),
+      };
+      contentChildren.push(image);
+    } else if ($isEquationNode(child)) {
+      contentChildren.push({ type: 'inlineMath', value: child.getEquation() } as unknown as PhrasingContent);
     } else if ($isFootnoteNode(child)) {
       contentChildren.push({
         type: 'footnoteReference',
         identifier: child.getFootnoteId(),
         label: child.getFootnoteId(),
       } as unknown as PhrasingContent);
-    } else if ($isLinkNode(child)) {
-      contentChildren.push(convertLinkNode(child as unknown as ElementNode) as unknown as PhrasingContent);
-    } else if ($isLineBreakNode(child)) {
-      contentChildren.push({ type: 'break' } as Break);
     }
     child = child.getNextSibling();
   }
 
-  const paragraph: Paragraph = {
-    type: 'paragraph',
-    children: contentChildren.length > 0 ? contentChildren : [{ type: 'text', value: '' }],
-  };
-
-  return {
-    type: 'footnoteDefinition',
-    identifier,
-    label: identifier,
-    children: [paragraph],
-  } as unknown as Content;
+  return contentChildren;
 }
 
 function convertLexicalNode(node: LexicalNode): Content[] {

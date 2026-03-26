@@ -317,12 +317,12 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
       // and reconstructs the footnoteDefinition MDAST node for round-trip preservation.
       const fnDef = node as { identifier: string; label?: string; children: Content[] };
       const results: LexicalBlockNode[] = [];
+      let labelAdded = false;
       for (const child of fnDef.children) {
         const nodes = convertBlockNode(child);
-        for (let i = 0; i < nodes.length; i++) {
-          const n = nodes[i];
+        for (const n of nodes) {
           // Prepend footnote label to the first paragraph only
-          if (i === 0 && n.getType() === 'paragraph' && 'getFirstChild' in n) {
+          if (!labelAdded && n.getType() === 'paragraph' && 'getFirstChild' in n) {
             const label = $createFootnoteNode(fnDef.identifier);
             const space = $createTextNode(' ');
             const firstChild = (n as ParagraphNode).getFirstChild();
@@ -333,6 +333,7 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
               (n as ParagraphNode).append(label);
               (n as ParagraphNode).append(space);
             }
+            labelAdded = true;
           }
           if ('setIndent' in n && typeof n.setIndent === 'function') {
             n.setIndent(1);
