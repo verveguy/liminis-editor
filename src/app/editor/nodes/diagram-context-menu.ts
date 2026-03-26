@@ -12,10 +12,8 @@
 function findSvgElement(container: HTMLElement): SVGSVGElement | null {
   // Direct child SVG (React renderer — C4)
   // Prefer svg[data-diagram] to skip toolbar icon SVGs (Lucide),
-  // then fall back to svg[xmlns] (set explicitly on diagram SVGs),
-  // then any svg as last resort
+  // then fall back to any svg
   const directSvg = container.querySelector<SVGSVGElement>('svg[data-diagram]')
-    ?? container.querySelector<SVGSVGElement>('svg[xmlns]')
     ?? container.querySelector('svg');
   if (directSvg) return directSvg;
 
