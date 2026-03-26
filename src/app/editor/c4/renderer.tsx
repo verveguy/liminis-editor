@@ -397,6 +397,20 @@ function computeLegendPlacement(
   };
 }
 
+/**
+ * Compute legend placement and dimensions for a layout.
+ * Exported for use by C4InteractiveRenderer to create a legend hit area.
+ * Returns null if the layout has no legend entries.
+ */
+export function computeLegendInfo(layout: LayoutResult): {
+  x: number; y: number; width: number; height: number;
+} | null {
+  const { legendEntries } = processEdgesForLegend(layout.edges);
+  if (legendEntries.length === 0) return null;
+  const lp = computeLegendPlacement(legendEntries, layout);
+  return { x: lp.x, y: lp.y, width: lp.width, height: lp.height };
+}
+
 // =============================================================================
 // SVG ELEMENT RENDERERS
 // =============================================================================
@@ -999,8 +1013,9 @@ export function C4Renderer({ layout, isDarkMode }: C4RendererProps): JSX.Element
     <svg
       width={totalWidth}
       height={totalHeight}
-      viewBox={`0 0 ${totalWidth} ${totalHeight}`}
+      viewBox={`${layout.viewBoxX} ${layout.viewBoxY} ${totalWidth} ${totalHeight}`}
       xmlns="http://www.w3.org/2000/svg"
+      data-diagram="c4"
       style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
     >
       <g className="boundaries-layer">
@@ -1022,6 +1037,70 @@ export function C4Renderer({ layout, isDarkMode }: C4RendererProps): JSX.Element
         <Legend entries={legendEntries} placement={legendPlacement} colors={colors} />
       )}
     </svg>
+  );
+}
+
+/**
+ * Renders C4 diagram content (nodes, edges, legend) as SVG group elements.
+ * Exported for use by C4InteractiveRenderer to embed diagram content
+ * inside a custom SVG wrapper without depending on C4Renderer's DOM structure.
+ */
+export interface C4RendererContentProps extends C4RendererProps {
+  /** Override legend position (for manual layout mode) */
+  legendPositionOverride?: { x: number; y: number } | null;
+}
+
+export function C4RendererContent({ layout, isDarkMode, legendPositionOverride }: C4RendererContentProps): JSX.Element {
+  const colors = getColors(isDarkMode);
+
+  const boundaryNodes = layout.nodes.filter(
+    (n) =>
+      n.element.type === 'system' &&
+      ((n.children?.length ?? 0) > 0 || n.element.properties.style === 'boundary')
+  );
+  const regularNodes = layout.nodes.filter(
+    (n) =>
+      !(
+        n.element.type === 'system' &&
+        ((n.children?.length ?? 0) > 0 || n.element.properties.style === 'boundary')
+      )
+  );
+
+  const parentMap = buildParentMap(layout.nodes);
+  const { edges: processedEdges, legendEntries } = processEdgesForLegend(layout.edges);
+
+  let legendPlacement: { x: number; y: number } | null = null;
+
+  if (legendEntries.length > 0) {
+    if (legendPositionOverride) {
+      legendPlacement = legendPositionOverride;
+    } else {
+      const lp = computeLegendPlacement(legendEntries, layout);
+      legendPlacement = { x: lp.x, y: lp.y };
+    }
+  }
+
+  return (
+    <>
+      <g className="boundaries-layer">
+        {boundaryNodes.map((node) => renderNode(node, colors, layout.nodes, parentMap))}
+      </g>
+      <g className="nodes-layer">
+        {regularNodes.map((node) => renderNode(node, colors, layout.nodes, parentMap))}
+      </g>
+      <g className="edges-layer">
+        {processedEdges.map((edge, i) => (
+          <EdgeComponent
+            key={`${edge.source}-${edge.target}-${i}`}
+            edge={edge}
+            colors={colors}
+          />
+        ))}
+      </g>
+      {legendPlacement && legendEntries.length > 0 && (
+        <Legend entries={legendEntries} placement={legendPlacement} colors={colors} />
+      )}
+    </>
   );
 }
 

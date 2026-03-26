@@ -10,8 +10,11 @@
  * Checks both direct children and shadow DOM.
  */
 function findSvgElement(container: HTMLElement): SVGSVGElement | null {
-  // Direct child SVG (React renderer — C4)
-  const directSvg = container.querySelector('svg');
+  // Descendant SVG (React renderer — C4)
+  // Prefer svg[data-diagram] to skip toolbar icon SVGs (Lucide),
+  // then fall back to any descendant svg
+  const directSvg = container.querySelector<SVGSVGElement>('svg[data-diagram]')
+    ?? container.querySelector('svg');
   if (directSvg) return directSvg;
 
   // Shadow DOM SVG (Mermaid renderer)
@@ -56,8 +59,9 @@ async function svgToPngBlob(svg: SVGSVGElement, scale?: number): Promise<Blob> {
   const ctx = canvas.getContext('2d')!;
   ctx.scale(effectiveScale, effectiveScale);
 
-  // White background for Confluence compatibility
-  ctx.fillStyle = 'white';
+  // Theme-aware background
+  const isDark = document.documentElement.classList.contains('dark');
+  ctx.fillStyle = isDark ? '#131619' : '#ffffff';
   ctx.fillRect(0, 0, width, height);
 
   const img = new Image();
