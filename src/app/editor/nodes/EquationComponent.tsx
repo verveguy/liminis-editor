@@ -57,7 +57,7 @@ function MathJaxRenderer({
         container.appendChild(node);
       } else {
         // Fallback: use innerHTML from adaptor
-        container.innerHTML = mathjaxAdaptor.innerHTML(node as any);
+        container.innerHTML = mathjaxAdaptor.innerHTML(node);
       }
     } catch {
       container.textContent = equation;

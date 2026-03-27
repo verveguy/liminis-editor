@@ -93,8 +93,7 @@ export class EquationNode extends DecoratorNode<JSX.Element> {
     element.setAttribute('data-lexical-inline', `${this.__inline}`);
     try {
       const node = exportDocument.convert(this.__equation, { display: !this.__inline });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      element.innerHTML = exportAdaptor.innerHTML(node as any);
+      element.innerHTML = exportAdaptor.innerHTML(node);
     } catch {
       element.textContent = this.__equation;
     }
