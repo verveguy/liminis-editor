@@ -17,11 +17,15 @@ import type { ParseError } from './types';
 /**
  * Parse C4 code and render to SVG string in one call.
  *
+ * @param code - C4 DSL source code
+ * @param isDarkMode - Whether to render in dark mode
+ * @param manualPositions - Optional manual positions for elements (bypasses dagre auto-layout)
  * @returns svg string and any parse/validation errors
  */
 export function renderC4DiagramToSVG(
   code: string,
   isDarkMode: boolean = false,
+  manualPositions?: Record<string, { x: number; y: number }>,
 ): { svg: string; errors: ParseError[] } {
   const parseResult = parseC4(code);
 
@@ -34,7 +38,7 @@ export function renderC4DiagramToSVG(
     return { svg: '', errors: parseResult.errors };
   }
 
-  const layout = layoutC4Diagram(parseResult.diagram);
+  const layout = layoutC4Diagram(parseResult.diagram, undefined, manualPositions);
   const svg = renderToStaticMarkup(
     createElement(C4Renderer, { layout, isDarkMode })
   );
