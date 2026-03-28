@@ -77,7 +77,10 @@ export function importMarkdownToLexicalInEditorState(root: Root): void {
   // Pre-process: combine details blocks
   const processedChildren = preprocessDetailsBlocks(root.children);
 
-  for (const child of processedChildren) {
+  // Pre-process: extract footnote definitions for bottom rendering
+  const { processed: childrenWithoutFootnotes, definitions } = preprocessFootnoteDefinitions(processedChildren);
+
+  for (const child of childrenWithoutFootnotes) {
     // Check if this is a toggle marker
     if ((child as ToggleContentMarker).type === 'toggle-marker') {
       const nodes = convertToggleMarker(child as ToggleContentMarker);
@@ -86,6 +89,17 @@ export function importMarkdownToLexicalInEditorState(root: Root): void {
       }
     } else {
       const nodes = convertBlockNode(child as Content);
+      for (const node of nodes) {
+        lexicalRoot.append(node);
+      }
+    }
+  }
+
+  // Append footnote definitions at the end with HR separator
+  if (definitions.length > 0) {
+    lexicalRoot.append($createHorizontalRuleNode());
+    for (const def of definitions) {
+      const nodes = convertBlockNode(def);
       for (const node of nodes) {
         lexicalRoot.append(node);
       }
@@ -184,6 +198,64 @@ function preprocessDetailsBlocks(children: Content[]): (Content | ToggleContentM
   return result;
 }
 
+// Pre-process mdast children to extract footnote definitions for bottom-of-document rendering
+function preprocessFootnoteDefinitions(
+  children: (Content | ToggleContentMarker)[]
+): { processed: (Content | ToggleContentMarker)[]; definitions: Content[] } {
+  const definitions: Content[] = [];
+
+  function extractFromNode(node: Content): Content | null {
+    if (node.type === 'footnoteDefinition') {
+      definitions.push(node);
+      return null; // Remove from tree
+    }
+
+    // Recursively process nodes with children (blockquote, list, listItem, etc.)
+    if ('children' in node && Array.isArray((node as { children?: unknown }).children)) {
+      const typedNode = node as Content & { children: Content[] };
+      const filteredChildren: Content[] = [];
+      let changed = false;
+      for (const child of typedNode.children) {
+        const result = extractFromNode(child);
+        if (result !== null) {
+          filteredChildren.push(result);
+          if (result !== child) changed = true;
+        } else {
+          changed = true;
+        }
+      }
+      // Only create a new node if children actually changed
+      if (!changed) return node;
+      return { ...typedNode, children: filteredChildren } as Content;
+    }
+
+    return node;
+  }
+
+  const processed: (Content | ToggleContentMarker)[] = [];
+  for (const child of children) {
+    // Handle toggle markers separately - they have their own contentNodes to process
+    if ((child as ToggleContentMarker).type === 'toggle-marker') {
+      const marker = child as ToggleContentMarker;
+      const filteredContentNodes: Content[] = [];
+      for (const contentNode of marker.contentNodes) {
+        const result = extractFromNode(contentNode);
+        if (result !== null) {
+          filteredContentNodes.push(result);
+        }
+      }
+      processed.push({ ...marker, contentNodes: filteredContentNodes });
+    } else {
+      const result = extractFromNode(child as Content);
+      if (result !== null) {
+        processed.push(result);
+      }
+    }
+  }
+
+  return { processed, definitions };
+}
+
 function convertBlockNode(node: Content): LexicalBlockNode[] {
   const nodeType = (node as { type: string }).type;
   switch (nodeType) {
@@ -241,19 +313,16 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
     }
     case 'footnoteDefinition': {
       // Footnote definition: render as indented paragraphs with superscript label.
-      // The footnoteDefinition mdast node is preserved in the stringify pipeline
-      // via gfmFootnoteToMarkdown, so we just need a visual representation here.
-      // The raw mdast node passes through the tree unchanged during round-trip
-      // because we store the original mdast and only merge Lexical changes for
-      // nodes that have corresponding Lexical types.
+      // On export, lexicalToMdast detects this pattern (indent=1, starts with FootnoteNode)
+      // and reconstructs the footnoteDefinition MDAST node for round-trip preservation.
       const fnDef = node as { identifier: string; label?: string; children: Content[] };
       const results: LexicalBlockNode[] = [];
+      let labelAdded = false;
       for (const child of fnDef.children) {
         const nodes = convertBlockNode(child);
-        for (let i = 0; i < nodes.length; i++) {
-          const n = nodes[i];
+        for (const n of nodes) {
           // Prepend footnote label to the first paragraph only
-          if (i === 0 && n.getType() === 'paragraph' && 'getFirstChild' in n) {
+          if (!labelAdded && n.getType() === 'paragraph' && 'getFirstChild' in n) {
             const label = $createFootnoteNode(fnDef.identifier);
             const space = $createTextNode(' ');
             const firstChild = (n as ParagraphNode).getFirstChild();
@@ -264,6 +333,7 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
               (n as ParagraphNode).append(label);
               (n as ParagraphNode).append(space);
             }
+            labelAdded = true;
           }
           if ('setIndent' in n && typeof n.setIndent === 'function') {
             n.setIndent(1);
