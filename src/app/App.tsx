@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Editor } from './editor';
+import type { SelectionContextMenuEvent } from './editor/SelectionContextMenuPlugin';
 import {
   addMessageHandler,
   requestInit,
@@ -63,9 +64,11 @@ interface AppProps {
   filePath?: string;
   /** Resolve a workspace-relative file path to a data URL for display */
   resolveLocalAsset?: (relativePath: string) => Promise<string | null>;
+  /** Called when user right-clicks a text selection and chooses a context menu action */
+  onSelectionContextMenu?: (event: SelectionContextMenuEvent) => void;
 }
 
-export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset }: AppProps) {
+export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, onSelectionContextMenu }: AppProps) {
   const [internalContent, setInternalContent] = useState<string | null>(null);
   const [settings, setSettings] = useState<SlashMDSettings | null>(null);
   const [assetBaseUri, setAssetBaseUri] = useState<string | undefined>(undefined);
@@ -253,6 +256,7 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
         resolveLocalAsset={resolveLocalAsset}
         editable={editable}
         filePath={filePath}
+        onSelectionContextMenu={onSelectionContextMenu}
       />
     </div>
   );

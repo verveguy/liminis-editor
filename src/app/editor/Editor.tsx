@@ -44,6 +44,8 @@ import { FrontmatterPlugin } from './FrontmatterPlugin';
 import { WikiLinkExistencePlugin } from './WikiLinkExistencePlugin';
 import { WikiLinkFormatPlugin } from './WikiLinkFormatPlugin';
 import { AnchorScrollPlugin } from './AnchorScrollPlugin';
+import { SelectionContextMenuPlugin } from './SelectionContextMenuPlugin';
+import type { SelectionContextMenuEvent } from './SelectionContextMenuPlugin';
 import { AssetContext, createAssetContextValue } from './AssetContext';
 import {
   CalloutNode,
@@ -73,6 +75,7 @@ interface EditorProps {
   cursorToRestoreRef?: React.RefObject<CursorState | null>;
   onChange: (markdown: string) => void;
   onCursorChange?: (cursor: CursorState) => void;
+  onSelectionContextMenu?: (event: SelectionContextMenuEvent) => void;
   assetBaseUri?: string;
   documentDirUri?: string;
   imagePathResolution?: ImagePathResolution;
@@ -526,6 +529,7 @@ export function Editor({
   cursorToRestoreRef,
   onChange,
   onCursorChange,
+  onSelectionContextMenu,
   assetBaseUri,
   documentDirUri,
   imagePathResolution,
@@ -672,6 +676,7 @@ export function Editor({
             <WikiLinkExistencePlugin />
             <WikiLinkFormatPlugin />
             <AnchorScrollPlugin />
+            <SelectionContextMenuPlugin onSelectionContextMenu={onSelectionContextMenu} />
           </div>
         </div>
       </LexicalComposer>
