@@ -5,27 +5,7 @@
  * clipboard. Uses devicePixelRatio for crisp retina output.
  */
 
-/**
- * Find the SVG element within a container.
- * Checks both direct children and shadow DOM.
- */
-function findSvgElement(container: HTMLElement): SVGSVGElement | null {
-  // Descendant SVG (React renderer — C4)
-  // Prefer svg[data-diagram] to skip toolbar icon SVGs (Lucide),
-  // then fall back to any descendant svg
-  const directSvg = container.querySelector<SVGSVGElement>('svg[data-diagram]')
-    ?? container.querySelector('svg');
-  if (directSvg) return directSvg;
-
-  // Shadow DOM SVG (Mermaid renderer)
-  const shadowRoot = container.shadowRoot;
-  if (shadowRoot) {
-    const shadowSvg = shadowRoot.querySelector('svg');
-    if (shadowSvg) return shadowSvg;
-  }
-
-  return null;
-}
+import { findSvgElement } from './diagram-utils';
 
 /**
  * Serialize an SVG element to a standalone SVG string with xmlns.
