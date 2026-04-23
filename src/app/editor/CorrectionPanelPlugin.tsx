@@ -422,7 +422,7 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
             boxSizing: 'border-box',
           }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') handleConfirm();
+            if (e.key === 'Enter') void handleConfirm();
           }}
         />
       </div>

@@ -12,7 +12,7 @@ interface CorrectionsFile {
 }
 
 export function parseCorrectionsYaml(raw: string | null): CorrectionEntry[] {
-  if (!raw || !raw.trim()) return [];
+  if (!raw?.trim()) return [];
   try {
     const parsed = parse(raw) as CorrectionsFile | null;
     if (!Array.isArray(parsed?.corrections)) return [];
