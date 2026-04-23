@@ -63,14 +63,15 @@ function applyCase(match: string, replacement: string): string {
   if (match === match.toUpperCase() && match !== match.toLowerCase()) {
     return replacement.toUpperCase();
   }
+  const firstChar = match.charAt(0);
   if (
     match.length > 0 &&
-    match[0] === match[0].toUpperCase() &&
-    match[0] !== match[0].toLowerCase() &&
+    firstChar.toUpperCase() === firstChar &&
+    firstChar.toLowerCase() !== firstChar &&
     match.slice(1) === match.slice(1).toLowerCase()
   ) {
     return replacement.length > 0
-      ? replacement[0].toUpperCase() + replacement.slice(1).toLowerCase()
+      ? replacement.charAt(0).toUpperCase() + replacement.slice(1).toLowerCase()
       : replacement;
   }
   return replacement.toLowerCase();

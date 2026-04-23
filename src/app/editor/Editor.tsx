@@ -544,6 +544,7 @@ export function Editor({
   editable = true,
   filePath,
   onSubstitutionDetected,
+  sweepRef,
 }: EditorProps) {
   const lastExternalLoadRef = useRef<number>(0);
   const currentContentRef = useRef<string>(initialContent);
@@ -687,7 +688,10 @@ export function Editor({
             <SelectionContextMenuPlugin onSelectionContextMenu={onSelectionContextMenu} />
             <CorrectionPanelPlugin />
             {onSubstitutionDetected && (
-              <AmbientCorrectionPlugin onSubstitutionDetected={onSubstitutionDetected} />
+              <AmbientCorrectionPlugin
+                onSubstitutionDetected={onSubstitutionDetected}
+                sweepRef={sweepRef}
+              />
             )}
           </div>
         </div>

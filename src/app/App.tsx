@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef, type RefObject } from 'react';
 import { Editor } from './editor';
 import type { SelectionContextMenuEvent } from './editor/SelectionContextMenuPlugin';
+import type { SweepFn } from './editor/AmbientCorrectionPlugin';
 import {
   addMessageHandler,
   requestInit,
@@ -68,9 +69,11 @@ interface AppProps {
   onSelectionContextMenu?: (event: SelectionContextMenuEvent) => void;
   /** Called when a single-word substitution is detected after a debounce window. */
   onSubstitutionDetected?: (oldTerm: string, newTerm: string) => void;
+  /** Ref populated with a sweep function by AmbientCorrectionPlugin when active. */
+  sweepRef?: RefObject<SweepFn | null>;
 }
 
-export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, onSelectionContextMenu, onSubstitutionDetected }: AppProps) {
+export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, onSelectionContextMenu, onSubstitutionDetected, sweepRef }: AppProps) {
   const [internalContent, setInternalContent] = useState<string | null>(null);
   const [settings, setSettings] = useState<SlashMDSettings | null>(null);
   const [assetBaseUri, setAssetBaseUri] = useState<string | undefined>(undefined);
@@ -260,6 +263,7 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
         filePath={filePath}
         onSelectionContextMenu={onSelectionContextMenu}
         onSubstitutionDetected={onSubstitutionDetected}
+        sweepRef={sweepRef}
       />
     </div>
   );
