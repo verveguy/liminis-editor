@@ -9,7 +9,7 @@
  * and calls knowledge_apply_corrections to sync the knowledge graph.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot, $isTextNode } from 'lexical';
 import { toast } from 'sonner';
@@ -218,7 +218,7 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
   }, [isOpen, selectedText]);
 
   // Deduplicate suggestions across sources (case-insensitive), preserving order
-  const allSuggestions = (() => {
+  const allSuggestions = useMemo(() => {
     const seen = new Set<string>();
     const out: string[] = [];
     for (const name of [...yamlSuggestions, ...entitySuggestions, ...passageSuggestions]) {
@@ -229,7 +229,7 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
       }
     }
     return out;
-  })();
+  }, [yamlSuggestions, entitySuggestions, passageSuggestions]);
 
   const handleConfirm = useCallback(async () => {
     const canonical = canonicalInput.trim();
@@ -247,22 +247,27 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
       // (a) Replace all occurrences in the document if requested
       if (replaceAll) {
         editor.update(() => {
-          const root = $getRoot();
-          const collectTextNodes = (node: ReturnType<typeof $getRoot>): void => {
+          // Escape selectedText for use in a regex, then add word boundaries so
+          // "Tito" matches "Tito" and "Tito's" but not "Otito" or "titanium".
+          const escaped = selectedText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp('\\b' + escaped + '\\b', 'g');
+          const walk = (node: ReturnType<typeof $getRoot>): void => {
             if ($isTextNode(node)) {
+              // Skip text inside code blocks — don't replace identifiers
+              const parentType = node.getParent()?.getType() ?? '';
+              if (parentType === 'code' || parentType === 'code-highlight') return;
               const content = node.getTextContent();
-              if (content.includes(selectedText)) {
-                node.setTextContent(content.replaceAll(selectedText, canonical));
-              }
+              const replaced = content.replace(regex, canonical);
+              if (replaced !== content) node.setTextContent(replaced);
               return;
             }
             if ('getChildren' in node && typeof node.getChildren === 'function') {
               for (const child of (node as { getChildren: () => ReturnType<typeof $getRoot>[] }).getChildren()) {
-                collectTextNodes(child);
+                walk(child);
               }
             }
           };
-          collectTextNodes(root);
+          walk($getRoot());
         });
       }
 
@@ -273,10 +278,19 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
         // May fail if it already exists on some platforms — that's fine
       }
 
-      // (c) Merge and write YAML atomically
-      const updated = mergeCorrection(yamlEntriesRef.current, selectedText, canonical);
+      // (c) Re-read, merge, and write YAML atomically — avoids overwriting
+      // corrections added by other sources while the panel was open
+      let latestEntries = yamlEntriesRef.current;
+      try {
+        const fresh = await window.api.fs.readFile('.liminis/knowledge-corrections.yaml');
+        latestEntries = parseCorrectionsYaml(fresh?.content ?? null);
+      } catch {
+        // File missing or unreadable — start from empty (yamlEntriesRef is still the best fallback)
+      }
+      const updated = mergeCorrection(latestEntries, selectedText, canonical);
       const yaml = serializeCorrectionsYaml(updated);
       await window.api.fs.writeFile('.liminis/knowledge-corrections.yaml', yaml, 'atomic');
+      yamlEntriesRef.current = updated;
     } catch (err) {
       toast.error('Failed to save correction', {
         description: err instanceof Error ? err.message : String(err),
@@ -338,7 +352,14 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
   };
 
   return (
-    <div ref={panelRef} style={{ ...panelStyle(), left: position.x, top: position.y }}>
+    <div
+      ref={panelRef}
+      style={{
+        ...panelStyle(),
+        left: Math.min(position.x, window.innerWidth - 380),
+        top: Math.min(position.y, window.innerHeight - 450),
+      }}
+    >
       {/* Header */}
       <div style={{ marginBottom: '8px' }}>
         <span style={{ color: mutedColor, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>

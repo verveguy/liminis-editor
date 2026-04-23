@@ -22,7 +22,9 @@ export function parseCorrectionsYaml(raw: string | null): CorrectionEntry[] {
         e !== null &&
         (e.type === 'same_as' || e.type === 'retract') &&
         typeof e.canonical === 'string' &&
-        Array.isArray(e.aliases)
+        Array.isArray(e.aliases) &&
+        (e.aliases as unknown[]).every((a) => typeof a === 'string') &&
+        (e.applied_at === undefined || typeof e.applied_at === 'string')
     );
   } catch {
     return [];
@@ -41,8 +43,8 @@ export function mergeCorrection(
 ): CorrectionEntry[] {
   const result = entries.map((e) => ({ ...e, aliases: [...e.aliases] }));
 
-  // If alias already exists in any entry's aliases, update that entry's canonical
-  const existingIdx = result.findIndex((e) => e.aliases.includes(alias));
+  // If alias exists in a same_as entry, update that entry's canonical (never touch retract entries)
+  const existingIdx = result.findIndex((e) => e.type === 'same_as' && e.aliases.includes(alias));
   if (existingIdx >= 0) {
     result[existingIdx] = { ...result[existingIdx], canonical };
     return result;
@@ -54,5 +56,6 @@ export function mergeCorrection(
 }
 
 export function isExistingCanonical(entries: CorrectionEntry[], text: string): boolean {
-  return entries.some((e) => e.canonical.toLowerCase() === text.toLowerCase());
+  const lower = text.toLowerCase();
+  return entries.some((e) => e.type === 'same_as' && e.canonical.toLowerCase() === lower);
 }

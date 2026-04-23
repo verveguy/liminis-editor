@@ -113,6 +113,37 @@ corrections:
       const result = parseCorrectionsYaml(yaml)
       expect(result[0].type).toBe('retract')
     })
+
+    it('filters out entries with non-string aliases', () => {
+      const yaml = `
+corrections:
+  - type: same_as
+    canonical: Tyto
+    aliases:
+      - Tito
+  - type: same_as
+    canonical: Bad
+    aliases:
+      - 123
+      - null
+`
+      const result = parseCorrectionsYaml(yaml)
+      expect(result).toHaveLength(1)
+      expect(result[0].canonical).toBe('Tyto')
+    })
+
+    it('filters out entries with non-string applied_at', () => {
+      const yaml = `
+corrections:
+  - type: same_as
+    canonical: Tyto
+    aliases:
+      - Tito
+    applied_at: 12345
+`
+      const result = parseCorrectionsYaml(yaml)
+      expect(result).toHaveLength(0)
+    })
   })
 
   // =========================================================================
@@ -208,6 +239,18 @@ corrections:
       const result = mergeCorrection(entries, 'tito', 'Tyto')
       expect(result).toHaveLength(2)
     })
+
+    it('does not update retract entry even if alias matches — appends new same_as instead', () => {
+      const entries: CorrectionEntry[] = [
+        { type: 'retract', canonical: 'OldFact', aliases: ['BadAlias'] },
+      ]
+      const result = mergeCorrection(entries, 'BadAlias', 'GoodName')
+      // retract entry should be untouched; a new same_as is appended
+      expect(result).toHaveLength(2)
+      expect(result[0].type).toBe('retract')
+      expect(result[0].canonical).toBe('OldFact')
+      expect(result[1]).toEqual({ type: 'same_as', canonical: 'GoodName', aliases: ['BadAlias'] })
+    })
   })
 
   // =========================================================================
@@ -247,6 +290,13 @@ corrections:
         { type: 'same_as', canonical: 'Ritesh', aliases: ['Ratesh'] },
       ]
       expect(isExistingCanonical(entries, 'Ritesh')).toBe(true)
+    })
+
+    it('returns false when text matches a retract canonical — retract entries do not participate in same_as canonicalization', () => {
+      const entries: CorrectionEntry[] = [
+        { type: 'retract', canonical: 'OldFact', aliases: ['BadAlias'] },
+      ]
+      expect(isExistingCanonical(entries, 'OldFact')).toBe(false)
     })
   })
 })
