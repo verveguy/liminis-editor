@@ -13,11 +13,12 @@ interface AmbientCorrectionPluginProps {
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 
-/** Return text content contributed by non-prose nodes (code blocks, frontmatter). */
-function collectExcludedText(root: LexicalNode): string {
+/** Return text content from prose nodes only (skips code blocks and frontmatter). */
+function collectProseText(root: LexicalNode): string {
   let text = '';
   const walk = (node: LexicalNode) => {
-    if ($isCodeNode(node) || $isFrontmatterNode(node)) {
+    if ($isCodeNode(node) || $isFrontmatterNode(node)) return;
+    if ($isTextNode(node)) {
       text += node.getTextContent();
       return;
     }
@@ -75,8 +76,7 @@ function applyCase(match: string, replacement: string): string {
  */
 function analyzeForSubstitution(
   prev: string,
-  current: string,
-  excludedText: string
+  current: string
 ): { oldTerm: string; newTerm: string } | null {
   if (prev === current) return null;
 
@@ -101,15 +101,11 @@ function analyzeForSubstitution(
   if (!isSingleWordToken(oldRegion) || !isSingleWordToken(newRegion)) return null;
   if (oldRegion.toLowerCase() === newRegion.toLowerCase()) return null;
 
-  // Must sit at word boundaries in the source text
+  // Must sit at word boundaries in the prose text
   const charBefore = prefixLen > 0 ? prev[prefixLen - 1] : null;
   const charAfter = prev.length - suffixLen < prev.length ? prev[prev.length - suffixLen] : null;
   if (charBefore !== null && isWordChar(charBefore)) return null;
   if (charAfter !== null && isWordChar(charAfter)) return null;
-
-  // Use word-boundary regex so only exact whole-word appearances in excluded
-  // regions suppress detection (avoids false negatives from substring matches).
-  if (new RegExp(`\\b${escapeRegex(oldRegion)}\\b`, 'i').test(excludedText)) return null;
 
   return { oldTerm: oldRegion, newTerm: newRegion };
 }
@@ -192,23 +188,19 @@ export function AmbientCorrectionPlugin({
         debounceRef.current = setTimeout(() => {
           debounceRef.current = null;
 
-          let currentText = '';
-          let prevText = '';
+          // Compare prose-only text (skipping code blocks and frontmatter) so that:
+          // - substitutions inside excluded regions don't fire (false positives)
+          // - terms that appear in code blocks don't suppress prose detection (false negatives)
+          let currentProseText = '';
+          let prevProseText = '';
           capturedState.read(() => {
-            currentText = $getRoot().getTextContent();
+            currentProseText = collectProseText($getRoot());
           });
           capturedPrevState.read(() => {
-            prevText = $getRoot().getTextContent();
+            prevProseText = collectProseText($getRoot());
           });
 
-          if (currentText === prevText) return;
-
-          let excludedText = '';
-          capturedState.read(() => {
-            excludedText = collectExcludedText($getRoot());
-          });
-
-          const result = analyzeForSubstitution(prevText, currentText, excludedText);
+          const result = analyzeForSubstitution(prevProseText, currentProseText);
           if (result) {
             callbackRef.current(result.oldTerm, result.newTerm);
           }
