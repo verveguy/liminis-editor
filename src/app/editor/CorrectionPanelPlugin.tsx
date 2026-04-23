@@ -201,9 +201,16 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
       }
     };
 
+    // The MCP stdio invoker rejects concurrent calls to the same server (ADR-042).
+    // Serialize the two knowledge-reader calls while keeping YAML loading concurrent.
+    const loadKnowledgeSuggestions = async () => {
+      await loadEntities();
+      if (cancelled) return;
+      await loadPassages();
+    };
+
     void loadYaml();
-    void loadEntities();
-    void loadPassages();
+    void loadKnowledgeSuggestions();
 
     return () => {
       cancelled = true;
@@ -270,8 +277,16 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
       const updated = mergeCorrection(yamlEntriesRef.current, selectedText, canonical);
       const yaml = serializeCorrectionsYaml(updated);
       await window.api.fs.writeFile('.liminis/knowledge-corrections.yaml', yaml, 'atomic');
+    } catch (err) {
+      toast.error('Failed to save correction', {
+        description: err instanceof Error ? err.message : String(err),
+      });
+      setIsSubmitting(false);
+      return;
+    }
 
-      // (d) Apply corrections to the knowledge graph
+    // (d) Apply corrections — isolated so a KG failure never blocks panel close
+    try {
       const mcpRes = await window.api.mcp.callTool(
         'knowledge-writer',
         'knowledge_apply_corrections',
@@ -283,16 +298,15 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
             'The correction was saved. It will be applied on the next ingestion pass.',
         });
       }
-
-      // (f) Close panel
-      close();
-    } catch (err) {
-      toast.error('Failed to save correction', {
-        description: err instanceof Error ? err.message : String(err),
+    } catch {
+      toast.error('Knowledge graph sync failed', {
+        description: 'The correction was saved. It will be applied on the next ingestion pass.',
       });
-    } finally {
-      setIsSubmitting(false);
     }
+
+    // (f) Close panel — reached only after successful YAML write
+    setIsSubmitting(false);
+    close();
   }, [canonicalInput, confirmPhase, replaceAll, selectedText, editor, close]);
 
   if (!isOpen) return null;
