@@ -1,7 +1,8 @@
 /**
  * Lexical plugin that shows a context menu when right-clicking a text selection.
  * Provides a "Chat about this..." action that passes the selected text and click
- * position to the host via callback.
+ * position to the host via callback, and a "Correction…" action that opens the
+ * inline correction panel.
  *
  * Follows the TableActionsPlugin pattern for attaching to the editor root element,
  * and the DiagramContextMenu pattern for the overlay menu UI.
@@ -10,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getSelection, $isRangeSelection } from 'lexical';
+import { useCorrectionStore } from '../../../renderer/stores/correctionStore';
 
 export interface SelectionContextMenuEvent {
   position: { x: number; y: number };
@@ -46,7 +48,8 @@ interface SelectionContextMenuProps {
   visible: boolean;
   x: number;
   y: number;
-  onChatAboutThis: () => void;
+  selectedText: string;
+  onChatAboutThis: (() => void) | null;
   onClose: () => void;
 }
 
@@ -54,6 +57,7 @@ function SelectionContextMenu({
   visible,
   x,
   y,
+  selectedText,
   onChatAboutThis,
   onClose,
 }: SelectionContextMenuProps): JSX.Element | null {
@@ -91,6 +95,11 @@ function SelectionContextMenu({
     (e.currentTarget as HTMLElement).style.background = entering ? hoverBg : 'transparent';
   };
 
+  const handleCorrection = () => {
+    useCorrectionStore.getState().open({ x, y }, selectedText);
+    onClose();
+  };
+
   return (
     <div
       ref={menuRef}
@@ -103,13 +112,26 @@ function SelectionContextMenu({
         boxShadow: isDark ? '0 4px 12px rgba(0,0,0,0.3)' : '0 4px 12px rgba(0,0,0,0.12)',
       }}
     >
+      {onChatAboutThis && (
+        <button
+          onClick={() => { onChatAboutThis(); onClose(); }}
+          style={{ ...itemStyle, color: textColor }}
+          onMouseEnter={(e) => handleHover(e, true)}
+          onMouseLeave={(e) => handleHover(e, false)}
+        >
+          Chat about this…
+        </button>
+      )}
+      {onChatAboutThis && (
+        <hr style={{ margin: '4px 0', border: 'none', borderTop: `1px solid ${borderColor}` }} />
+      )}
       <button
-        onClick={() => { onChatAboutThis(); onClose(); }}
+        onClick={handleCorrection}
         style={{ ...itemStyle, color: textColor }}
         onMouseEnter={(e) => handleHover(e, true)}
         onMouseLeave={(e) => handleHover(e, false)}
       >
-        Chat about this…
+        Correction…
       </button>
     </div>
   );
@@ -133,8 +155,6 @@ export function SelectionContextMenuPlugin({
   }, []);
 
   useEffect(() => {
-    if (!onSelectionContextMenu) return;
-
     const handleContextMenu = (e: MouseEvent) => {
       editor.getEditorState().read(() => {
         const selection = $getSelection();
@@ -159,7 +179,7 @@ export function SelectionContextMenuPlugin({
       editorElement.addEventListener('contextmenu', handleContextMenu);
       return () => editorElement.removeEventListener('contextmenu', handleContextMenu);
     }
-  }, [editor, onSelectionContextMenu]);
+  }, [editor]);
 
   const handleChatAboutThis = useCallback(() => {
     if (onSelectionContextMenu && menuState.selectedText) {
@@ -175,7 +195,8 @@ export function SelectionContextMenuPlugin({
       visible={menuState.visible}
       x={menuState.x}
       y={menuState.y}
-      onChatAboutThis={handleChatAboutThis}
+      selectedText={menuState.selectedText}
+      onChatAboutThis={onSelectionContextMenu ? handleChatAboutThis : null}
       onClose={close}
     />
   );

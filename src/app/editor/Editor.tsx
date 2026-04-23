@@ -47,6 +47,7 @@ import { WikiLinkFormatPlugin } from './WikiLinkFormatPlugin';
 import { AnchorScrollPlugin } from './AnchorScrollPlugin';
 import { SelectionContextMenuPlugin } from './SelectionContextMenuPlugin';
 import type { SelectionContextMenuEvent } from './SelectionContextMenuPlugin';
+import { CorrectionPanelPlugin } from './CorrectionPanelPlugin';
 import { AssetContext, createAssetContextValue } from './AssetContext';
 import {
   CalloutNode,
@@ -678,6 +679,7 @@ export function Editor({
             <WikiLinkFormatPlugin />
             <AnchorScrollPlugin />
             <SelectionContextMenuPlugin onSelectionContextMenu={onSelectionContextMenu} />
+            <CorrectionPanelPlugin />
           </div>
         </div>
       </LexicalComposer>
