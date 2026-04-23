@@ -69,8 +69,11 @@ export function ImagePlugin() {
       let imageFile: File | null = null;
       for (const item of items) {
         if (item.kind === 'file' && HANDLED_IMAGE_TYPES.includes(item.type)) {
-          imageFile = item.getAsFile();
-          break;
+          const file = item.getAsFile();
+          if (file) {
+            imageFile = file;
+            break;
+          }
         }
       }
 
