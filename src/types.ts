@@ -81,6 +81,10 @@ export const AssetWrittenMessageSchema = z.object({
   webviewUri: z.string().optional(),
 });
 
+export const AssetWriteFailedMessageSchema = z.object({
+  type: z.literal('ASSET_WRITE_FAILED'),
+});
+
 export const SettingsChangedMessageSchema = z.object({
   type: z.literal('SETTINGS_CHANGED'),
   settings: SlashMDSettingsSchema,
@@ -96,6 +100,7 @@ export const HostToUIMessageSchema = z.discriminatedUnion('type', [
   DocInitMessageSchema,
   DocChangedMessageSchema,
   AssetWrittenMessageSchema,
+  AssetWriteFailedMessageSchema,
   SettingsChangedMessageSchema,
   ErrorMessageSchema,
 ]);

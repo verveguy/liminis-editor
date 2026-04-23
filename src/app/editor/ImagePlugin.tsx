@@ -51,6 +51,8 @@ export function ImagePlugin() {
             selection.insertNodes([imageNode]);
           }
         });
+      } else if (message.type === 'ASSET_WRITE_FAILED' && pendingQueueRef.current.length > 0) {
+        pendingQueueRef.current.shift();
       }
     });
 
@@ -158,7 +160,10 @@ export function ImagePlugin() {
       }
 
       const file = imageFile;
-      const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 100);
+      const dot = file.name.lastIndexOf('.');
+      const nameBase = dot > 0 ? file.name.slice(0, dot) : file.name;
+      const nameExt = dot > 0 ? file.name.slice(dot) : '';
+      const sanitizedName = nameBase.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 95) + nameExt.slice(0, 10);
       const reader = new FileReader();
       reader.onload = () => {
         const dataUri = reader.result as string;
