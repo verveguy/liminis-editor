@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { $getRoot, $isElementNode, type LexicalNode } from 'lexical';
+import { $getRoot, $isElementNode, $isTextNode, type LexicalNode } from 'lexical';
 import { $isCodeNode } from '@lexical/code';
 import { $isFrontmatterNode } from './nodes';
 
@@ -8,7 +8,7 @@ export type SweepFn = (oldTerm: string, newTerm: string) => Promise<number>;
 
 interface AmbientCorrectionPluginProps {
   onSubstitutionDetected: (oldTerm: string, newTerm: string) => void;
-  sweepRef?: React.RefObject<SweepFn | null>;
+  sweepRef?: React.MutableRefObject<SweepFn | null>;
 }
 
 // ── Utilities ────────────────────────────────────────────────────────────────
@@ -27,16 +27,6 @@ function collectExcludedText(root: LexicalNode): string {
   };
   walk(root);
   return text;
-}
-
-/** True if any ancestor of `node` is a code or frontmatter block. */
-function hasExcludedAncestor(node: LexicalNode): boolean {
-  let parent = node.getParent();
-  while (parent !== null) {
-    if ($isCodeNode(parent) || $isFrontmatterNode(parent)) return true;
-    parent = parent.getParent();
-  }
-  return false;
 }
 
 /** True if the char is a word character (letter, digit, or underscore). */
@@ -117,8 +107,9 @@ function analyzeForSubstitution(
   if (charBefore !== null && isWordChar(charBefore)) return null;
   if (charAfter !== null && isWordChar(charAfter)) return null;
 
-  // Skip changes that only affect excluded regions (code blocks, frontmatter)
-  if (excludedText.includes(oldRegion)) return null;
+  // Use word-boundary regex so only exact whole-word appearances in excluded
+  // regions suppress detection (avoids false negatives from substring matches).
+  if (new RegExp(`\\b${escapeRegex(oldRegion)}\\b`, 'i').test(excludedText)) return null;
 
   return { oldTerm: oldRegion, newTerm: newRegion };
 }
@@ -148,10 +139,7 @@ export function AmbientCorrectionPlugin({
   // Populate the sweep ref so the parent can trigger a sweep from outside.
   useEffect(() => {
     if (!sweepRef) return;
-    (sweepRef as React.MutableRefObject<SweepFn | null>).current = (
-      oldTerm: string,
-      newTerm: string
-    ): Promise<number> =>
+    sweepRef.current = (oldTerm: string, newTerm: string): Promise<number> =>
       new Promise<number>((resolve) => {
         let count = 0;
         const escaped = escapeRegex(oldTerm);
@@ -159,60 +147,82 @@ export function AmbientCorrectionPlugin({
 
         editor.update(
           () => {
-            const textNodes = $getRoot().getAllTextNodes();
-            for (const node of textNodes) {
-              if (hasExcludedAncestor(node)) continue;
-              const text = node.getTextContent();
-              const replaced = text.replace(regex, (match) => {
-                count++;
-                return applyCase(match, newTerm);
-              });
-              if (replaced !== text) node.setTextContent(replaced);
-            }
+            // Tree-walker: skip entire code/frontmatter subtrees rather than
+            // checking ancestors per-node (O(N) vs O(N * depth)).
+            const walk = (node: LexicalNode) => {
+              if ($isCodeNode(node) || $isFrontmatterNode(node)) return;
+              if ($isTextNode(node)) {
+                const text = node.getTextContent();
+                const replaced = text.replace(regex, (match) => {
+                  count++;
+                  return applyCase(match, newTerm);
+                });
+                if (replaced !== text) node.setTextContent(replaced);
+                return;
+              }
+              if ($isElementNode(node)) {
+                for (const child of node.getChildren()) walk(child);
+              }
+            };
+            walk($getRoot());
           },
           { discrete: true, onUpdate: () => resolve(count) }
         );
       });
 
     return () => {
-      (sweepRef as React.MutableRefObject<SweepFn | null>).current = null;
+      sweepRef.current = null;
     };
   }, [editor, sweepRef]);
 
   // Register change listener for substitution detection.
   useEffect(() => {
-    return editor.registerUpdateListener(({ editorState, prevEditorState }) => {
-      let currentText = '';
-      let prevText = '';
+    const unregister = editor.registerUpdateListener(
+      ({ editorState, prevEditorState, dirtyElements, dirtyLeaves }) => {
+        // Skip pure selection changes that don't touch content nodes.
+        if (dirtyLeaves.size === 0 && dirtyElements.size === 0) return;
 
-      editorState.read(() => {
-        currentText = $getRoot().getTextContent();
-      });
-      prevEditorState.read(() => {
-        prevText = $getRoot().getTextContent();
-      });
+        if (debounceRef.current !== null) clearTimeout(debounceRef.current);
 
-      if (currentText === prevText) return;
+        // Capture editor state refs — defer expensive getTextContent() reads
+        // until the debounce fires, so we don't read full document on every keystroke.
+        const capturedState = editorState;
+        const capturedPrevState = prevEditorState;
 
-      if (debounceRef.current !== null) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+          debounceRef.current = null;
 
-      const capturedPrev = prevText;
-      const capturedCurrent = currentText;
+          let currentText = '';
+          let prevText = '';
+          capturedState.read(() => {
+            currentText = $getRoot().getTextContent();
+          });
+          capturedPrevState.read(() => {
+            prevText = $getRoot().getTextContent();
+          });
 
-      debounceRef.current = setTimeout(() => {
+          if (currentText === prevText) return;
+
+          let excludedText = '';
+          capturedState.read(() => {
+            excludedText = collectExcludedText($getRoot());
+          });
+
+          const result = analyzeForSubstitution(prevText, currentText, excludedText);
+          if (result) {
+            callbackRef.current(result.oldTerm, result.newTerm);
+          }
+        }, 300);
+      }
+    );
+
+    return () => {
+      unregister();
+      if (debounceRef.current !== null) {
+        clearTimeout(debounceRef.current);
         debounceRef.current = null;
-
-        let excludedText = '';
-        editor.getEditorState().read(() => {
-          excludedText = collectExcludedText($getRoot());
-        });
-
-        const result = analyzeForSubstitution(capturedPrev, capturedCurrent, excludedText);
-        if (result) {
-          callbackRef.current(result.oldTerm, result.newTerm);
-        }
-      }, 300);
-    });
+      }
+    };
   }, [editor]);
 
   return null;

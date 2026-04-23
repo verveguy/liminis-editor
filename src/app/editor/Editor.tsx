@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useMemo, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useMemo, type MutableRefObject } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -91,7 +91,7 @@ interface EditorProps {
   /** Called when a single-word substitution is detected after a debounce window. */
   onSubstitutionDetected?: (oldTerm: string, newTerm: string) => void;
   /** Ref populated with a sweep function by AmbientCorrectionPlugin when active. */
-  sweepRef?: RefObject<SweepFn | null>;
+  sweepRef?: MutableRefObject<SweepFn | null>;
 }
 
 const editorTheme = {
