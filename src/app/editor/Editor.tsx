@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useMemo, type RefObject } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -48,6 +48,7 @@ import { AnchorScrollPlugin } from './AnchorScrollPlugin';
 import { SelectionContextMenuPlugin } from './SelectionContextMenuPlugin';
 import type { SelectionContextMenuEvent } from './SelectionContextMenuPlugin';
 import { CorrectionPanelPlugin } from './CorrectionPanelPlugin';
+import { AmbientCorrectionPlugin, type SweepFn } from './AmbientCorrectionPlugin';
 import { AssetContext, createAssetContextValue } from './AssetContext';
 import {
   CalloutNode,
@@ -87,6 +88,10 @@ interface EditorProps {
   editable?: boolean;
   /** Path to the file being edited (used for file-type-specific UI like .mdc) */
   filePath?: string;
+  /** Called when a single-word substitution is detected after a debounce window. */
+  onSubstitutionDetected?: (oldTerm: string, newTerm: string) => void;
+  /** Ref populated with a sweep function by AmbientCorrectionPlugin when active. */
+  sweepRef?: RefObject<SweepFn | null>;
 }
 
 const editorTheme = {
@@ -538,6 +543,7 @@ export function Editor({
   resolveLocalAsset,
   editable = true,
   filePath,
+  onSubstitutionDetected,
 }: EditorProps) {
   const lastExternalLoadRef = useRef<number>(0);
   const currentContentRef = useRef<string>(initialContent);
@@ -680,6 +686,9 @@ export function Editor({
             <AnchorScrollPlugin />
             <SelectionContextMenuPlugin onSelectionContextMenu={onSelectionContextMenu} />
             <CorrectionPanelPlugin />
+            {onSubstitutionDetected && (
+              <AmbientCorrectionPlugin onSubstitutionDetected={onSubstitutionDetected} />
+            )}
           </div>
         </div>
       </LexicalComposer>

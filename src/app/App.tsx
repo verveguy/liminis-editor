@@ -66,9 +66,11 @@ interface AppProps {
   resolveLocalAsset?: (relativePath: string) => Promise<string | null>;
   /** Called when user right-clicks a text selection and chooses a context menu action */
   onSelectionContextMenu?: (event: SelectionContextMenuEvent) => void;
+  /** Called when a single-word substitution is detected after a debounce window. */
+  onSubstitutionDetected?: (oldTerm: string, newTerm: string) => void;
 }
 
-export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, onSelectionContextMenu }: AppProps) {
+export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, onSelectionContextMenu, onSubstitutionDetected }: AppProps) {
   const [internalContent, setInternalContent] = useState<string | null>(null);
   const [settings, setSettings] = useState<SlashMDSettings | null>(null);
   const [assetBaseUri, setAssetBaseUri] = useState<string | undefined>(undefined);
@@ -257,6 +259,7 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
         editable={editable}
         filePath={filePath}
         onSelectionContextMenu={onSelectionContextMenu}
+        onSubstitutionDetected={onSubstitutionDetected}
       />
     </div>
   );
