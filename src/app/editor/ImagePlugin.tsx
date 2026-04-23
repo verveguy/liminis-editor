@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { $getNodeByKey, $getSelection, $isRangeSelection, COMMAND_PRIORITY_EDITOR, createCommand, LexicalCommand } from 'lexical';
+import { $getNodeByKey, $getNearestNodeFromDOMNode, $getSelection, $isRangeSelection, COMMAND_PRIORITY_EDITOR, createCommand, LexicalCommand } from 'lexical';
 import { ImageModal, ImageData } from './ImageModal';
 import { $createImageNode } from './nodes';
 import { writeAsset, addMessageHandler } from '../../messaging-electron';
@@ -79,13 +79,15 @@ export function ImagePlugin() {
 
       if (!imageFile) return;
 
+      // Suppress the paste event whenever an image is present — even if oversized —
+      // so Lexical's default handler never inserts a broken blob URL.
+      e.preventDefault();
+      e.stopPropagation();
+
       if (imageFile.size > MAX_IMAGE_SIZE) {
         console.warn('ImagePlugin: pasted image exceeds 5 MB limit, ignoring');
         return;
       }
-
-      e.preventDefault();
-      e.stopPropagation();
 
       const file = imageFile;
       const reader = new FileReader();
@@ -110,9 +112,15 @@ export function ImagePlugin() {
     if (!rootElement) return;
 
     function handleDragOver(e: DragEvent) {
-      const hasImage = Array.from(e.dataTransfer?.items ?? []).some(
-        item => item.kind === 'file' && HANDLED_IMAGE_TYPES.includes(item.type)
-      );
+      const items = e.dataTransfer?.items;
+      if (!items) return;
+      let hasImage = false;
+      for (const item of Array.from(items)) {
+        if (item.kind === 'file' && HANDLED_IMAGE_TYPES.includes(item.type)) {
+          hasImage = true;
+          break;
+        }
+      }
       if (hasImage) {
         e.preventDefault();
         if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
@@ -137,14 +145,14 @@ export function ImagePlugin() {
       if (typeof document.caretRangeFromPoint === 'function') {
         const range = document.caretRangeFromPoint(e.clientX, e.clientY);
         if (range) {
-          let node: Node | null = range.startContainer;
-          while (node) {
-            const key = Object.keys(node as object).find(k => k.startsWith('__lexicalKey_'));
-            if (key) {
-              dropTargetKey = (node as unknown as Record<string, unknown>)[key] as string;
-              break;
-            }
-            node = node.parentNode;
+          const domNode = range.startContainer instanceof Element
+            ? range.startContainer
+            : range.startContainer.parentElement;
+          if (domNode) {
+            editor.getEditorState().read(() => {
+              const lexNode = $getNearestNodeFromDOMNode(domNode);
+              if (lexNode) dropTargetKey = lexNode.getKey();
+            });
           }
         }
       }
