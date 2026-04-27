@@ -41,8 +41,8 @@ export function SearchPlugin() {
       }, 0);
     };
 
-    window.addEventListener('slashmd:search', handleExternalSearch as EventListener);
-    return () => window.removeEventListener('slashmd:search', handleExternalSearch as EventListener);
+    window.addEventListener('slashmd:search', handleExternalSearch);
+    return () => window.removeEventListener('slashmd:search', handleExternalSearch);
   }, []);
 
   // Debounce the query

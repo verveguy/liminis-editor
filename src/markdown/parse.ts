@@ -362,7 +362,7 @@ export function parseMarkdown(text: string, _options: ParseOptions = {}): ParseR
   const replacements = combineReplacements(pipeReplacements, aliasReplacements);
 
   let root = fromMarkdown(normalizedText, {
-    extensions: [gfm(), math(), defList, gfmFootnote(), frontmatter(['yaml']), wikiLinkSyntax(wikiLinkOptions as any)],
+    extensions: [gfm(), math(), defList, gfmFootnote(), frontmatter(['yaml']), wikiLinkSyntax(wikiLinkOptions)],
     mdastExtensions: [
       gfmFromMarkdown(),
       mathFromMarkdown(),

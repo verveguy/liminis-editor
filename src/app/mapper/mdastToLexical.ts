@@ -159,7 +159,7 @@ function preprocessDetailsBlocks(children: Content[]): (Content | ToggleContentM
           isOpen,
           summary,
           contentNodes,
-        } as ToggleContentMarker);
+        });
         i++; // Skip the closing tag
         continue;
       }
@@ -177,7 +177,7 @@ function preprocessDetailsBlocks(children: Content[]): (Content | ToggleContentM
           contentNodes.push({
             type: 'paragraph',
             children: [{ type: 'text', value: contentText }],
-          } as Paragraph);
+          });
         }
 
         result.push({
@@ -185,7 +185,7 @@ function preprocessDetailsBlocks(children: Content[]): (Content | ToggleContentM
           isOpen,
           summary,
           contentNodes,
-        } as ToggleContentMarker);
+        });
         i++;
         continue;
       }
@@ -564,7 +564,7 @@ function convertBlockquote(node: Blockquote): LexicalBlockNode[] {
       // Other block content inside blockquote (lists, code, etc.)
       const blockNodes = convertBlockNode(child);
       for (const n of blockNodes) {
-        quote.append(n as any);
+        quote.append(n);
       }
     }
   }
@@ -630,7 +630,7 @@ function convertListItem(node: ListItem, parentList: List): ListItemNode {
       // Other block content inside list items (blockquotes, code, etc.)
       const blockNodes = convertBlockNode(child);
       for (const n of blockNodes) {
-        listItem.append(n as any);
+        listItem.append(n);
       }
     }
   }

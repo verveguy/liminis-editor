@@ -51,7 +51,6 @@ import type {
   Text,
   Link,
   Html,
-  Break,
 } from 'mdast';
 
 // Convert Lexical editor state to mdast tree
@@ -197,9 +196,9 @@ function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[
     if ($isTextNode(child)) {
       contentChildren.push(...convertTextNode(child));
     } else if ($isLineBreakNode(child)) {
-      contentChildren.push({ type: 'break' } as Break);
+      contentChildren.push({ type: 'break' });
     } else if ($isLinkNode(child)) {
-      contentChildren.push(convertLinkNode(child as unknown as ElementNode) as unknown as PhrasingContent);
+      contentChildren.push(convertLinkNode(child) as unknown as PhrasingContent);
     } else if ($isImageNode(child)) {
       const image: Image = {
         type: 'image',
@@ -355,9 +354,9 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean): ListItem {
     } else if ($isTextNode(child)) {
       inlineChildren.push(...convertTextNode(child));
     } else if ($isLineBreakNode(child)) {
-      inlineChildren.push({ type: 'break' } as Break);
+      inlineChildren.push({ type: 'break' });
     } else if ($isLinkNode(child)) {
-      inlineChildren.push(convertLinkNode(child as unknown as ElementNode));
+      inlineChildren.push(convertLinkNode(child));
     }
   }
 
@@ -510,11 +509,6 @@ function convertImageNode(node: ImageNode): Paragraph | Html {
 }
 
 // Math node types from mdast-util-math
-interface InlineMath {
-  type: 'inlineMath';
-  value: string;
-}
-
 interface Math {
   type: 'math';
   value: string;
@@ -528,7 +522,7 @@ function convertEquationNode(node: EquationNode): Paragraph | Math {
     // Inline equation: use inlineMath mdast node
     return {
       type: 'paragraph',
-      children: [{ type: 'inlineMath', value: equation } as InlineMath as unknown as PhrasingContent],
+      children: [{ type: 'inlineMath', value: equation }],
     };
   }
 
@@ -536,7 +530,7 @@ function convertEquationNode(node: EquationNode): Paragraph | Math {
   return {
     type: 'math',
     value: equation,
-  } as Math;
+  };
 }
 
 function convertMermaidNode(node: MermaidNode): Code {
@@ -653,7 +647,7 @@ function convertToggleContainerNode(node: ToggleContainerNode): Content[] {
   result.push({
     type: 'html',
     value: `<details${isOpen ? ' open' : ''}>\n<summary>${summaryText}</summary>`,
-  } as Html);
+  });
 
   // Add all the content nodes (they will be serialized as markdown)
   result.push(...contentNodes);
@@ -662,7 +656,7 @@ function convertToggleContainerNode(node: ToggleContainerNode): Content[] {
   result.push({
     type: 'html',
     value: '\n</details>',
-  } as Html);
+  });
 
   return result;
 }
@@ -675,9 +669,9 @@ function convertInlineChildren(node: ElementNode): PhrasingContentLike[] {
       children.push(...convertTextNode(child));
     } else if ($isLineBreakNode(child)) {
       // Soft line break (from trailing double-spaces in markdown)
-      children.push({ type: 'break' } as Break);
+      children.push({ type: 'break' });
     } else if ($isLinkNode(child)) {
-      children.push(convertLinkNode(child as unknown as ElementNode));
+      children.push(convertLinkNode(child));
     } else if ($isImageNode(child)) {
       // Handle ImageNode that ended up inside a paragraph (from markdown shortcut)
       // Convert to inline mdast image
@@ -694,7 +688,7 @@ function convertInlineChildren(node: ElementNode): PhrasingContentLike[] {
       // Convert to inlineMath mdast node
       const equationNode = child;
       const equation = equationNode.getEquation();
-      children.push({ type: 'inlineMath', value: equation } as InlineMath as unknown as PhrasingContent);
+      children.push({ type: 'inlineMath', value: equation });
     } else if ($isFootnoteNode(child)) {
       // Footnote reference: convert back to footnoteReference mdast node
       children.push({

@@ -391,7 +391,7 @@ describe('wiki-link formatting - export', () => {
           },
         ],
       }
-      const result = stringifyMarkdown(root as any)
+      const result = stringifyMarkdown(root)
       expect(result).toContain('[[page|**bold alias**]]')
     })
   })
