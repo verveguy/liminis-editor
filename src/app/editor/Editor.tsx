@@ -13,21 +13,26 @@ import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { ListNode, ListItemNode } from '@lexical/list';
-import { CodeNode, CodeHighlightNode } from '@lexical/code';
+import { CodeNode, CodeHighlightNode, $isCodeNode } from '@lexical/code';
 import { registerCodeHighlighting } from '@lexical/code-prism';
 import { AutoLinkNode } from '@lexical/link';
 import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
 import {
+  $createParagraphNode,
   $createRangeSelection,
   $getRoot,
   $getSelection,
   $isElementNode,
+  $isLineBreakNode,
   $isRangeSelection,
   $isTextNode,
   $setSelection,
+  COMMAND_PRIORITY_LOW,
   EditorState,
+  KEY_ENTER_COMMAND,
   LexicalEditor,
   LexicalNode,
+  mergeRegister,
 } from 'lexical';
 
 import { Toolbar } from './Toolbar';
@@ -190,12 +195,37 @@ const editorNodes = [
   FootnoteNode,
 ];
 
-// Plugin to enable syntax highlighting in code blocks
+// Plugin to enable syntax highlighting in code blocks.
+// Also registers the Enter×3 escape handler that moved from CodeNode.insertNewAfter
+// to CodeExtension.register in Lexical 0.44 (#8360).
 function CodeHighlightPlugin() {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
-    return registerCodeHighlighting(editor);
+    return mergeRegister(
+      registerCodeHighlighting(editor),
+      editor.registerCommand(
+        KEY_ENTER_COMMAND,
+        (event) => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return false;
+          const { anchor } = selection;
+          if (!selection.isCollapsed() || anchor.type !== 'element') return false;
+          const codeNode = anchor.getNode();
+          if (!$isCodeNode(codeNode)) return false;
+          const childrenSize = codeNode.getChildrenSize();
+          if (childrenSize < 2 || anchor.offset !== childrenSize) return false;
+          const lastChild = codeNode.getLastChild();
+          if (!$isLineBreakNode(lastChild) || !$isLineBreakNode(lastChild.getPreviousSibling())) return false;
+          const newElement = $createParagraphNode();
+          codeNode.splice(childrenSize - 2, 2, []).insertAfter(newElement, false);
+          newElement.select();
+          event?.preventDefault();
+          return true;
+        },
+        COMMAND_PRIORITY_LOW,
+      ),
+    );
   }, [editor]);
 
   return null;
