@@ -32,9 +32,9 @@ import {
   KEY_ENTER_COMMAND,
   LexicalEditor,
   LexicalNode,
-  mergeRegister,
   RangeSelection,
 } from 'lexical';
+import { mergeRegister } from '@lexical/utils';
 
 import { Toolbar } from './Toolbar';
 import { SlashMenuPlugin } from './SlashMenuPlugin';
