@@ -71,9 +71,11 @@ interface AppProps {
   onSubstitutionDetected?: (oldTerm: string, newTerm: string) => void;
   /** Ref populated with a sweep function by AmbientCorrectionPlugin when active. */
   sweepRef?: MutableRefObject<SweepFn | null>;
+  /** Override className on the root div (default: "min-h-screen p-0"). */
+  className?: string;
 }
 
-export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, onSelectionContextMenu, onSubstitutionDetected, sweepRef }: AppProps) {
+export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, onSelectionContextMenu, onSubstitutionDetected, sweepRef, className = 'min-h-screen p-0' }: AppProps) {
   const [internalContent, setInternalContent] = useState<string | null>(null);
   const [settings, setSettings] = useState<SlashMDSettings | null>(null);
   const [assetBaseUri, setAssetBaseUri] = useState<string | undefined>(undefined);
@@ -243,7 +245,7 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
   }
 
   return (
-    <div className="min-h-screen p-0">
+    <div className={className}>
       {error && (
         <div className="fixed top-0 left-0 right-0 px-4 py-2 bg-red-500 text-white text-center z-[1000]" role="alert">
           {error}
