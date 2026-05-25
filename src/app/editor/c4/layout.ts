@@ -276,7 +276,7 @@ function layoutGroup(
 
   // Add virtual edges between boundaries when their children have relationships.
   // This gives dagre the rank ordering it needs (e.g., macOS above Cloud Services
-  // when Graphiti Service → Neo4j AuraDB crosses that boundary).
+  // when Context Graph Service → Neo4j AuraDB crosses that boundary).
   // Map every descendant to its top-level ancestor in this group
   const childToParent = new Map<string, string>();
   function mapDescendants(element: C4Element, topAncestor: string): void {
