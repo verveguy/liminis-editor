@@ -343,14 +343,14 @@ System_Boundary(liminis, "Liminis") {
   Container(app, "Electron App", "Electron + React", "Renders markdown, manages UI")
   Container(framework, "Liminis Framework", "Node.js", "Orchestrates skills, tools, and agents")
   ContainerDb(workspace, "Workspace", "File system", "Markdown notes, config, skills")
-  Container(graphiti, "Knowledge Graph", "Neo4j + Graphiti", "Temporal entity and relationship store")
+  Container(contextGraph, "Knowledge Graph", "Neo4j + Graphiti", "Temporal entity and relationship store")
   Container(semantic, "Semantic Search", "Vector DB", "Embedding-based document search")
 }
 
 Rel(user, app, "Reads and writes notes")
 Rel(app, framework, "Delegates AI tasks to")
 Rel(framework, workspace, "Reads/writes files")
-Rel(framework, graphiti, "Queries and updates entities")
+Rel(framework, contextGraph, "Queries and updates entities")
 Rel(framework, semantic, "Indexes and searches documents")
       `);
       expect(result.errors).toHaveLength(0);
