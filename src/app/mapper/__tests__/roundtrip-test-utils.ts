@@ -9,7 +9,7 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { createEditor, LexicalEditor } from 'lexical';
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
-import { ListNode, ListItemNode } from '@lexical/list';
+import { ListNode, ListItemNode, registerList } from '@lexical/list';
 import { CodeNode, CodeHighlightNode } from '@lexical/code';
 import { AutoLinkNode } from '@lexical/link';
 import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
@@ -59,8 +59,8 @@ export const editorNodes = [
   FootnoteNode,
 ];
 
-export function createTestEditor(onError?: (error: Error) => void): LexicalEditor {
-  return createEditor({
+export function createTestEditor(onError?: (error: Error) => void, registerListPlugin = false): LexicalEditor {
+  const editor = createEditor({
     namespace: 'test',
     nodes: editorNodes,
     onError:
@@ -69,6 +69,17 @@ export function createTestEditor(onError?: (error: Error) => void): LexicalEdito
         throw error;
       }),
   });
+
+  // The production editor registers <ListPlugin /> (Editor.tsx), which calls
+  // @lexical/list's registerList() to install ListNode/ListItemNode transforms
+  // that run on every editor.update(). The plain harness above doesn't install
+  // these, so opt in here to verify the fix survives them too — see
+  // list-item-block-content.test.ts.
+  if (registerListPlugin) {
+    registerList(editor);
+  }
+
+  return editor;
 }
 
 /**
@@ -80,6 +91,7 @@ export function createTestEditor(onError?: (error: Error) => void): LexicalEdito
  */
 export function roundTrip(
   markdown: string,
+  options: { registerListPlugin?: boolean } = {},
 ): Promise<{ mdast: ReturnType<typeof exportLexicalToMdast>; output: string }> {
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -99,7 +111,7 @@ export function roundTrip(
       // importMarkdownToLexical) through onError instead of letting it
       // propagate to the surrounding try/catch below — reject directly here
       // so the promise always settles regardless of which path Lexical takes.
-      const editor = createTestEditor((error) => settleReject(error));
+      const editor = createTestEditor((error) => settleReject(error), options.registerListPlugin ?? false);
       const parsed = parseMarkdown(markdown);
 
       editor.update(

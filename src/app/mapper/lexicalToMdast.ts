@@ -395,7 +395,7 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean): ListItem {
   let hasExplicitMarker = false;
   const firstChild = children[0];
   if (firstChild?.type === 'paragraph') {
-    const firstPhrasing = (firstChild as Paragraph).children[0];
+    const firstPhrasing = firstChild.children[0];
     if (firstPhrasing?.type === 'text' && /^\[( |x|X)\]\s+/.exec(firstPhrasing.value)) {
       hasExplicitMarker = true;
     }
