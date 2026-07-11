@@ -414,7 +414,7 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean): ListItem {
     // produced it.
     spread: false,
     checked: checkedForOutput,
-    children: children.length > 0 ? (children as (Paragraph | List)[]) : [{ type: 'paragraph', children: [{ type: 'text', value: '' }] }],
+    children: children.length > 0 ? (children as ListItem['children']) : [{ type: 'paragraph', children: [{ type: 'text', value: '' }] }],
   };
 }
 
