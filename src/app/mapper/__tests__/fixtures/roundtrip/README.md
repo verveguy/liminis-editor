@@ -52,6 +52,10 @@ result and the fixture starts enforcing it).
   level rather than the list-item level), HTML blocks (attributes and tags stripped,
   leaving only inner text), and inline HTML (tags escaped as literal text). Table
   column alignment is also lost (`:---`, `:---:`, `----:` all collapse to plain `-`).
+  Image alt text containing a bracket pair (e.g. `alt \[bracket\] text`) is also
+  double-escaped by the bracket-preservation post-process step in `stringify.ts`,
+  corrupting the image syntax further on a second round trip — discovered while adding
+  #898 edge-case coverage but distinct from any of that issue's three defects.
   These are not tracked by a specific issue yet; if one is filed, rename the fixture to
   match the `NNN-*` convention above.
 - **`other-list-item-double-hard-break`**: a residual gap in the #897 fix itself. That
