@@ -32,11 +32,15 @@ pipeline today. They are asserted against `.expected.md` files that capture the
 the moment each defect is fixed (update the `.expected.md` to the fidelity-preserving
 result and the fixture starts enforcing it).
 
-- **`897-*`**: reproduces [#897](https://github.com/verveguy/liminis/issues/897) — block
-  content (fenced code, tables, blockquotes, multiple paragraphs) inside list items is
-  dropped and remaining paragraphs collapse onto one line. Covers both ordered and
-  unordered lists for each construct. None of these currently throw — the pipeline
-  silently corrupts rather than raising, so all use `.expected.md`, not `.error.txt`.
+- **`897-*`**: originally reproduced [#897](https://github.com/verveguy/liminis/issues/897)
+  — block content (fenced code, tables, blockquotes, multiple paragraphs) inside list
+  items was dropped and remaining paragraphs collapsed onto one line. Fixed — these now
+  round-trip byte-identical to their input (no `.expected.md` sidecar), so they've become
+  a permanent regression gate rather than a documented defect. Left under
+  `known-defects/` rather than moved, since the directory just tracks where the fixture
+  originated. Additional coverage for this fix (deeper nesting, first/last-child
+  positioning, mixed block types, task-list items) lives directly under
+  `fixtures/roundtrip/`.
 - **`898-*`**: reproduces [#898](https://github.com/verveguy/liminis/issues/898) — the
   serializer over-escapes inline content, degrades image-inside-link badges, and
   normalizes loose lists to tight lists.
