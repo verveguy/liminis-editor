@@ -29,7 +29,7 @@ export class CustomListNode extends ListNode {
 
   static clone(node: CustomListNode): CustomListNode {
     const cloned = new CustomListNode(node.__listType, node.__start, node.__key);
-    cloned.__spread = node.__spread;
+    cloned.__spread = $isCustomListNode(node) ? node.__spread : false;
     return cloned;
   }
 
