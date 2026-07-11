@@ -288,17 +288,20 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   // Keep at most one blank line between blocks.
   result = result.replace(/\n{3,}/g, '\n\n');
 
-  // Post-process: unescape intraword underscores, outside of code.
+  // Post-process: unescape intraword underscores, outside of code and math.
   // mdast-util-to-markdown escapes every `_` in text conservatively, but CommonMark
   // never lets an intraword underscore (flanked by alphanumerics on both sides) open
   // or close emphasis — so escaping it is unnecessary. An underscore adjacent to
   // whitespace/punctuation (e.g. `_word_`) can still form emphasis and must stay escaped.
-  // Code (fenced blocks and inline spans) is skipped: its content is emitted verbatim
-  // by mdast-util-to-markdown, so a literal `\_` there (e.g. in a regex or shell escape)
-  // is the user's own text, not conservative escaping, and must not be rewritten.
+  // Code (fenced blocks and inline spans) and math ($...$ / $$...$$) are skipped: their
+  // content is emitted verbatim, so a literal `\_` there (e.g. a regex/shell escape, or
+  // a LaTeX subscript marker) is the user's own text and must not be rewritten. The fenced
+  // code alternative backreferences the opening fence run so a closing line using a
+  // different fence character/length (or a same-character run that's just code content)
+  // doesn't end the protected region early.
   result = result.replace(
-    /(^[ \t]*(?:`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*(?:`{3,}|~{3,})[ \t]*$)|(`+)[^\n]*?\2|((?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}]))/gmu,
-    (match, _fencedCode, _inlineOpen, underscore) => (underscore === undefined ? match : '_')
+    /^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[ \t]*$|(`+)[^\n]*?\2|\$\$[\s\S]*?\$\$|\$[^\n$]*?\$|((?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}]))/gmu,
+    (match, _fenceRun, _inlineOpen, underscore) => (underscore === undefined ? match : '_')
   );
 
   return result;

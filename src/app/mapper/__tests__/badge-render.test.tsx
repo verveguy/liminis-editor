@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { useEffect } from 'react';
 import { render, act } from '@testing-library/react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
@@ -18,7 +19,9 @@ import { $createCustomLinkNode, $createImageNode } from '../../editor/nodes';
  */
 function CaptureEditor({ onReady }: { onReady: (editor: LexicalEditor) => void }) {
   const [editor] = useLexicalComposerContext();
-  onReady(editor);
+  useEffect(() => {
+    onReady(editor);
+  }, [editor, onReady]);
   return null;
 }
 
