@@ -80,26 +80,30 @@ export function roundTrip(
   markdown: string,
 ): Promise<{ mdast: ReturnType<typeof exportLexicalToMdast>; output: string }> {
   return new Promise((resolve, reject) => {
-    const editor = createTestEditor();
-    const parsed = parseMarkdown(markdown);
+    try {
+      const editor = createTestEditor();
+      const parsed = parseMarkdown(markdown);
 
-    editor.update(
-      () => {
-        importMarkdownToLexical(editor, parsed.root);
-      },
-      {
-        discrete: true,
-        onUpdate: () => {
-          try {
-            const mdast = exportLexicalToMdast(editor);
-            const output = stringifyMarkdown(mdast);
-            resolve({ mdast, output });
-          } catch (error) {
-            reject(error instanceof Error ? error : new Error(String(error)));
-          }
+      editor.update(
+        () => {
+          importMarkdownToLexical(editor, parsed.root);
         },
-      },
-    );
+        {
+          discrete: true,
+          onUpdate: () => {
+            try {
+              const mdast = exportLexicalToMdast(editor);
+              const output = stringifyMarkdown(mdast);
+              resolve({ mdast, output });
+            } catch (error) {
+              reject(error instanceof Error ? error : new Error(String(error)));
+            }
+          },
+        },
+      );
+    } catch (error) {
+      reject(error instanceof Error ? error : new Error(String(error)));
+    }
   });
 }
 
