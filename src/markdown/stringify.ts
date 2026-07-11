@@ -186,7 +186,7 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   // Normalize wiki-link nodes before stringifying
   processedRoot = normalizeWikiLinkNodes(processedRoot) as Root;
   
-  // Make lists tight (no blank lines between items) by default
+  // Compute real spread values for lists/list items (loose vs. tight)
   processedRoot = computeListSpread(processedRoot) as Root;
   
   let result = toMarkdown(processedRoot, {
