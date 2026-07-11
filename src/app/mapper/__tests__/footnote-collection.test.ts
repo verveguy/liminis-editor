@@ -7,90 +7,11 @@
  * - splitFootnoteSection + groupFootnoteChildren (Lexical → MDAST export)
  */
 import { describe, it, expect } from 'vitest';
-import { createEditor, $getRoot, LexicalEditor, ElementNode } from 'lexical';
-import { HeadingNode, QuoteNode } from '@lexical/rich-text';
-import { ListNode, ListItemNode } from '@lexical/list';
-import { CodeNode, CodeHighlightNode } from '@lexical/code';
-import { AutoLinkNode } from '@lexical/link';
-import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
-import {
-  CalloutNode,
-  ToggleContainerNode,
-  ToggleTitleNode,
-  ToggleContentNode,
-  ImageNode,
-  HorizontalRuleNode,
-  EquationNode,
-  MermaidNode,
-  C4Node,
-  FrontmatterNode,
-  CustomLinkNode,
-  FootnoteNode,
-  $isFootnoteNode,
-} from '../../editor/nodes';
+import { $getRoot, LexicalEditor, ElementNode } from 'lexical';
+import { $isFootnoteNode } from '../../editor/nodes';
 import { parseMarkdown } from '../../../markdown/parse';
-import { stringifyMarkdown } from '../../../markdown/stringify';
 import { importMarkdownToLexical } from '../mdastToLexical';
-import { exportLexicalToMdast } from '../lexicalToMdast';
-
-// All editor node types, matching Editor.tsx
-const editorNodes = [
-  HeadingNode,
-  QuoteNode,
-  ListNode,
-  ListItemNode,
-  CodeNode,
-  CodeHighlightNode,
-  CustomLinkNode,
-  AutoLinkNode,
-  TableNode,
-  TableRowNode,
-  TableCellNode,
-  CalloutNode,
-  ToggleContainerNode,
-  ToggleTitleNode,
-  ToggleContentNode,
-  ImageNode,
-  HorizontalRuleNode,
-  EquationNode,
-  MermaidNode,
-  C4Node,
-  FrontmatterNode,
-  FootnoteNode,
-];
-
-function createTestEditor(): LexicalEditor {
-  return createEditor({
-    namespace: 'test',
-    nodes: editorNodes,
-    onError: (error) => { throw error; },
-  });
-}
-
-/**
- * Round-trip helper: markdown → Lexical → MDAST → markdown
- * Returns both intermediate MDAST and final markdown for inspection.
- */
-function roundTrip(markdown: string): Promise<{ mdast: ReturnType<typeof exportLexicalToMdast>; output: string }> {
-  return new Promise((resolve) => {
-    const editor = createTestEditor();
-    const parsed = parseMarkdown(markdown);
-
-    editor.update(
-      () => {
-        importMarkdownToLexical(editor, parsed.root);
-      },
-      {
-        discrete: true,
-        onUpdate: () => {
-          const mdast = exportLexicalToMdast(editor);
-          const output = stringifyMarkdown(mdast);
-          resolve({ mdast, output });
-        },
-      },
-    );
-  });
-}
+import { createTestEditor, roundTrip } from './roundtrip-test-utils';
 
 /**
  * Import helper: markdown → Lexical, returns a snapshot of the root children.
