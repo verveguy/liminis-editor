@@ -297,8 +297,8 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   // by mdast-util-to-markdown, so a literal `\_` there (e.g. in a regex or shell escape)
   // is the user's own text, not conservative escaping, and must not be rewritten.
   result = result.replace(
-    /(^[ \t]*(?:`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*(?:`{3,}|~{3,})[ \t]*$)|(`[^`\n]+`)|((?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}]))/gmu,
-    (match, fencedCode, inlineCode) => (fencedCode !== undefined || inlineCode !== undefined ? match : '_')
+    /(^[ \t]*(?:`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*(?:`{3,}|~{3,})[ \t]*$)|(`+)[^\n]*?\2|((?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}]))/gmu,
+    (match, _fencedCode, _inlineOpen, underscore) => (underscore === undefined ? match : '_')
   );
 
   return result;
