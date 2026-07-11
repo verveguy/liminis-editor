@@ -369,7 +369,9 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean): ListItem {
       // Two consecutive LineBreakNodes mark a paragraph boundary inserted by
       // convertListItem for consecutive mdast paragraphs (see its comment) —
       // flush the current paragraph and start a new one instead of encoding
-      // a literal break.
+      // a literal break. Not fully unambiguous — see convertListItem's
+      // comment and the `other-list-item-double-hard-break` known-defect
+      // fixture for a case this misreads.
       const next = kids[i + 1];
       if (next && $isLineBreakNode(next)) {
         flushInline();

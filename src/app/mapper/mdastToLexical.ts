@@ -614,10 +614,15 @@ function convertListItem(node: ListItem, parentList: List): ListItemNode {
       // But two consecutive paragraphs with nothing else between them would
       // then merge into one run of text with no separator. Mark that boundary
       // with two consecutive LineBreakNodes (which aren't unwrapped) before
-      // flattening this paragraph's content — real markdown parsing never
-      // produces two adjacent `break` nodes with no text between them, since
-      // a blank line always ends the enclosing paragraph, so this marker is
-      // unambiguous to detect again on export.
+      // flattening this paragraph's content, and detect that pair again on
+      // export to split back into two paragraphs.
+      // NOT fully unambiguous: a single mdast paragraph can itself contain two
+      // adjacent `break` nodes with no text between them (e.g. a line ending in
+      // "\" immediately followed by a line that is only "\"), and the same
+      // shape is reachable live in the editor (Shift+Enter twice in a row with
+      // nothing typed between) — both collide with this marker and get
+      // misread as a paragraph boundary on export. See the
+      // `other-list-item-double-hard-break` known-defect fixture.
       if (node.children[i - 1]?.type === 'paragraph') {
         listItem.append($createLineBreakNode());
         listItem.append($createLineBreakNode());

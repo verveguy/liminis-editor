@@ -54,6 +54,21 @@ result and the fixture starts enforcing it).
   column alignment is also lost (`:---`, `:---:`, `----:` all collapse to plain `-`).
   These are not tracked by a specific issue yet; if one is filed, rename the fixture to
   match the `NNN-*` convention above.
+- **`other-list-item-double-hard-break`**: a residual gap in the #897 fix itself. That
+  fix marks the boundary between two consecutive mdast paragraphs inside a list item by
+  inserting two bare, adjacent `LineBreakNode`s (see `convertListItem` in
+  `mdastToLexical.ts`), then detects that pair again on export to split back into two
+  paragraphs. But a *single* mdast paragraph can itself contain two adjacent `break`
+  nodes with no text between them — e.g. a line ending in `\` immediately followed by a
+  line that is only `\` — which produces the exact same two-bare-adjacent-`LineBreakNode`
+  shape and gets misread as the paragraph-boundary marker, splitting what should stay one
+  paragraph (with two hard breaks) into two paragraphs. The same ambiguity is reachable
+  purely by live editing too (pressing Shift+Enter twice in a row inside a list item with
+  nothing typed between), independent of any markdown parsing. Content isn't lost — only
+  reformatted — but this is a real, demonstrated gap in the "unambiguous sentinel" the fix
+  relies on. Closing it properly needs a marker Lexical won't merge/garbage-collect (e.g.
+  a dedicated custom node), which is a larger change than a conversion-function patch —
+  see the "Plan B" contingency discussed for #897.
 
 ## Diagnosing a failure
 
