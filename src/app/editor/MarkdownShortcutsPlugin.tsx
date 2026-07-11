@@ -62,7 +62,7 @@ function createCustomListReplace(listType: ListType) {
   return (parentNode: ElementNode, children: LexicalNode[], match: string[], isImport: boolean): void => {
     const previousNode = parentNode.getPreviousSibling();
     const nextNode = parentNode.getNextSibling();
-    const listItem = $createListItemNode(listType === 'check' ? match[3] === 'x' : undefined);
+    const listItem = $createListItemNode(listType === 'check' ? match[3]?.toLowerCase() === 'x' : undefined);
 
     if ($isCustomListNode(nextNode) && nextNode.getListType() === listType) {
       const firstChild = nextNode.getFirstChild();

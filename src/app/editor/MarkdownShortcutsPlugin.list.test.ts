@@ -88,6 +88,29 @@ describe('MarkdownShortcutsPlugin custom list transformers', () => {
     expect(listType).toBe('check');
   });
 
+  it('CHECK_LIST.replace treats an uppercase "[X]" as checked (regExp is case-insensitive)', () => {
+    const editor = createEditor({ nodes: editorNodes, onError: (e) => { throw e; } });
+    let checked: boolean | undefined = undefined;
+    editor.update(
+      () => {
+        const p = $createParagraphNode();
+        const text = $createTextNode('hello');
+        p.append(text);
+        $getRoot().append(p);
+        const match = '[X] '.match(CHECK_LIST.regExp)!;
+        CHECK_LIST.replace(p, [text], Array.from(match), false);
+      },
+      { discrete: true }
+    );
+
+    editor.getEditorState().read(() => {
+      const list = $getRoot().getChildren().find((n) => n.getType() === 'list');
+      const item = (list as any)?.getFirstChild?.();
+      checked = item?.getChecked?.();
+    });
+    expect(checked).toBe(true);
+  });
+
   it('merges a second bullet item into the adjacent CustomListNode instead of creating a second list', () => {
     const editor = createEditor({ nodes: editorNodes, onError: (e) => { throw e; } });
     let itemCount = -1;
