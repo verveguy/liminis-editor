@@ -59,13 +59,15 @@ export const editorNodes = [
   FootnoteNode,
 ];
 
-export function createTestEditor(): LexicalEditor {
+export function createTestEditor(onError?: (error: Error) => void): LexicalEditor {
   return createEditor({
     namespace: 'test',
     nodes: editorNodes,
-    onError: (error) => {
-      throw error;
-    },
+    onError:
+      onError ??
+      ((error) => {
+        throw error;
+      }),
   });
 }
 
@@ -80,8 +82,24 @@ export function roundTrip(
   markdown: string,
 ): Promise<{ mdast: ReturnType<typeof exportLexicalToMdast>; output: string }> {
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const settleResolve = (value: { mdast: ReturnType<typeof exportLexicalToMdast>; output: string }) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const settleReject = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
+
     try {
-      const editor = createTestEditor();
+      // Lexical may route an error thrown during editor.update() (e.g. from
+      // importMarkdownToLexical) through onError instead of letting it
+      // propagate to the surrounding try/catch below — reject directly here
+      // so the promise always settles regardless of which path Lexical takes.
+      const editor = createTestEditor((error) => settleReject(error));
       const parsed = parseMarkdown(markdown);
 
       editor.update(
@@ -94,15 +112,15 @@ export function roundTrip(
             try {
               const mdast = exportLexicalToMdast(editor);
               const output = stringifyMarkdown(mdast);
-              resolve({ mdast, output });
+              settleResolve({ mdast, output });
             } catch (error) {
-              reject(error instanceof Error ? error : new Error(String(error)));
+              settleReject(error);
             }
           },
         },
       );
     } catch (error) {
-      reject(error instanceof Error ? error : new Error(String(error)));
+      settleReject(error);
     }
   });
 }
