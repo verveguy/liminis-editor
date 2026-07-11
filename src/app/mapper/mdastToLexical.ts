@@ -599,16 +599,37 @@ function convertListItem(node: ListItem, parentList: List): ListItemNode {
   const useChecked = parentList.ordered ? undefined : node.checked !== null ? node.checked : undefined;
   const listItem = $createListItemNode(useChecked);
 
-  for (const child of node.children) {
+  // For ordered task lists, prefix the text with [ ] or [x] so it round-trips.
+  // Only the item's first paragraph gets the marker.
+  const shouldPrefixTaskMarker = parentList.ordered && node.checked !== null;
+  let isFirstParagraph = true;
+
+  for (let i = 0; i < node.children.length; i++) {
+    const child = node.children[i];
+
     if (child.type === 'paragraph') {
-      // For ordered task lists, prefix the text with [ ] or [x] so it round-trips.
-      const shouldPrefixTaskMarker = parentList.ordered && node.checked !== null;
+      // @lexical/list's ListItemNode.append() unwraps a directly-appended
+      // ParagraphNode, merging its inline content flat onto the item — so a
+      // lone paragraph already flattens correctly with no extra work needed.
+      // But two consecutive paragraphs with nothing else between them would
+      // then merge into one run of text with no separator. Mark that boundary
+      // with two consecutive LineBreakNodes (which aren't unwrapped) before
+      // flattening this paragraph's content — real markdown parsing never
+      // produces two adjacent `break` nodes with no text between them, since
+      // a blank line always ends the enclosing paragraph, so this marker is
+      // unambiguous to detect again on export.
+      if (node.children[i - 1]?.type === 'paragraph') {
+        listItem.append($createLineBreakNode());
+        listItem.append($createLineBreakNode());
+      }
+
+      const shouldPrefixThisParagraph = isFirstParagraph && shouldPrefixTaskMarker;
       let prefixed = false;
 
       for (const inlineChild of child.children) {
         const nodes = convertInlineNode(inlineChild);
         for (const n of nodes) {
-          if (!prefixed && shouldPrefixTaskMarker && n instanceof TextNode) {
+          if (!prefixed && shouldPrefixThisParagraph && n instanceof TextNode) {
             const marker = node.checked ? '[x] ' : '[ ] ';
             n.setTextContent(marker + n.getTextContent());
             prefixed = true;
@@ -618,16 +639,18 @@ function convertListItem(node: ListItem, parentList: List): ListItemNode {
       }
 
       // If there were no inline nodes (empty paragraph), still add the marker
-      if (!prefixed && shouldPrefixTaskMarker) {
+      if (!prefixed && shouldPrefixThisParagraph) {
         const marker = node.checked ? '[x] ' : '[ ] ';
         listItem.append($createTextNode(marker));
       }
+
+      isFirstParagraph = false;
     } else if (child.type === 'list') {
       // Nested list
       const nestedList = convertList(child);
       listItem.append(nestedList);
     } else {
-      // Other block content inside list items (blockquotes, code, etc.)
+      // Other block content inside list items (blockquotes, code, tables, etc.)
       const blockNodes = convertBlockNode(child);
       for (const n of blockNodes) {
         listItem.append(n);
