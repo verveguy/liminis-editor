@@ -31,13 +31,13 @@ const wikiLinkOptions = { aliasDivider: '|' };
  * render loose too, or re-parsing collapses the blank lines and misreads
  * item boundaries — so a list's spread is the OR of its items' spread.
  */
-function makeTightLists(node: any): any {
+function computeListSpread(node: any): any {
   if (!node || typeof node !== 'object') {
     return node;
   }
 
   if (node.type === 'listItem') {
-    const children = (node.children || []).map(makeTightLists);
+    const children = (node.children || []).map(computeListSpread);
     const nonListChildCount = children.filter((c: any) => c.type !== 'list').length;
     return {
       ...node,
@@ -47,7 +47,7 @@ function makeTightLists(node: any): any {
   }
 
   if (node.type === 'list') {
-    const children = (node.children || []).map(makeTightLists);
+    const children = (node.children || []).map(computeListSpread);
     return {
       ...node,
       spread: children.some((item: any) => item.spread === true),
@@ -59,7 +59,7 @@ function makeTightLists(node: any): any {
   if (node.children && Array.isArray(node.children)) {
     return {
       ...node,
-      children: node.children.map(makeTightLists),
+      children: node.children.map(computeListSpread),
     };
   }
 
@@ -187,7 +187,7 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   processedRoot = normalizeWikiLinkNodes(processedRoot) as Root;
   
   // Make lists tight (no blank lines between items) by default
-  processedRoot = makeTightLists(processedRoot) as Root;
+  processedRoot = computeListSpread(processedRoot) as Root;
   
   let result = toMarkdown(processedRoot, {
     extensions: [
