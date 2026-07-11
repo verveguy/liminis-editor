@@ -629,24 +629,22 @@ function convertListItem(node: ListItem, parentList: List): ListItemNode {
       }
 
       const shouldPrefixThisParagraph = isFirstParagraph && shouldPrefixTaskMarker;
-      let prefixed = false;
+
+      // Prepend the marker as its own TextNode before any inline content,
+      // rather than splicing it into the first TextNode found — the first
+      // inline child isn't always a TextNode (e.g. a link or emphasis run),
+      // and splicing into whichever TextNode appears first misplaces the
+      // marker mid-paragraph instead of at its start.
+      if (shouldPrefixThisParagraph) {
+        const marker = node.checked ? '[x] ' : '[ ] ';
+        listItem.append($createTextNode(marker));
+      }
 
       for (const inlineChild of child.children) {
         const nodes = convertInlineNode(inlineChild);
         for (const n of nodes) {
-          if (!prefixed && shouldPrefixThisParagraph && n instanceof TextNode) {
-            const marker = node.checked ? '[x] ' : '[ ] ';
-            n.setTextContent(marker + n.getTextContent());
-            prefixed = true;
-          }
           listItem.append(n);
         }
-      }
-
-      // If there were no inline nodes (empty paragraph), still add the marker
-      if (!prefixed && shouldPrefixThisParagraph) {
-        const marker = node.checked ? '[x] ' : '[ ] ';
-        listItem.append($createTextNode(marker));
       }
 
       isFirstParagraph = false;
