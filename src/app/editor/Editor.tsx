@@ -12,7 +12,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
-import { ListNode, ListItemNode } from '@lexical/list';
+import { ListItemNode } from '@lexical/list';
 import { CodeNode, CodeHighlightNode, $isCodeNode } from '@lexical/code';
 import { registerCodeHighlighting } from '@lexical/code-prism';
 import { AutoLinkNode } from '@lexical/link';
@@ -69,6 +69,7 @@ import {
   FrontmatterNode,
   FootnoteNode,
   CustomLinkNode,
+  CustomListNode,
 } from './nodes';
 import { importMarkdownToLexical, importMarkdownToLexicalInEditorState } from '../mapper/mdastToLexical';
 import { exportLexicalToMdast } from '../mapper/lexicalToMdast';
@@ -174,7 +175,7 @@ function editorOnError(error: Error): void {
 const editorNodes = [
   HeadingNode,
   QuoteNode,
-  ListNode,
+  CustomListNode,  // Replaces ListNode - uses same type 'list' but carries spread (loose/tight) state
   ListItemNode,
   CodeNode,
   CodeHighlightNode,

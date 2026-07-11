@@ -45,5 +45,8 @@ export type { SerializedFrontmatterNode } from './FrontmatterNode';
 export { CustomLinkNode, $createCustomLinkNode, $isCustomLinkNode } from './CustomLinkNode';
 export type { SerializedCustomLinkNode } from './CustomLinkNode';
 
+export { CustomListNode, $createCustomListNode, $isCustomListNode } from './CustomListNode';
+export type { SerializedCustomListNode } from './CustomListNode';
+
 export { FootnoteNode, $createFootnoteNode, $isFootnoteNode } from './FootnoteNode';
 export type { SerializedFootnoteNode } from './FootnoteNode';
