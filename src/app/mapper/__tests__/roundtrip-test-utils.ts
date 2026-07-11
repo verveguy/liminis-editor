@@ -59,7 +59,10 @@ export const editorNodes = [
   FootnoteNode,
 ];
 
-export function createTestEditor(onError?: (error: Error) => void, registerListPlugin = false): LexicalEditor {
+export function createTestEditor(
+  onError?: (error: Error) => void,
+  registerListPlugin = false,
+): { editor: LexicalEditor; dispose: () => void } {
   const editor = createEditor({
     namespace: 'test',
     nodes: editorNodes,
@@ -74,12 +77,12 @@ export function createTestEditor(onError?: (error: Error) => void, registerListP
   // @lexical/list's registerList() to install ListNode/ListItemNode transforms
   // that run on every editor.update(). The plain harness above doesn't install
   // these, so opt in here to verify the fix survives them too — see
-  // list-item-block-content.test.ts.
-  if (registerListPlugin) {
-    registerList(editor);
-  }
+  // list-item-block-content.test.ts. registerList() returns a disposer that
+  // unregisters those transforms/commands; callers should invoke it once
+  // they're done with the editor instance.
+  const dispose = registerListPlugin ? registerList(editor) : () => {};
 
-  return editor;
+  return { editor, dispose };
 }
 
 /**
@@ -95,14 +98,17 @@ export function roundTrip(
 ): Promise<{ mdast: ReturnType<typeof exportLexicalToMdast>; output: string }> {
   return new Promise((resolve, reject) => {
     let settled = false;
+    let dispose: () => void = () => {};
     const settleResolve = (value: { mdast: ReturnType<typeof exportLexicalToMdast>; output: string }) => {
       if (settled) return;
       settled = true;
+      dispose();
       resolve(value);
     };
     const settleReject = (error: unknown) => {
       if (settled) return;
       settled = true;
+      dispose();
       reject(error instanceof Error ? error : new Error(String(error)));
     };
 
@@ -111,7 +117,9 @@ export function roundTrip(
       // importMarkdownToLexical) through onError instead of letting it
       // propagate to the surrounding try/catch below — reject directly here
       // so the promise always settles regardless of which path Lexical takes.
-      const editor = createTestEditor((error) => settleReject(error), options.registerListPlugin ?? false);
+      const created = createTestEditor((error) => settleReject(error), options.registerListPlugin ?? false);
+      const editor = created.editor;
+      dispose = created.dispose;
       const parsed = parseMarkdown(markdown);
 
       editor.update(
