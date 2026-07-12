@@ -4,7 +4,7 @@ import { editorNodes } from '../../mapper/__tests__/roundtrip-test-utils';
 import { exportLexicalToMdast } from '../../mapper/lexicalToMdast';
 import { $createCustomListNode } from './CustomListNode';
 import { $createCustomListItemNode } from './CustomListItemNode';
-import type { List, ListItem } from 'mdast';
+import type { List } from 'mdast';
 
 /**
  * Regression coverage for #905: CustomListItemNode's mapper-owned taskChecked
@@ -12,27 +12,36 @@ import type { List, ListItem } from 'mdast';
  * and construction sites outside the mapper (SlashMenu's "Todo List" item).
  */
 describe('CustomListItemNode task-checked tracking (#905)', () => {
-  it('setChecked() on a plain item promotes it to a real task', () => {
+  it('setChecked() on a plain item in a mixed (check-typed) list promotes it to a real task', () => {
     const editor = createEditor({ nodes: editorNodes, onError: (e) => { throw e; } });
     let taskChecked: boolean | null = null;
 
     editor.update(
       () => {
-        const list = $createCustomListNode('bullet');
-        const item = $createCustomListItemNode(); // plain item, taskChecked starts null
-        item.append($createTextNode('plain'));
-        list.append(item);
+        // A mixed list is always typed 'check' (at least one real task item
+        // forces the list-level type) — only 'check'-typed lists render
+        // CheckListPlugin's checkbox UI, so that's the only list type
+        // setChecked() is ever called against live. A 'bullet'/'number'
+        // list has its own @lexical/list transform that force-resets any
+        // item's __checked back to undefined, which isn't representative
+        // of the live promotion scenario this test guards.
+        const list = $createCustomListNode('check');
+        const task = $createCustomListItemNode(true);
+        const plain = $createCustomListItemNode(); // plain item, taskChecked starts null
+        task.append($createTextNode('task'));
+        plain.append($createTextNode('plain'));
+        list.append(task, plain);
         $getRoot().append(list);
 
-        expect(item.getTaskChecked()).toBe(null);
-        item.setChecked(true);
+        expect(plain.getTaskChecked()).toBe(null);
+        plain.setChecked(true);
       },
       { discrete: true }
     );
 
     editor.getEditorState().read(() => {
       const list = $getRoot().getFirstChild();
-      const item = (list as any)?.getFirstChild?.();
+      const item = (list as any)?.getChildren?.()[1];
       taskChecked = item?.getTaskChecked?.() ?? null;
     });
 
@@ -57,7 +66,7 @@ describe('CustomListItemNode task-checked tracking (#905)', () => {
 
     const mdast = exportLexicalToMdast(editor);
     const list = mdast.children[0] as List;
-    const item = list.children[0] as ListItem;
+    const item = list.children[0];
 
     expect(item.checked).toBe(false);
   });
