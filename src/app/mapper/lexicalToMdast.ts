@@ -439,6 +439,17 @@ function convertHorizontalRuleNode(): ThematicBreak {
   return { type: 'thematicBreak' };
 }
 
+function mapFormatTypeToAlign(formatType: string): 'left' | 'right' | 'center' | null {
+  switch (formatType) {
+    case 'left':
+    case 'right':
+    case 'center':
+      return formatType;
+    default:
+      return null;
+  }
+}
+
 function convertTableNode(node: TableNode): Table {
   const rows: TableRow[] = [];
   const align: ('left' | 'right' | 'center' | null)[] = [];
@@ -451,9 +462,10 @@ function convertTableNode(node: TableNode): Table {
 
       // Get alignment from first row
       if (isFirstRow) {
-        const cellCount = child.getChildren().length;
-        for (let i = 0; i < cellCount; i++) {
-          align.push(null); // Default alignment
+        for (const cell of child.getChildren()) {
+          if ($isTableCellNode(cell)) {
+            align.push(mapFormatTypeToAlign(cell.getFormatType()));
+          }
         }
         isFirstRow = false;
       }

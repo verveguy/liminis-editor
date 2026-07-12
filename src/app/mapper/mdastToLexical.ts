@@ -753,9 +753,10 @@ function convertTableRow(
 function convertTableCell(
   node: TableCell,
   isHeader: boolean,
-  _align: 'left' | 'right' | 'center' | null
+  align: 'left' | 'right' | 'center' | null
 ): TableCellNode {
   const cell = $createTableCellNode(isHeader ? TableCellHeaderStates.ROW : TableCellHeaderStates.NO_STATUS);
+  cell.setFormat(align ?? '');
 
   const paragraph = $createParagraphNode();
   for (const child of node.children) {
