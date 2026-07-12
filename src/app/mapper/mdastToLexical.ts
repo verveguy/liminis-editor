@@ -10,7 +10,7 @@ import {
   LineBreakNode,
 } from 'lexical';
 import { $createHeadingNode, $createQuoteNode, HeadingNode, QuoteNode, type HeadingTagType } from '@lexical/rich-text';
-import { $createListItemNode, ListItemNode, type ListNode } from '@lexical/list';
+import type { ListNode } from '@lexical/list';
 import { $createCodeNode, CodeNode } from '@lexical/code';
 import { LinkNode, $isLinkNode } from '@lexical/link';
 import type { TextFormatType } from 'lexical';
@@ -34,6 +34,7 @@ import {
   $createDefinitionListNode,
   $createDefinitionTermNode,
   $createDefinitionDescriptionNode,
+  $createCustomListItemNode,
   HorizontalRuleNode,
   ImageNode,
   CalloutNode,
@@ -45,6 +46,7 @@ import {
   FrontmatterNode,
   DefinitionListNode,
   CalloutType,
+  CustomListItemNode,
 } from '../editor/nodes';
 import { parseFormattedAlias } from '../editor/MarkdownShortcutsPlugin';
 import { $createTableNode, $createTableRowNode, $createTableCellNode, TableNode, TableRowNode, TableCellNode, TableCellHeaderStates } from '@lexical/table';
@@ -594,12 +596,19 @@ function convertList(node: List): ListNode {
   return list;
 }
 
-function convertListItem(node: ListItem, parentList: List): ListItemNode {
+function convertListItem(node: ListItem, parentList: List): CustomListItemNode {
   // Support checkboxes in both ordered and unordered lists.
   // For unordered lists, we use Lexical's checklist rendering (listType = 'check').
   // For ordered lists, Lexical doesn't render checklists, so we preserve [ ] text.
   const useChecked = parentList.ordered ? undefined : node.checked !== null ? node.checked : undefined;
-  const listItem = $createListItemNode(useChecked);
+  const listItem = $createCustomListItemNode(useChecked);
+  // mdast's own tri-state `checked` is the true per-item source of truth,
+  // independent of useChecked (which is deliberately always undefined for
+  // ordered items) and independent of the parent list's listType (which
+  // Lexical's stock getChecked() incorrectly gates on) — see
+  // CustomListItemNode's docstring for why this must not be derived from
+  // Lexical's own checkbox state.
+  listItem.setTaskChecked(node.checked ?? null);
 
   // For ordered task lists, prefix the text with [ ] or [x] so it round-trips.
   // Only the item's first paragraph gets the marker.

@@ -12,7 +12,6 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
-import { ListItemNode } from '@lexical/list';
 import { CodeNode, CodeHighlightNode, $isCodeNode } from '@lexical/code';
 import { registerCodeHighlighting } from '@lexical/code-prism';
 import { AutoLinkNode } from '@lexical/link';
@@ -73,6 +72,7 @@ import {
   DefinitionListNode,
   DefinitionTermNode,
   DefinitionDescriptionNode,
+  CustomListItemNode,
 } from './nodes';
 import { importMarkdownToLexical, importMarkdownToLexicalInEditorState } from '../mapper/mdastToLexical';
 import { exportLexicalToMdast } from '../mapper/lexicalToMdast';
@@ -179,7 +179,7 @@ const editorNodes = [
   HeadingNode,
   QuoteNode,
   CustomListNode,  // Replaces ListNode - uses same type 'list' but carries spread (loose/tight) state
-  ListItemNode,
+  CustomListItemNode,  // Replaces ListItemNode - uses same type 'listitem' but carries per-item task-checked state
   CodeNode,
   CodeHighlightNode,
   CustomLinkNode,  // Replaces LinkNode - uses same type 'link' but renders data-href

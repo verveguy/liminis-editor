@@ -9,7 +9,7 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { createEditor, LexicalEditor } from 'lexical';
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
-import { ListItemNode, registerList } from '@lexical/list';
+import { registerList } from '@lexical/list';
 import { CodeNode, CodeHighlightNode } from '@lexical/code';
 import { AutoLinkNode } from '@lexical/link';
 import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
@@ -26,6 +26,7 @@ import {
   FrontmatterNode,
   CustomLinkNode,
   CustomListNode,
+  CustomListItemNode,
   FootnoteNode,
   DefinitionListNode,
   DefinitionTermNode,
@@ -42,7 +43,7 @@ export const editorNodes = [
   HeadingNode,
   QuoteNode,
   CustomListNode,
-  ListItemNode,
+  CustomListItemNode,
   CodeNode,
   CodeHighlightNode,
   CustomLinkNode,

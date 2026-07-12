@@ -30,6 +30,7 @@ import {
   $isDefinitionListNode,
   $isDefinitionTermNode,
   $isDefinitionDescriptionNode,
+  $isCustomListItemNode,
   ImageNode,
   CalloutNode,
   ToggleContainerNode,
@@ -415,8 +416,13 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean, spread: bool
     }
   }
 
-  const checked = node.getChecked?.();
-  const checkedForOutput = hasExplicitMarker ? null : checked !== undefined ? checked : null;
+  // Stock ListItemNode.getChecked() derives its answer from the parent
+  // list's listType ('check' ? Boolean(__checked) : undefined), so it can't
+  // distinguish a plain item from an unchecked task when the list is mixed
+  // (see CustomListItemNode's docstring). Read the mapper-owned tri-state
+  // field instead, which was set directly from mdast on import.
+  const checked = $isCustomListItemNode(node) ? node.getTaskChecked() : (node.getChecked?.() ?? null);
+  const checkedForOutput = hasExplicitMarker ? null : checked;
 
   return {
     type: 'listItem',
