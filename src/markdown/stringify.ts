@@ -342,8 +342,31 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
     return `![${unescaped}](`;
   });
 
-  // Post-process: preserve escaped brackets (ensure closing bracket is also escaped)
-  result = result.replace(/\\\[([^\]\n]+)\](?!\])/g, '\\[$1\\]');
+  // Post-process: strip mdast-util-to-markdown's conservative '[' escape in
+  // plain phrasing. mdast-util-to-markdown always escapes a literal '[' in
+  // phrasing content (in case a same-named link reference definition exists
+  // elsewhere in the document) but leaves a lone ']' bare, since ']' is only
+  // ever unsafe inside an actual link/image label — and label content is
+  // always escaped in full by the link/image handlers themselves (see #918
+  // research: no code path produces a half-escaped label). So an escaped '\['
+  // followed eventually by a bare ']' can only originate from genuine
+  // top-level phrasing, never from an under-escaped label, and the '[' escape
+  // there is unnecessary: strip it rather than "completing" it by escaping
+  // the ']' too (which corrupted plain prose brackets, see #918).
+  // Image alt-text spans are excluded (tried first, left untouched) so this
+  // doesn't undo the deliberate escape-preservation of the block above, which
+  // already resolved (or intentionally preserved) unbalanced/pre-escaped
+  // bracket content inside `![...](`.
+  // Accepted trade-off: if the document also has a reference-link definition
+  // matching this bracket text elsewhere (e.g. `[label]: url`), stripping the
+  // escape means the round-tripped prose will now parse as a real reference
+  // link instead of staying inert — a semantic change. This mirrors
+  // mdast-util-to-markdown's own conservative-by-default behavior and is out
+  // of scope for this fix (see #918 "Out of Scope").
+  result = result.replace(
+    /!\[(?:\\.|[^\]\n])*\]\(|\\\[([^\]\n]+)\](?!\])/g,
+    (match, plainPhrasingContent) => (plainPhrasingContent === undefined ? match : `[${plainPhrasingContent}]`)
+  );
 
   // Post-process: collapse excessive blank lines introduced during stringify
   // Keep at most one blank line between blocks.
