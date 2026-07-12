@@ -846,7 +846,8 @@ export function formatAliasWithMarkers(text: string, format: number): string {
 }
 
 function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
-  const url = (node as unknown as { getURL: () => string }).getURL();
+  const linkNode = node as unknown as { getURL: () => string; getTitle: () => string | null };
+  const url = linkNode.getURL();
   const children: PhrasingContent[] = [];
 
   for (const child of node.getChildren()) {
@@ -930,6 +931,7 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
   return {
     type: 'link',
     url,
+    title: linkNode.getTitle(),
     children: children.length > 0 ? children : [{ type: 'text', value: '' }],
   };
 }

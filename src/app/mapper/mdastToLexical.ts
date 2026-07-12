@@ -1145,7 +1145,7 @@ function convertInlineCode(node: InlineCode): TextNode {
 }
 
 function convertLink(node: Link): LinkNode {
-  const link = $createCustomLinkNode(node.url);
+  const link = $createCustomLinkNode(node.url, { title: node.title ?? undefined });
 
   for (const child of node.children) {
     const nodes = convertInlineNode(child);

@@ -55,6 +55,15 @@ result and the fixture starts enforcing it).
   #898 edge-case coverage but distinct from any of that issue's three defects.
   These are not tracked by a specific issue yet; if one is filed, rename the fixture to
   match the `NNN-*` convention above.
+- **`other-titled-link-wikilink-url`**: a titled standard link whose URL is classified
+  as a wiki-link by `isWikiLinkUrl` in `lexicalToMdast.ts` (relative `.md` paths,
+  directory paths, and anchor-only URLs) is exported as a mdast `wikiLink` node instead
+  of a `link` node. The `wikiLink` mdast type has no title concept, so the title is
+  silently dropped even after [#904](https://github.com/verveguy/liminis/issues/904)
+  fixed title round-tripping for standard `link` nodes. Pre-existing and orthogonal to
+  #904 — the URL-shape-based link-vs-wiki-link classification, not title handling, is
+  the root cause. Out of scope for #904 per its own spec, which only covers
+  `https://...`-style URLs (never wiki-link-classified).
 - **`other-list-item-double-hard-break`**: a residual gap in the #897 fix itself. That
   fix marks the boundary between two consecutive mdast paragraphs inside a list item by
   inserting two bare, adjacent `LineBreakNode`s (see `convertListItem` in
