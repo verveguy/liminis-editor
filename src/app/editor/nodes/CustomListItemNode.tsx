@@ -39,7 +39,12 @@ export class CustomListItemNode extends ListItemNode {
 
   static importJSON(serializedNode: SerializedCustomListItemNode): CustomListItemNode {
     const node = $createCustomListItemNode(serializedNode.checked);
-    node.__taskChecked = serializedNode.taskChecked ?? serializedNode.checked ?? null;
+    // Only fall back to the legacy `checked` field when `taskChecked` is
+    // absent (older serialized documents predating this field) — an
+    // explicit `taskChecked: null` means "plain item" and must not be
+    // coerced into `checked`'s boolean via `??`, or a plain item in a
+    // mixed list would be rehydrated as an unchecked task.
+    node.__taskChecked = serializedNode.taskChecked !== undefined ? serializedNode.taskChecked : (serializedNode.checked ?? null);
     node.setValue(serializedNode.value);
     node.setFormat(serializedNode.format);
     node.setIndent(serializedNode.indent);

@@ -3,7 +3,7 @@ import { createEditor, $getRoot, $createTextNode } from 'lexical';
 import { editorNodes } from '../../mapper/__tests__/roundtrip-test-utils';
 import { exportLexicalToMdast } from '../../mapper/lexicalToMdast';
 import { $createCustomListNode } from './CustomListNode';
-import { $createCustomListItemNode } from './CustomListItemNode';
+import { $createCustomListItemNode, CustomListItemNode } from './CustomListItemNode';
 import type { List } from 'mdast';
 
 /**
@@ -69,5 +69,34 @@ describe('CustomListItemNode task-checked tracking (#905)', () => {
     const item = list.children[0];
 
     expect(item.checked).toBe(false);
+  });
+
+  it('importJSON() preserves an explicit taskChecked: null (plain item) instead of falling back to checked', () => {
+    // A plain item in a mixed list serializes as { checked: false, taskChecked: null }
+    // (Lexical's own getChecked() coerces to false for display; taskChecked is the
+    // mapper's true tri-state). Naively using `taskChecked ?? checked` would treat the
+    // explicit null as nullish and resurrect the item as an unchecked task.
+    const editor = createEditor({ nodes: editorNodes, onError: (e) => { throw e; } });
+    let taskChecked: boolean | null = true;
+
+    editor.update(
+      () => {
+        const node = CustomListItemNode.importJSON({
+          type: 'listitem',
+          version: 1,
+          value: 1,
+          checked: false,
+          taskChecked: null,
+          format: '',
+          indent: 0,
+          direction: null,
+          children: [],
+        });
+        taskChecked = node.getTaskChecked();
+      },
+      { discrete: true }
+    );
+
+    expect(taskChecked).toBe(null);
   });
 });
