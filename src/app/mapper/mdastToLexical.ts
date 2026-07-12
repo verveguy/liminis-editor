@@ -807,11 +807,18 @@ function convertHtml(node: Html): LexicalBlockNode[] {
   // Toggle/details blocks are handled by preprocessDetailsBlocks
   // This function only handles remaining HTML
 
-  // Check for a dimensioned <img> tag — reconstructed as a real ImageNode,
-  // matching convertImageNode's html-reconstruction on export.
+  // Check for a standalone dimensioned <img> tag — reconstructed as a real
+  // ImageNode, matching convertImageNode's html-reconstruction on export.
+  // Only fires when the <img> is the block's sole content: an <img> nested
+  // inside other markup (e.g. a <div> wrapper) must stay part of the opaque
+  // HtmlNode below, not be hoisted out on its own.
   const parser = new DOMParser();
   const doc = parser.parseFromString(trimmed, 'text/html');
-  const imgElement = doc.querySelector('img');
+  const isStandaloneImg =
+    doc.body.children.length === 1 &&
+    doc.body.children[0].tagName === 'IMG' &&
+    (doc.body.textContent || '').trim() === '';
+  const imgElement = isStandaloneImg ? (doc.body.children[0] as HTMLImageElement) : null;
   if (imgElement) {
     const src = imgElement.getAttribute('src');
     if (src) {

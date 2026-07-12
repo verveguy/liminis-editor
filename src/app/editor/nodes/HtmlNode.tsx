@@ -27,13 +27,29 @@ export type SerializedHtmlNode = Spread<
   SerializedLexicalNode
 >;
 
+// btoa/atob only support Latin1 — encode/decode through UTF-8 percent-escaping
+// first so HTML containing non-Latin1 characters (emoji, accents, CJK, etc.)
+// doesn't throw during copy/paste DOM export/import.
+function encodeUnicodeBase64(str: string): string {
+  return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16))));
+}
+
+function decodeUnicodeBase64(str: string): string {
+  return decodeURIComponent(
+    atob(str)
+      .split('')
+      .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
+      .join('')
+  );
+}
+
 function $convertHtmlElement(domNode: HTMLElement): DOMConversionOutput | null {
   const encoded = domNode.getAttribute('data-lexical-html');
   const inline = domNode.getAttribute('data-lexical-inline') === 'true';
   if (encoded === null) {
     return null;
   }
-  const html = atob(encoded);
+  const html = decodeUnicodeBase64(encoded);
   return { node: $createHtmlNode(html, inline) };
 }
 
@@ -71,14 +87,13 @@ export class HtmlNode extends DecoratorNode<JSX.Element> {
   createDOM(): HTMLElement {
     const element = document.createElement(this.__inline ? 'span' : 'div');
     element.className = 'editor-raw-html';
-    element.textContent = this.__html;
     return element;
   }
 
   exportDOM(): DOMExportOutput {
     const element = document.createElement(this.__inline ? 'span' : 'div');
     // Encode as base64 to avoid attribute-escaping issues with copy/paste
-    element.setAttribute('data-lexical-html', btoa(this.__html));
+    element.setAttribute('data-lexical-html', encodeUnicodeBase64(this.__html));
     element.setAttribute('data-lexical-inline', `${this.__inline}`);
     element.textContent = this.__html;
     return { element };
@@ -102,7 +117,7 @@ export class HtmlNode extends DecoratorNode<JSX.Element> {
   }
 
   updateDOM(prevNode: HtmlNode): boolean {
-    return this.__inline !== prevNode.__inline || this.__html !== prevNode.__html;
+    return this.__inline !== prevNode.__inline;
   }
 
   getTextContent(): string {
