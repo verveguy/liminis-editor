@@ -126,6 +126,19 @@ result and the fixture starts enforcing it).
   under `fixtures/roundtrip/`: `emphasis-inline-math.md`, `strong-inline-math-only.md`,
   `strong-inline-math-trailing.md`, `strong-mixed-text-math-footnote.md`.
 
+  A follow-up review pass on #908 caught a second, narrower gap in the same fix: a
+  formatted run made up *entirely* of math/footnote nodes (no adjacent `TextNode`) had
+  no way to recover the original `_`/`*` marker choice, since `--md-strong-marker`/
+  `--md-emphasis-marker` were only ever read off `TextNode.style`. A bare `_$O(n)$_`
+  (no surrounding text) round-tripped to `*$O(n)$*` — content and wrapping stayed
+  correct, but the marker character silently flipped. Fixed by giving `EquationNode`/
+  `FootnoteNode` their own `getStrongMarker`/`setStrongMarker`/`getEmphasisMarker`/
+  `setEmphasisMarker` pair (set on import in `convertStrong`/`convertEmphasis`, read on
+  export in `convertFormattedRun`), mirroring the existing `TextNode` style-based
+  mechanism. Covered by `emphasis-inline-math-only.md`, `emphasis-footnote-only.md`
+  (footnote-definition case, same pre-existing spacing sidecar as above), and
+  `strong-inline-math-only-underscore.md`.
+
 ## Diagnosing a failure
 
 On mismatch, the test throws with a unified diff between expected and actual content

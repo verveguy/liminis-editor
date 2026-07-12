@@ -25,7 +25,12 @@ import { createElement } from 'react';
 // ---------------------------------------------------------------------------
 
 export type SerializedFootnoteNode = Spread<
-  { footnoteId: string; format?: number },
+  {
+    footnoteId: string;
+    format?: number;
+    strongMarker?: '_' | '*' | null;
+    emphasisMarker?: '_' | '*' | null;
+  },
   SerializedLexicalNode
 >;
 
@@ -48,6 +53,8 @@ function $convertFootnoteElement(domNode: HTMLElement): DOMConversionOutput | nu
 export class FootnoteNode extends DecoratorNode<JSX.Element> {
   __footnoteId: string;
   __format: number;
+  __strongMarker: '_' | '*' | null;
+  __emphasisMarker: '_' | '*' | null;
 
   static getType(): string {
     return 'footnote';
@@ -56,6 +63,8 @@ export class FootnoteNode extends DecoratorNode<JSX.Element> {
   static clone(node: FootnoteNode): FootnoteNode {
     const cloned = new FootnoteNode(node.__footnoteId, node.__key);
     cloned.__format = node.__format;
+    cloned.__strongMarker = node.__strongMarker;
+    cloned.__emphasisMarker = node.__emphasisMarker;
     return cloned;
   }
 
@@ -63,6 +72,8 @@ export class FootnoteNode extends DecoratorNode<JSX.Element> {
     super(key);
     this.__footnoteId = footnoteId;
     this.__format = 0;
+    this.__strongMarker = null;
+    this.__emphasisMarker = null;
   }
 
   getFootnoteId(): string {
@@ -76,7 +87,14 @@ export class FootnoteNode extends DecoratorNode<JSX.Element> {
 
   // Serialization
   static importJSON(serializedNode: SerializedFootnoteNode): FootnoteNode {
-    return $createFootnoteNode(serializedNode.footnoteId).setFormat(serializedNode.format ?? 0);
+    const node = $createFootnoteNode(serializedNode.footnoteId).setFormat(serializedNode.format ?? 0);
+    if (serializedNode.strongMarker) {
+      node.setStrongMarker(serializedNode.strongMarker);
+    }
+    if (serializedNode.emphasisMarker) {
+      node.setEmphasisMarker(serializedNode.emphasisMarker);
+    }
+    return node;
   }
 
   exportJSON(): SerializedFootnoteNode {
@@ -85,6 +103,8 @@ export class FootnoteNode extends DecoratorNode<JSX.Element> {
       version: 1,
       footnoteId: this.__footnoteId,
       format: this.__format,
+      strongMarker: this.__strongMarker,
+      emphasisMarker: this.__emphasisMarker,
     };
   }
 
@@ -109,6 +129,30 @@ export class FootnoteNode extends DecoratorNode<JSX.Element> {
     const format = this.getFormat();
     const newFormat = toggleTextFormatType(format, type, null);
     return this.setFormat(newFormat);
+  }
+
+  // Mirrors TextNode's --md-strong-marker/--md-emphasis-marker style hooks
+  // (via setMarkdownMarker/getMarkdownMarker in the mappers) so a bare
+  // `_[^1]_`/`__[^1]__` span with no text sibling can still recover its
+  // original underscore-vs-asterisk marker on export.
+  getStrongMarker(): '_' | '*' | null {
+    return this.getLatest().__strongMarker;
+  }
+
+  setStrongMarker(marker: '_' | '*' | null): this {
+    const self = this.getWritable();
+    self.__strongMarker = marker;
+    return self;
+  }
+
+  getEmphasisMarker(): '_' | '*' | null {
+    return this.getLatest().__emphasisMarker;
+  }
+
+  setEmphasisMarker(marker: '_' | '*' | null): this {
+    const self = this.getWritable();
+    self.__emphasisMarker = marker;
+    return self;
   }
 
   // DOM creation (editor view)

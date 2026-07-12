@@ -829,7 +829,11 @@ function convertFormattedRun(runChildren: LexicalNode[], format: number): Phrasi
       emphasisMarker = emphasisMarker ?? getMarkdownMarker(style, '--md-emphasis-marker');
     } else if ($isEquationNode(child)) {
       content.push({ type: 'inlineMath', value: child.getEquation() });
+      strongMarker = strongMarker ?? child.getStrongMarker();
+      emphasisMarker = emphasisMarker ?? child.getEmphasisMarker();
     } else if ($isFootnoteNode(child)) {
+      strongMarker = strongMarker ?? child.getStrongMarker();
+      emphasisMarker = emphasisMarker ?? child.getEmphasisMarker();
       content.push({
         type: 'footnoteReference',
         identifier: child.getFootnoteId(),

@@ -1098,6 +1098,9 @@ function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode | Equatio
         if (!n.hasFormat('bold')) {
           n.toggleFormat('bold');
         }
+        if (marker === '_' || marker === '*') {
+          n.setStrongMarker(marker);
+        }
         nodes.push(n);
       } else if ($isImageNode(n) || $isLineBreakNode(n)) {
         // These have no bold/italic representation — pass through unformatted
@@ -1127,6 +1130,9 @@ function convertEmphasis(node: Emphasis): (TextNode | LinkNode | ImageNode | Equ
       } else if ($isEquationNode(n) || $isFootnoteNode(n)) {
         if (!n.hasFormat('italic')) {
           n.toggleFormat('italic');
+        }
+        if (marker === '_' || marker === '*') {
+          n.setEmphasisMarker(marker);
         }
         nodes.push(n);
       } else if ($isImageNode(n) || $isLineBreakNode(n)) {
