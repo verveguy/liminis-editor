@@ -22,7 +22,7 @@ export class CustomListItemNode extends ListItemNode {
   /** @internal */
   __taskChecked: boolean | null;
 
-  constructor(value?: number, checked?: undefined | boolean, key?: NodeKey) {
+  constructor(value?: number, checked?: boolean, key?: NodeKey) {
     super(value, checked, key);
     this.__taskChecked = checked ?? null;
   }

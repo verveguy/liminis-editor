@@ -9,9 +9,8 @@ import {
   LexicalEditor,
 } from 'lexical';
 import { $createHeadingNode, $createQuoteNode } from '@lexical/rich-text';
-import { $createListItemNode } from '@lexical/list';
 import { $createCodeNode } from '@lexical/code';
-import { $createHorizontalRuleNode, $createCalloutNode, $createToggleNode, $createEquationNode, $createMermaidNode, $createC4Node, $createCustomListNode } from './nodes';
+import { $createHorizontalRuleNode, $createCalloutNode, $createToggleNode, $createEquationNode, $createMermaidNode, $createC4Node, $createCustomListNode, $createCustomListItemNode } from './nodes';
 import {
   $createTableNode,
   $createTableRowNode,
@@ -113,7 +112,7 @@ const BLOCK_OPTIONS: BlockOption[] = [
         const selection = $getSelection();
         if ($isRangeSelection(selection)) {
           const list = $createCustomListNode('bullet');
-          const item = $createListItemNode();
+          const item = $createCustomListItemNode();
           list.append(item);
           selection.insertNodes([list]);
         }
@@ -131,7 +130,7 @@ const BLOCK_OPTIONS: BlockOption[] = [
         const selection = $getSelection();
         if ($isRangeSelection(selection)) {
           const list = $createCustomListNode('number');
-          const item = $createListItemNode();
+          const item = $createCustomListItemNode();
           list.append(item);
           selection.insertNodes([list]);
         }
@@ -149,7 +148,11 @@ const BLOCK_OPTIONS: BlockOption[] = [
         const selection = $getSelection();
         if ($isRangeSelection(selection)) {
           const list = $createCustomListNode('check');
-          const item = $createListItemNode();
+          // Explicit false (not the default undefined): once export reads
+          // __taskChecked instead of Lexical's parent-type-gated
+          // getChecked(), an implicit undefined would default to null (plain
+          // bullet) and silently drop the checkbox on export.
+          const item = $createCustomListItemNode(false);
           list.append(item);
           selection.insertNodes([list]);
         }

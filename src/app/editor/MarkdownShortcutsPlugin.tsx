@@ -21,8 +21,8 @@ import {
 } from '@lexical/markdown';
 import { $createTextNode, type ElementNode, type LexicalNode } from 'lexical';
 import { LinkNode } from '@lexical/link';
-import { $createListItemNode, ListItemNode, type ListType } from '@lexical/list';
-import { $createCustomLinkNode, $createCustomListNode, $isCustomListNode, CustomListNode } from './nodes';
+import { type ListType } from '@lexical/list';
+import { $createCustomLinkNode, $createCustomListNode, $isCustomListNode, CustomListNode, $createCustomListItemNode, CustomListItemNode } from './nodes';
 import { $createImageNode, ImageNode } from './nodes/ImageNode';
 import { $createEquationNode, EquationNode } from './nodes';
 import type { TextFormatType } from 'lexical';
@@ -62,7 +62,7 @@ function createCustomListReplace(listType: ListType) {
   return (parentNode: ElementNode, children: LexicalNode[], match: string[], isImport: boolean): void => {
     const previousNode = parentNode.getPreviousSibling();
     const nextNode = parentNode.getNextSibling();
-    const listItem = $createListItemNode(listType === 'check' ? match[3]?.toLowerCase() === 'x' : undefined);
+    const listItem = $createCustomListItemNode(listType === 'check' ? match[3]?.toLowerCase() === 'x' : undefined);
 
     if ($isCustomListNode(nextNode) && nextNode.getListType() === listType) {
       const firstChild = nextNode.getFirstChild();
@@ -94,7 +94,7 @@ function createCustomListReplace(listType: ListType) {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const UNORDERED_LIST: ElementTransformer = {
-  dependencies: [CustomListNode, ListItemNode],
+  dependencies: [CustomListNode, CustomListItemNode],
   export: () => null,
   regExp: /^(\s*)[-*+]\s/,
   replace: createCustomListReplace('bullet'),
@@ -103,7 +103,7 @@ export const UNORDERED_LIST: ElementTransformer = {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const ORDERED_LIST: ElementTransformer = {
-  dependencies: [CustomListNode, ListItemNode],
+  dependencies: [CustomListNode, CustomListItemNode],
   export: () => null,
   regExp: /^(\s*)(\d{1,})\.\s/,
   replace: createCustomListReplace('number'),
@@ -112,7 +112,7 @@ export const ORDERED_LIST: ElementTransformer = {
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const CHECK_LIST: ElementTransformer = {
-  dependencies: [CustomListNode, ListItemNode],
+  dependencies: [CustomListNode, CustomListItemNode],
   export: () => null,
   regExp: /^(\s*)(?:[-*+]\s)?\s?(\[(\s|x)?\])\s/i,
   replace: createCustomListReplace('check'),
