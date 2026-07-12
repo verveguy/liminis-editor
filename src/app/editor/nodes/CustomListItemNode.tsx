@@ -60,10 +60,9 @@ export class CustomListItemNode extends ListItemNode {
   // __taskChecked here means toggling a checkbox on a previously-plain item
   // in a mixed list correctly promotes it to a real task.
   setChecked(checked?: boolean): this {
-    super.setChecked(checked);
-    const writable = this.getWritable();
+    const writable = super.setChecked(checked);
     writable.__taskChecked = checked ?? null;
-    return this;
+    return writable;
   }
 
   setTaskChecked(taskChecked: boolean | null): void {
