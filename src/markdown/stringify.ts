@@ -311,18 +311,34 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   // was written for the plain-phrasing case (escaped opener, bare closer) and
   // mis-fires on this already-fully-escaped span, corrupting it (see #903).
   // Strip the escapes back to literal brackets whenever an image's alt-text
-  // span contains a balanced count of escaped brackets; an unbalanced count
-  // (e.g. a single stray '[') is left untouched and deferred to the existing
-  // behavior below. `(?:\\.|[^\]\n])*` consumes escaped characters as a unit
-  // so an escaped closing bracket in the alt text isn't confused with the
-  // image label's own (unescaped) terminating ']'.
+  // span contains a properly nested run of escaped brackets — every ']'
+  // closes a preceding '[' and depth returns to 0 by the end of the span. An
+  // equal open/close *count* alone isn't sufficient (e.g. "a\]b\[c" has one of
+  // each but the ']' closes nothing): unescaping that would leave a bare ']'
+  // in the middle of the image label and truncate it early, so any span with
+  // an out-of-order or otherwise unbalanced bracket is left untouched and
+  // deferred to the existing behavior below. `(?:\\.|[^\]\n])*` consumes
+  // escaped characters as a unit so an escaped closing bracket in the alt text
+  // isn't confused with the image label's own (unescaped) terminating ']'.
   result = result.replace(/!\[((?:\\.|[^\]\n])*)\]\(/g, (match, alt) => {
-    const openCount = (alt.match(/\\\[/g) || []).length;
-    const closeCount = (alt.match(/\\\]/g) || []).length;
-    if (openCount === 0 || openCount !== closeCount) {
+    if (!/\\[[\]]/.test(alt)) {
       return match;
     }
     const unescaped = alt.replace(/\\([[\]])/g, '$1');
+    let depth = 0;
+    for (const ch of unescaped) {
+      if (ch === '[') {
+        depth++;
+      } else if (ch === ']') {
+        depth--;
+        if (depth < 0) {
+          return match;
+        }
+      }
+    }
+    if (depth !== 0) {
+      return match;
+    }
     return `![${unescaped}](`;
   });
 
