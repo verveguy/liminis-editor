@@ -47,8 +47,7 @@ result and the fixture starts enforcing it).
   losing the definition-list structure), nested blockquotes (inner paragraphs collapse
   and nested quotes are hoisted out, mirroring the #897 mechanism at the blockquote
   level rather than the list-item level), HTML blocks (attributes and tags stripped,
-  leaving only inner text), and inline HTML (tags escaped as literal text). Table
-  column alignment is also lost (`:---`, `:---:`, `----:` all collapse to plain `-`).
+  leaving only inner text), and inline HTML (tags escaped as literal text).
   Image alt text containing a bracket pair (e.g. `alt \[bracket\] text`) is also
   double-escaped by the bracket-preservation post-process step in `stringify.ts`,
   corrupting the image syntax further on a second round trip — discovered while adding
@@ -64,6 +63,16 @@ result and the fixture starts enforcing it).
   #904 — the URL-shape-based link-vs-wiki-link classification, not title handling, is
   the root cause. Out of scope for #904 per its own spec, which only covers
   `https://...`-style URLs (never wiki-link-classified).
+- **`other-table-column-alignment-lost`, `other-table-single-column-aligned`**:
+  originally reproduced [#907](https://github.com/verveguy/liminis/issues/907) — GFM
+  table column alignment (`:---` left, `:---:` center, `---:` right) collapsed to a
+  bare `-` for every column on export, regardless of the source delimiter row. Fixed —
+  alignment is now carried on the Lexical `TableCellNode` via its existing (previously
+  inert) `format` field on import and read back from the header row on export. Both
+  fixtures now round-trip byte-identical to their input (no `.expected.md` sidecar),
+  so they've become a permanent regression gate rather than a documented defect. Left
+  under `known-defects/` rather than moved, since the directory just tracks where the
+  fixture originated.
 - **`other-list-item-double-hard-break`**: a residual gap in the #897 fix itself. That
   fix marks the boundary between two consecutive mdast paragraphs inside a list item by
   inserting two bare, adjacent `LineBreakNode`s (see `convertListItem` in

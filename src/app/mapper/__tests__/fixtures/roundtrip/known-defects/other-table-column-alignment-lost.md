@@ -1,3 +1,3 @@
-| Left | Center | Right |
-| :--- | :----: | ----: |
-| a    | b      | c     |
+| Left | Center | Right | Default |
+| :- | :-: | -: | - |
+| a | b | c | d |
