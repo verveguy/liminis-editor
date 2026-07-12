@@ -13,6 +13,9 @@ import {
   NodeKey,
   SerializedLexicalNode,
   Spread,
+  TEXT_TYPE_TO_FORMAT,
+  TextFormatType,
+  toggleTextFormatType,
   $applyNodeReplacement,
 } from 'lexical';
 import { createElement, lazy, Suspense } from 'react';
@@ -27,6 +30,7 @@ export type SerializedEquationNode = Spread<
   {
     equation: string;
     inline: boolean;
+    format?: number;
   },
   SerializedLexicalNode
 >;
@@ -48,26 +52,30 @@ function $convertEquationElement(
 export class EquationNode extends DecoratorNode<JSX.Element> {
   __equation: string;
   __inline: boolean;
+  __format: number;
 
   static getType(): string {
     return 'equation';
   }
 
   static clone(node: EquationNode): EquationNode {
-    return new EquationNode(node.__equation, node.__inline, node.__key);
+    const cloned = new EquationNode(node.__equation, node.__inline, node.__key);
+    cloned.__format = node.__format;
+    return cloned;
   }
 
   constructor(equation: string, inline?: boolean, key?: NodeKey) {
     super(key);
     this.__equation = equation;
     this.__inline = inline ?? false;
+    this.__format = 0;
   }
 
   static importJSON(serializedNode: SerializedEquationNode): EquationNode {
     return $createEquationNode(
       serializedNode.equation,
       serializedNode.inline,
-    );
+    ).setFormat(serializedNode.format ?? 0);
   }
 
   exportJSON(): SerializedEquationNode {
@@ -76,7 +84,31 @@ export class EquationNode extends DecoratorNode<JSX.Element> {
       version: 1,
       equation: this.getEquation(),
       inline: this.__inline,
+      format: this.__format,
     };
+  }
+
+  // Mirrors TextNode's format bitmask API so this node can carry
+  // bold/italic/strikethrough state through the mdast<->Lexical round-trip.
+  getFormat(): number {
+    return this.getLatest().__format;
+  }
+
+  hasFormat(type: TextFormatType): boolean {
+    const formatFlag = TEXT_TYPE_TO_FORMAT[type];
+    return (this.getFormat() & formatFlag) !== 0;
+  }
+
+  setFormat(format: number): this {
+    const self = this.getWritable();
+    self.__format = format;
+    return self;
+  }
+
+  toggleFormat(type: TextFormatType): this {
+    const format = this.getFormat();
+    const newFormat = toggleTextFormatType(format, type, null);
+    return this.setFormat(newFormat);
   }
 
   createDOM(): HTMLElement {

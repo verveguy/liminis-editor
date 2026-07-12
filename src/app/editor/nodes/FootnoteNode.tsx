@@ -13,6 +13,9 @@ import {
   NodeKey,
   SerializedLexicalNode,
   Spread,
+  TEXT_TYPE_TO_FORMAT,
+  TextFormatType,
+  toggleTextFormatType,
   $applyNodeReplacement,
 } from 'lexical';
 import { createElement } from 'react';
@@ -22,7 +25,7 @@ import { createElement } from 'react';
 // ---------------------------------------------------------------------------
 
 export type SerializedFootnoteNode = Spread<
-  { footnoteId: string },
+  { footnoteId: string; format?: number },
   SerializedLexicalNode
 >;
 
@@ -44,18 +47,22 @@ function $convertFootnoteElement(domNode: HTMLElement): DOMConversionOutput | nu
 
 export class FootnoteNode extends DecoratorNode<JSX.Element> {
   __footnoteId: string;
+  __format: number;
 
   static getType(): string {
     return 'footnote';
   }
 
   static clone(node: FootnoteNode): FootnoteNode {
-    return new FootnoteNode(node.__footnoteId, node.__key);
+    const cloned = new FootnoteNode(node.__footnoteId, node.__key);
+    cloned.__format = node.__format;
+    return cloned;
   }
 
   constructor(footnoteId: string, key?: NodeKey) {
     super(key);
     this.__footnoteId = footnoteId;
+    this.__format = 0;
   }
 
   getFootnoteId(): string {
@@ -69,7 +76,7 @@ export class FootnoteNode extends DecoratorNode<JSX.Element> {
 
   // Serialization
   static importJSON(serializedNode: SerializedFootnoteNode): FootnoteNode {
-    return $createFootnoteNode(serializedNode.footnoteId);
+    return $createFootnoteNode(serializedNode.footnoteId).setFormat(serializedNode.format ?? 0);
   }
 
   exportJSON(): SerializedFootnoteNode {
@@ -77,7 +84,31 @@ export class FootnoteNode extends DecoratorNode<JSX.Element> {
       type: 'footnote',
       version: 1,
       footnoteId: this.__footnoteId,
+      format: this.__format,
     };
+  }
+
+  // Mirrors TextNode's format bitmask API so this node can carry
+  // bold/italic/strikethrough state through the mdast<->Lexical round-trip.
+  getFormat(): number {
+    return this.getLatest().__format;
+  }
+
+  hasFormat(type: TextFormatType): boolean {
+    const formatFlag = TEXT_TYPE_TO_FORMAT[type];
+    return (this.getFormat() & formatFlag) !== 0;
+  }
+
+  setFormat(format: number): this {
+    const self = this.getWritable();
+    self.__format = format;
+    return self;
+  }
+
+  toggleFormat(type: TextFormatType): this {
+    const format = this.getFormat();
+    const newFormat = toggleTextFormatType(format, type, null);
+    return this.setFormat(newFormat);
   }
 
   // DOM creation (editor view)
