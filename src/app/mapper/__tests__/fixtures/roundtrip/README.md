@@ -70,6 +70,18 @@ result and the fixture starts enforcing it).
   relies on. Closing it properly needs a marker Lexical won't merge/garbage-collect (e.g.
   a dedicated custom node), which is a larger change than a conversion-function patch —
   see the "Plan B" contingency discussed for #897.
+- **`other-strong-inline-math-not-wrapped`, `other-emphasis-footnote-not-wrapped`,
+  `other-delete-inline-math-not-wrapped`**: discovered while fixing #898 review feedback
+  that `convertStrong`/`convertEmphasis`/`convertDelete` in `mdastToLexical.ts` silently
+  dropped `EquationNode`/`FootnoteNode`/`LineBreakNode` children (e.g. `**$x$**` or
+  `_see note[^1]_` lost the math/footnote entirely). That data-loss bug is fixed — these
+  nodes are now passed through unformatted rather than skipped — but a residual gap
+  remains: only `TextNode` can carry Lexical's bold/italic/strikethrough format bits, so
+  on export the equation/footnote node falls outside the mdast `strong`/`emphasis`/
+  `delete` wrapper instead of staying nested inside it (`**$O(n)$ complexity**` round-trips
+  to `$O(n)$** complexity**`). Content and order are preserved; only the marker span
+  shifts. Closing this fully would mean giving non-text inline nodes a way to carry
+  format state, a larger change than the data-loss fix itself.
 
 ## Diagnosing a failure
 

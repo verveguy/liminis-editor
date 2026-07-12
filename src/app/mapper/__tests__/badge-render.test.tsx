@@ -33,31 +33,34 @@ describe('badge (ImageNode inside CustomLinkNode) rendered in a mounted editor',
     });
 
     let editor: LexicalEditor | null = null;
-    const { container } = render(
-      <LexicalComposer initialConfig={{ namespace: 'test', nodes: editorNodes, onError: (e) => { throw e; } }}>
-        <RichTextPlugin
-          contentEditable={<ContentEditable data-testid="editable" />}
-          placeholder={null}
-          ErrorBoundary={({ children }) => <>{children}</>}
-        />
-        <CaptureEditor onReady={(e) => { editor = e; }} />
-      </LexicalComposer>
-    );
+    let container: HTMLElement;
+    try {
+      ({ container } = render(
+        <LexicalComposer initialConfig={{ namespace: 'test', nodes: editorNodes, onError: (e) => { throw e; } }}>
+          <RichTextPlugin
+            contentEditable={<ContentEditable data-testid="editable" />}
+            placeholder={null}
+            ErrorBoundary={({ children }) => <>{children}</>}
+          />
+          <CaptureEditor onReady={(e) => { editor = e; }} />
+        </LexicalComposer>
+      ));
 
-    await act(async () => {
-      editor!.update(() => {
-        const link = $createCustomLinkNode('https://ci.example.com/build');
-        const image = $createImageNode('https://img.shields.io/badge/build-passing-green', 'Build Status');
-        link.append(image);
-        const paragraph = $createParagraphNode();
-        paragraph.append(link);
-        $getRoot().clear().append(paragraph);
+      await act(async () => {
+        editor!.update(() => {
+          const link = $createCustomLinkNode('https://ci.example.com/build');
+          const image = $createImageNode('https://img.shields.io/badge/build-passing-green', 'Build Status');
+          link.append(image);
+          const paragraph = $createParagraphNode();
+          paragraph.append(link);
+          $getRoot().clear().append(paragraph);
+        });
       });
-    });
-
-    consoleErrorSpy.mockRestore();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
 
     expect(errors).toEqual([]);
-    expect(container.innerHTML).toContain('img.shields.io/badge/build-passing-green');
+    expect(container!.innerHTML).toContain('img.shields.io/badge/build-passing-green');
   });
 });

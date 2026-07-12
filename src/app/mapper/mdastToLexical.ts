@@ -3,6 +3,7 @@ import {
   $createTextNode,
   $createLineBreakNode,
   $isTextNode,
+  $isLineBreakNode,
   $getRoot,
   LexicalEditor,
   ParagraphNode,
@@ -23,7 +24,9 @@ import {
   $createToggleTitleNode,
   $createToggleContentNode,
   $createEquationNode,
+  $isEquationNode,
   $createFootnoteNode,
+  $isFootnoteNode,
   $createMermaidNode,
   $createC4Node,
   $createFrontmatterNode,
@@ -1069,8 +1072,8 @@ function applyFormatToLinkChildren(
   }
 }
 
-function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode)[] {
-  const nodes: (TextNode | LinkNode | ImageNode)[] = [];
+function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] {
+  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] = [];
   const marker = (node as any).data?._strongMarker;
   for (const child of node.children) {
     const converted = convertInlineNode(child);
@@ -1085,8 +1088,8 @@ function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode)[] {
         // Apply bold formatting to wiki link's text children
         applyFormatToLinkChildren(n, 'bold', marker);
         nodes.push(n);
-      } else if ($isImageNode(n)) {
-        // Images have no bold/italic representation — pass through unformatted
+      } else if ($isImageNode(n) || $isEquationNode(n) || $isFootnoteNode(n) || $isLineBreakNode(n)) {
+        // These have no bold/italic representation — pass through unformatted
         nodes.push(n);
       }
     }
@@ -1094,8 +1097,8 @@ function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode)[] {
   return nodes;
 }
 
-function convertEmphasis(node: Emphasis): (TextNode | LinkNode | ImageNode)[] {
-  const nodes: (TextNode | LinkNode | ImageNode)[] = [];
+function convertEmphasis(node: Emphasis): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] {
+  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] = [];
   const marker = (node as any).data?._emphasisMarker;
   for (const child of node.children) {
     const converted = convertInlineNode(child);
@@ -1110,8 +1113,8 @@ function convertEmphasis(node: Emphasis): (TextNode | LinkNode | ImageNode)[] {
         // Apply italic formatting to wiki link's text children
         applyFormatToLinkChildren(n, 'italic', marker);
         nodes.push(n);
-      } else if ($isImageNode(n)) {
-        // Images have no bold/italic representation — pass through unformatted
+      } else if ($isImageNode(n) || $isEquationNode(n) || $isFootnoteNode(n) || $isLineBreakNode(n)) {
+        // These have no bold/italic representation — pass through unformatted
         nodes.push(n);
       }
     }
@@ -1154,8 +1157,8 @@ function convertLink(node: Link): LinkNode {
   return link;
 }
 
-function convertDelete(node: Delete): (TextNode | LinkNode | ImageNode)[] {
-  const nodes: (TextNode | LinkNode | ImageNode)[] = [];
+function convertDelete(node: Delete): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] {
+  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] = [];
   for (const child of node.children) {
     const converted = convertInlineNode(child);
     for (const n of converted) {
@@ -1166,8 +1169,8 @@ function convertDelete(node: Delete): (TextNode | LinkNode | ImageNode)[] {
         // Apply strikethrough formatting to wiki link's text children
         applyFormatToLinkChildren(n, 'strikethrough');
         nodes.push(n);
-      } else if ($isImageNode(n)) {
-        // Images have no strikethrough representation — pass through unformatted
+      } else if ($isImageNode(n) || $isEquationNode(n) || $isFootnoteNode(n) || $isLineBreakNode(n)) {
+        // These have no strikethrough representation — pass through unformatted
         nodes.push(n);
       }
     }
