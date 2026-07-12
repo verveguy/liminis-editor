@@ -810,15 +810,21 @@ function convertHtml(node: Html): LexicalBlockNode[] {
   // Check for a standalone dimensioned <img> tag — reconstructed as a real
   // ImageNode, matching convertImageNode's html-reconstruction on export.
   // Only fires when the <img> is the block's sole content: an <img> nested
-  // inside other markup (e.g. a <div> wrapper) must stay part of the opaque
-  // HtmlNode below, not be hoisted out on its own.
+  // inside other markup (e.g. a <div> wrapper), or accompanied by a comment
+  // or other non-whitespace node, must stay part of the opaque HtmlNode
+  // below, not be hoisted out on its own. Checked against childNodes (not
+  // just element children) so a sibling <!-- comment --> isn't silently
+  // dropped by only counting elements.
   const parser = new DOMParser();
   const doc = parser.parseFromString(trimmed, 'text/html');
+  const significantChildren = Array.from(doc.body.childNodes).filter(
+    (n) => !(n.nodeType === Node.TEXT_NODE && !n.textContent?.trim())
+  );
   const isStandaloneImg =
-    doc.body.children.length === 1 &&
-    doc.body.children[0].tagName === 'IMG' &&
-    (doc.body.textContent || '').trim() === '';
-  const imgElement = isStandaloneImg ? (doc.body.children[0] as HTMLImageElement) : null;
+    significantChildren.length === 1 &&
+    significantChildren[0].nodeType === Node.ELEMENT_NODE &&
+    (significantChildren[0] as Element).tagName === 'IMG';
+  const imgElement = isStandaloneImg ? (significantChildren[0] as HTMLImageElement) : null;
   if (imgElement) {
     const src = imgElement.getAttribute('src');
     if (src) {
