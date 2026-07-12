@@ -15,8 +15,10 @@
  *
  * Modeled as an inline ElementNode (the same shape @lexical/link's LinkNode uses to
  * sit inline among TextNode siblings) rather than extending LexicalNode directly —
- * lexical's public API only exports LexicalNode as a type, not a value, so custom
- * nodes outside the package can't extend it. ListItemNode.append() only unwraps
+ * the `lexical` package's entry point re-exports LexicalNode via `export type`
+ * only (see node_modules/lexical/index.d.ts), so it's usable here solely as a
+ * TypeScript type annotation (as every other custom node in this directory does),
+ * never as a runtime value in an `extends` clause. ListItemNode.append() only unwraps
  * ListItemNode/ParagraphNode children (see its canMergeWith override in
  * @lexical/list), so this node — being neither — is never merged or unwrapped when
  * appended directly to a list item. ElementNode's default canBeEmpty() is already
