@@ -809,6 +809,9 @@ function convertSingleInlineChild(child: LexicalNode): PhrasingContentLike[] {
       identifier: child.getFootnoteId(),
       label: child.getFootnoteId(),
     } as unknown as PhrasingContent];
+  } else if ($isHtmlNode(child)) {
+    // Inline HTML preserved opaquely: convert back to a phrasing html mdast node
+    return [{ type: 'html', value: child.getHtml() } as unknown as PhrasingContent];
   }
   return [];
 }
@@ -844,9 +847,6 @@ function convertFormattedRun(runChildren: LexicalNode[], format: number): Phrasi
         identifier: child.getFootnoteId(),
         label: child.getFootnoteId(),
       } as unknown as PhrasingContent);
-    } else if ($isHtmlNode(child)) {
-      // Inline HTML preserved opaquely: convert back to a phrasing html mdast node
-      children.push({ type: 'html', value: child.getHtml() } as unknown as PhrasingContent);
     }
   }
 
