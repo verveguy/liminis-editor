@@ -1094,7 +1094,12 @@ function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode | Equatio
         // Apply bold formatting to wiki link's text children
         applyFormatToLinkChildren(n, 'bold', marker);
         nodes.push(n);
-      } else if ($isImageNode(n) || $isEquationNode(n) || $isFootnoteNode(n) || $isLineBreakNode(n)) {
+      } else if ($isEquationNode(n) || $isFootnoteNode(n)) {
+        if (!n.hasFormat('bold')) {
+          n.toggleFormat('bold');
+        }
+        nodes.push(n);
+      } else if ($isImageNode(n) || $isLineBreakNode(n)) {
         // These have no bold/italic representation — pass through unformatted
         nodes.push(n);
       }
@@ -1119,7 +1124,12 @@ function convertEmphasis(node: Emphasis): (TextNode | LinkNode | ImageNode | Equ
         // Apply italic formatting to wiki link's text children
         applyFormatToLinkChildren(n, 'italic', marker);
         nodes.push(n);
-      } else if ($isImageNode(n) || $isEquationNode(n) || $isFootnoteNode(n) || $isLineBreakNode(n)) {
+      } else if ($isEquationNode(n) || $isFootnoteNode(n)) {
+        if (!n.hasFormat('italic')) {
+          n.toggleFormat('italic');
+        }
+        nodes.push(n);
+      } else if ($isImageNode(n) || $isLineBreakNode(n)) {
         // These have no bold/italic representation — pass through unformatted
         nodes.push(n);
       }
@@ -1175,7 +1185,12 @@ function convertDelete(node: Delete): (TextNode | LinkNode | ImageNode | Equatio
         // Apply strikethrough formatting to wiki link's text children
         applyFormatToLinkChildren(n, 'strikethrough');
         nodes.push(n);
-      } else if ($isImageNode(n) || $isEquationNode(n) || $isFootnoteNode(n) || $isLineBreakNode(n)) {
+      } else if ($isEquationNode(n) || $isFootnoteNode(n)) {
+        if (!n.hasFormat('strikethrough')) {
+          n.toggleFormat('strikethrough');
+        }
+        nodes.push(n);
+      } else if ($isImageNode(n) || $isLineBreakNode(n)) {
         // These have no strikethrough representation — pass through unformatted
         nodes.push(n);
       }
