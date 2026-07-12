@@ -43,8 +43,7 @@ result and the fixture starts enforcing it).
   `fixtures/roundtrip/`.
 - **`other-*`**: additional round-trip fidelity losses discovered while building this
   corpus, for constructs the spec (FR-009) requires coverage of but that aren't part of
-  the #897/#898 issue bodies: definition lists (converted to bold-term + paragraph,
-  losing the definition-list structure), nested blockquotes (inner paragraphs collapse
+  the #897/#898 issue bodies: nested blockquotes (inner paragraphs collapse
   and nested quotes are hoisted out, mirroring the #897 mechanism at the blockquote
   level rather than the list-item level), HTML blocks (attributes and tags stripped,
   leaving only inner text), and inline HTML (tags escaped as literal text).
@@ -73,6 +72,19 @@ result and the fixture starts enforcing it).
   so they've become a permanent regression gate rather than a documented defect. Left
   under `known-defects/` rather than moved, since the directory just tracks where the
   fixture originated.
+- **`other-definition-list-structure-lost`**: originally reproduced
+  [#906](https://github.com/verveguy/liminis/issues/906) — definition lists were
+  converted to a bold-term paragraph followed by plain paragraphs, losing the
+  term/definition structure entirely. Fixed via dedicated `DefinitionListNode`/
+  `DefinitionTermNode`/`DefinitionDescriptionNode` Lexical node types (see
+  `mdastToLexical.ts`'s `defList` case and `lexicalToMdast.ts`'s
+  `convertDefinitionListNode`) that round-trip cleanly to real `defList`/
+  `defListTerm`/`defListDescription` mdast nodes — this now round-trips byte-identical
+  to its input (no `.expected.md` sidecar), so it's become a permanent regression gate.
+  Left under `known-defects/` rather than moved, mirroring the `897-*` precedent.
+  Additional coverage (single-definition and multi-definition-with-inline-formatting
+  cases) lives directly under `fixtures/roundtrip/` as `definition-list-single.md` and
+  `definition-list-multi.md`.
 - **`other-list-item-double-hard-break`**: a residual gap in the #897 fix itself. That
   fix marks the boundary between two consecutive mdast paragraphs inside a list item by
   inserting two bare, adjacent `LineBreakNode`s (see `convertListItem` in
