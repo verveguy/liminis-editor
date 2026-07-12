@@ -860,6 +860,16 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
         alt: child.getAlt(),
         title: child.getTitle(),
       });
+    } else if ($isLineBreakNode(child)) {
+      children.push({ type: 'break' });
+    } else if ($isEquationNode(child)) {
+      children.push({ type: 'inlineMath', value: child.getEquation() } as unknown as PhrasingContent);
+    } else if ($isFootnoteNode(child)) {
+      children.push({
+        type: 'footnoteReference',
+        identifier: child.getFootnoteId(),
+        label: child.getFootnoteId(),
+      } as unknown as PhrasingContent);
     }
   }
 
