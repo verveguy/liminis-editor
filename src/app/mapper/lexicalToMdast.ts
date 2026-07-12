@@ -7,6 +7,7 @@ import {
   LexicalNode,
   TextNode,
   ElementNode,
+  ElementFormatType,
 } from 'lexical';
 import { $isHeadingNode, $isQuoteNode } from '@lexical/rich-text';
 import { $isListNode, $isListItemNode, ListNode, ListItemNode } from '@lexical/list';
@@ -439,7 +440,7 @@ function convertHorizontalRuleNode(): ThematicBreak {
   return { type: 'thematicBreak' };
 }
 
-function mapFormatTypeToAlign(formatType: string): 'left' | 'right' | 'center' | null {
+function mapFormatTypeToAlign(formatType: ElementFormatType): 'left' | 'right' | 'center' | null {
   switch (formatType) {
     case 'left':
     case 'right':
