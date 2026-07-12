@@ -32,6 +32,7 @@ import {
   $isDefinitionDescriptionNode,
   $isCustomListItemNode,
   $isHtmlNode,
+  $isListItemParagraphBreakNode,
   ImageNode,
   CalloutNode,
   ToggleContainerNode,
@@ -383,20 +384,15 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean, spread: bool
       children.push(convertListNode(child));
     } else if ($isTextNode(child)) {
       inlineChildren.push(...convertTextNode(child));
+    } else if ($isListItemParagraphBreakNode(child)) {
+      // Marks a paragraph boundary inserted by convertListItem for consecutive
+      // mdast paragraphs (see its comment) — flush the current paragraph and
+      // start a new one. A dedicated node type, unambiguous with LineBreakNode
+      // by construction, so it never collides with a genuine hard break —
+      // see #902.
+      flushInline();
     } else if ($isLineBreakNode(child)) {
-      // Two consecutive LineBreakNodes mark a paragraph boundary inserted by
-      // convertListItem for consecutive mdast paragraphs (see its comment) —
-      // flush the current paragraph and start a new one instead of encoding
-      // a literal break. Not fully unambiguous — see convertListItem's
-      // comment and the `other-list-item-double-hard-break` known-defect
-      // fixture for a case this misreads.
-      const next = kids[i + 1];
-      if (next && $isLineBreakNode(next)) {
-        flushInline();
-        i++; // consume the marker's second LineBreakNode too
-      } else {
-        inlineChildren.push({ type: 'break' });
-      }
+      inlineChildren.push({ type: 'break' });
     } else if ($isLinkNode(child)) {
       inlineChildren.push(convertLinkNode(child));
     } else {

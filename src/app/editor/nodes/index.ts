@@ -73,3 +73,10 @@ export type {
 
 export { HtmlNode, $createHtmlNode, $isHtmlNode } from './HtmlNode';
 export type { SerializedHtmlNode } from './HtmlNode';
+
+export {
+  ListItemParagraphBreakNode,
+  $createListItemParagraphBreakNode,
+  $isListItemParagraphBreakNode,
+} from './ListItemParagraphBreakNode';
+export type { SerializedListItemParagraphBreakNode } from './ListItemParagraphBreakNode';
