@@ -45,12 +45,11 @@ result and the fixture starts enforcing it).
   corpus, for constructs the spec (FR-009) requires coverage of but that aren't part of
   the #897/#898 issue bodies: nested blockquotes (inner paragraphs collapse
   and nested quotes are hoisted out, mirroring the #897 mechanism at the blockquote
-  level rather than the list-item level), HTML blocks (attributes and tags stripped,
-  leaving only inner text), and inline HTML (tags escaped as literal text).
-  Image alt text containing a bracket pair (e.g. `alt \[bracket\] text`) is also
-  double-escaped by the bracket-preservation post-process step in `stringify.ts`,
-  corrupting the image syntax further on a second round trip — discovered while adding
-  #898 edge-case coverage but distinct from any of that issue's three defects.
+  level rather than the list-item level). Image alt text containing a bracket pair
+  (e.g. `alt \[bracket\] text`) is also double-escaped by the bracket-preservation
+  post-process step in `stringify.ts`, corrupting the image syntax further on a second
+  round trip — discovered while adding #898 edge-case coverage but distinct from any of
+  that issue's three defects.
   These are not tracked by a specific issue yet; if one is filed, rename the fixture to
   match the `NNN-*` convention above.
 - **`other-titled-link-wikilink-url`**: a titled standard link whose URL is classified
@@ -85,6 +84,17 @@ result and the fixture starts enforcing it).
   Additional coverage (single-definition and multi-definition-with-inline-formatting
   cases) lives directly under `fixtures/roundtrip/` as `definition-list-single.md` and
   `definition-list-multi.md`.
+- **`other-html-block-attributes-lost`, `other-inline-html-escaped`**: originally
+  reproduced [#909](https://github.com/verveguy/liminis/issues/909) — block-level HTML
+  (e.g. a `<div>` wrapping other markup) lost its tags and attributes entirely on
+  import, and inline HTML (e.g. a `<span>`) survived as text but had its angle
+  brackets escaped on export. Fixed via a new opaque `HtmlNode` decorator that carries
+  raw HTML markup through the pipeline unmodified — these now round-trip
+  byte-identical to their input (no `.expected.md` sidecar), so they've become a
+  permanent regression gate rather than a documented defect. Left under
+  `known-defects/` rather than moved, per the `897-*` precedent above. Additional
+  coverage for this fix (a combined block+inline document, and a check that genuine
+  literal `<`/`>` in prose still escapes) lives directly under `fixtures/roundtrip/`.
 - **`other-list-item-double-hard-break`**: a residual gap in the #897 fix itself. That
   fix marks the boundary between two consecutive mdast paragraphs inside a list item by
   inserting two bare, adjacent `LineBreakNode`s (see `convertListItem` in

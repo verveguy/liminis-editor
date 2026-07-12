@@ -31,6 +31,7 @@ import {
   $isDefinitionTermNode,
   $isDefinitionDescriptionNode,
   $isCustomListItemNode,
+  $isHtmlNode,
   ImageNode,
   CalloutNode,
   ToggleContainerNode,
@@ -290,6 +291,10 @@ function convertLexicalNode(node: LexicalNode): Content[] {
 
   if ($isDefinitionListNode(node)) {
     return [convertDefinitionListNode(node)];
+  }
+
+  if ($isHtmlNode(node)) {
+    return [{ type: 'html', value: node.getHtml() }];
   }
 
   // Fallback: create paragraph
@@ -839,6 +844,9 @@ function convertFormattedRun(runChildren: LexicalNode[], format: number): Phrasi
         identifier: child.getFootnoteId(),
         label: child.getFootnoteId(),
       } as unknown as PhrasingContent);
+    } else if ($isHtmlNode(child)) {
+      // Inline HTML preserved opaquely: convert back to a phrasing html mdast node
+      children.push({ type: 'html', value: child.getHtml() } as unknown as PhrasingContent);
     }
   }
 
@@ -1060,6 +1068,8 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
         identifier: child.getFootnoteId(),
         label: child.getFootnoteId(),
       } as unknown as PhrasingContent);
+    } else if ($isHtmlNode(child)) {
+      children.push({ type: 'html', value: child.getHtml() } as unknown as PhrasingContent);
     }
   }
 

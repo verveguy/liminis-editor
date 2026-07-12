@@ -67,6 +67,7 @@ import {
   C4Node,
   FrontmatterNode,
   FootnoteNode,
+  HtmlNode,
   CustomLinkNode,
   CustomListNode,
   DefinitionListNode,
@@ -201,6 +202,7 @@ const editorNodes = [
   DefinitionListNode,
   DefinitionTermNode,
   DefinitionDescriptionNode,
+  HtmlNode,
 ];
 
 // Mirror of $exitCodeNodeOnEnter in @lexical/code-core@0.44 (CodeExtension.register).

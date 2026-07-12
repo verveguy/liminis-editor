@@ -70,3 +70,6 @@ export type {
   SerializedDefinitionTermNode,
   SerializedDefinitionDescriptionNode,
 } from './DefinitionListNode';
+
+export { HtmlNode, $createHtmlNode, $isHtmlNode } from './HtmlNode';
+export type { SerializedHtmlNode } from './HtmlNode';

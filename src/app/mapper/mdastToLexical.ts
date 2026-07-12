@@ -26,6 +26,8 @@ import {
   $isEquationNode,
   $createFootnoteNode,
   $isFootnoteNode,
+  $createHtmlNode,
+  $isHtmlNode,
   $createMermaidNode,
   $createC4Node,
   $createFrontmatterNode,
@@ -41,6 +43,7 @@ import {
   ToggleContainerNode,
   EquationNode,
   FootnoteNode,
+  HtmlNode,
   MermaidNode,
   C4Node,
   FrontmatterNode,
@@ -52,7 +55,6 @@ import { parseFormattedAlias } from '../editor/MarkdownShortcutsPlugin';
 import { $createTableNode, $createTableRowNode, $createTableCellNode, TableNode, TableRowNode, TableCellNode, TableCellHeaderStates } from '@lexical/table';
 import type { Root, Content, PhrasingContent, List, ListItem, Table, TableRow, TableCell, Heading, Paragraph, Blockquote, Code, Image, Link, Text, Strong, Emphasis, InlineCode, Delete, Html } from 'mdast';
 import type { DefListNode as MdastDefListNode } from 'mdast-util-definition-list';
-import DOMPurify from 'dompurify';
 import { getFileType } from '../../../renderer/utils/fileTypes';
 
 type LexicalBlockNode =
@@ -70,7 +72,8 @@ type LexicalBlockNode =
   | MermaidNode
   | C4Node
   | FrontmatterNode
-  | DefinitionListNode;
+  | DefinitionListNode
+  | HtmlNode;
 
 // Convert mdast tree to Lexical editor state
 export function importMarkdownToLexical(
@@ -776,25 +779,27 @@ function convertTableCell(
 }
 
 /**
- * SECURITY: Safely parse HTML content using DOMPurify
- * Only allows specific safe tags and attributes
- * 
- * TODO: Current "limited HTML support" only extracts text content from HTML.
- * HTML attributes like align="center" are not rendered. To properly support
- * HTML rendering, consider creating an HtmlBlockNode that safely renders
- * sanitized HTML content while preserving basic styling attributes.
+ * Convert a block-level mdast `html` node. The raw markup is preserved
+ * opaquely via HtmlNode for round-trip fidelity (see issue #909) — it is
+ * never sanitized or interpreted, only ever displayed as inert text
+ * (HtmlNode never assigns to innerHTML).
+ *
+ * The one exception is a dimensioned `<img>` tag, which is reconstructed as
+ * a real, resizable ImageNode — this is a matched, load-bearing pair with
+ * convertImageNode's html-reconstruction on export and must not be broken.
  */
 function convertHtml(node: Html): LexicalBlockNode[] {
-  const html = node.value.trim();
+  const html = node.value;
+  const trimmed = html.trim();
 
   // Check for block equation: $$...$$
-  const blockEquationMatch = /^\$\$([^$]+)\$\$$/.exec(html);
+  const blockEquationMatch = /^\$\$([^$]+)\$\$$/.exec(trimmed);
   if (blockEquationMatch) {
     return [$createEquationNode(blockEquationMatch[1].trim(), false)];
   }
 
   // Check for inline equation: $...$
-  const inlineEquationMatch = /^\$([^$]+)\$$/.exec(html);
+  const inlineEquationMatch = /^\$([^$]+)\$$/.exec(trimmed);
   if (inlineEquationMatch) {
     return [$createEquationNode(inlineEquationMatch[1].trim(), true)];
   }
@@ -802,44 +807,10 @@ function convertHtml(node: Html): LexicalBlockNode[] {
   // Toggle/details blocks are handled by preprocessDetailsBlocks
   // This function only handles remaining HTML
 
-  // SECURITY: Sanitize HTML using DOMPurify with allowlist
-  // Allows common safe HTML elements for "limited HTML support"
-  const sanitized = DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: [
-      // Block elements
-      'div', 'p', 'br', 'hr',
-      // Inline formatting
-      'strong', 'b', 'em', 'i', 'u', 's', 'del', 'ins',
-      'sub', 'sup', 'mark', 'small',
-      // Semantic elements
-      'kbd', 'code', 'samp', 'var', 'abbr', 'cite', 'q',
-      // Media
-      'img',
-      // Spans for styling
-      'span',
-    ],
-    ALLOWED_ATTR: [
-      'src', 'alt', 'title', 'width', 'height',
-      'align', 'class', 'id',
-    ],
-    ALLOW_DATA_ATTR: false,
-    RETURN_DOM: false,
-    RETURN_DOM_FRAGMENT: false,
-  });
-
-  // If sanitization removed everything, treat as unknown HTML
-  if (!sanitized.trim()) {
-    // For unknown/unsafe HTML, create a code block to preserve it visually
-    const code = $createCodeNode('html');
-    code.append($createTextNode(html));
-    return [code];
-  }
-
-  // Parse sanitized HTML with proper DOM parser
+  // Check for a dimensioned <img> tag — reconstructed as a real ImageNode,
+  // matching convertImageNode's html-reconstruction on export.
   const parser = new DOMParser();
-  const doc = parser.parseFromString(sanitized, 'text/html');
-
-  // Check for img element
+  const doc = parser.parseFromString(trimmed, 'text/html');
   const imgElement = doc.querySelector('img');
   if (imgElement) {
     const src = imgElement.getAttribute('src');
@@ -870,31 +841,9 @@ function convertHtml(node: Html): LexicalBlockNode[] {
     }
   }
 
-  // Check for hr element
-  const hrElement = doc.querySelector('hr');
-  if (hrElement) {
-    return [$createHorizontalRuleNode()];
-  }
-
-  // Check for br element (standalone line break)
-  if (sanitized.trim() === '<br>' || sanitized.trim() === '<br/>') {
-    const paragraph = $createParagraphNode();
-    return [paragraph];
-  }
-
-  // For other allowed HTML, render as paragraph with text content
-  // This provides basic HTML support while maintaining security
-  const textContent = doc.body.textContent || '';
-  if (textContent.trim()) {
-    const paragraph = $createParagraphNode();
-    paragraph.append($createTextNode(textContent));
-    return [paragraph];
-  }
-
-  // For empty or unhandled HTML, create a code block to preserve it
-  const code = $createCodeNode('html');
-  code.append($createTextNode(html));
-  return [code];
+  // Everything else — the untrimmed original value is preserved verbatim,
+  // opaquely, for exact byte round-trip regardless of incidental whitespace.
+  return [$createHtmlNode(html, false)];
 }
 
 // Convert a toggle marker (from preprocessDetailsBlocks) to Lexical nodes
@@ -940,7 +889,7 @@ interface WikiLink {
   };
 }
 
-function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] {
+function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] {
   // Defensive: handle null/undefined nodes
   if (!node?.type) {
     console.warn('[mdastToLexical] convertInlineNode received invalid node:', node);
@@ -1043,8 +992,8 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageN
       if (blockEquationMatch) {
         return [$createEquationNode(blockEquationMatch[1].trim(), false)];
       }
-      // Other HTML becomes plain text
-      return [$createTextNode(html)];
+      // Other inline HTML is preserved opaquely as live markup, not escaped text
+      return [$createHtmlNode(html, true)];
     }
     default:
       return [$createTextNode('')];
@@ -1078,8 +1027,8 @@ function applyFormatToLinkChildren(
   }
 }
 
-function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] {
-  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] = [];
+function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] {
+  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] = [];
   const marker = (node as any).data?._strongMarker;
   for (const child of node.children) {
     const converted = convertInlineNode(child);
@@ -1102,7 +1051,7 @@ function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode | Equatio
           n.setStrongMarker(marker);
         }
         nodes.push(n);
-      } else if ($isImageNode(n) || $isLineBreakNode(n)) {
+      } else if ($isImageNode(n) || $isHtmlNode(n) || $isLineBreakNode(n)) {
         // These have no bold/italic representation — pass through unformatted
         nodes.push(n);
       }
@@ -1111,8 +1060,8 @@ function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode | Equatio
   return nodes;
 }
 
-function convertEmphasis(node: Emphasis): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] {
-  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] = [];
+function convertEmphasis(node: Emphasis): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] {
+  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] = [];
   const marker = (node as any).data?._emphasisMarker;
   for (const child of node.children) {
     const converted = convertInlineNode(child);
@@ -1135,7 +1084,7 @@ function convertEmphasis(node: Emphasis): (TextNode | LinkNode | ImageNode | Equ
           n.setEmphasisMarker(marker);
         }
         nodes.push(n);
-      } else if ($isImageNode(n) || $isLineBreakNode(n)) {
+      } else if ($isImageNode(n) || $isHtmlNode(n) || $isLineBreakNode(n)) {
         // These have no bold/italic representation — pass through unformatted
         nodes.push(n);
       }
@@ -1179,8 +1128,8 @@ function convertLink(node: Link): LinkNode {
   return link;
 }
 
-function convertDelete(node: Delete): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] {
-  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] = [];
+function convertDelete(node: Delete): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] {
+  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] = [];
   for (const child of node.children) {
     const converted = convertInlineNode(child);
     for (const n of converted) {
@@ -1196,7 +1145,7 @@ function convertDelete(node: Delete): (TextNode | LinkNode | ImageNode | Equatio
           n.toggleFormat('strikethrough');
         }
         nodes.push(n);
-      } else if ($isImageNode(n) || $isLineBreakNode(n)) {
+      } else if ($isImageNode(n) || $isHtmlNode(n) || $isLineBreakNode(n)) {
         // These have no strikethrough representation — pass through unformatted
         nodes.push(n);
       }
