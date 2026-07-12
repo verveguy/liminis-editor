@@ -363,8 +363,14 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   // link instead of staying inert — a semantic change. This mirrors
   // mdast-util-to-markdown's own conservative-by-default behavior and is out
   // of scope for this fix (see #918 "Out of Scope").
+  // Known limitation: unlike the underscore step below, this (and the #903
+  // block above it) operate on the fully serialized string without excluding
+  // fenced/inline code or math spans, so literal `\[...]` text inside one of
+  // those verbatim regions would also be stripped. Pre-existing gap (not
+  // introduced by this fix); out of scope per #918 "Out of Scope" (brackets
+  // inside code spans).
   result = result.replace(
-    /!\[(?:\\.|[^\]\n])*\]\(|\\\[([^\]\n]+)\](?!\])/g,
+    /!\[(?:\\.|[^\\\]\n])*\]\(|\\\[([^\]\n]+)\](?!\])/g,
     (match, plainPhrasingContent) => (plainPhrasingContent === undefined ? match : `[${plainPhrasingContent}]`)
   );
 
