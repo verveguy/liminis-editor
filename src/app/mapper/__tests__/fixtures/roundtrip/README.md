@@ -104,14 +104,27 @@ result and the fixture starts enforcing it).
   `other-delete-inline-math-not-wrapped`**: discovered while fixing #898 review feedback
   that `convertStrong`/`convertEmphasis`/`convertDelete` in `mdastToLexical.ts` silently
   dropped `EquationNode`/`FootnoteNode`/`LineBreakNode` children (e.g. `**$x$**` or
-  `_see note[^1]_` lost the math/footnote entirely). That data-loss bug is fixed — these
-  nodes are now passed through unformatted rather than skipped — but a residual gap
-  remains: only `TextNode` can carry Lexical's bold/italic/strikethrough format bits, so
-  on export the equation/footnote node falls outside the mdast `strong`/`emphasis`/
-  `delete` wrapper instead of staying nested inside it (`**$O(n)$ complexity**` round-trips
-  to `$O(n)$** complexity**`). Content and order are preserved; only the marker span
-  shifts. Closing this fully would mean giving non-text inline nodes a way to carry
-  format state, a larger change than the data-loss fix itself.
+  `_see note[^1]_` lost the math/footnote entirely). That data-loss bug was fixed first —
+  these nodes were passed through unformatted rather than skipped — but a residual gap
+  remained: only `TextNode` could carry Lexical's bold/italic/strikethrough format bits,
+  so on export the equation/footnote node fell outside the mdast `strong`/`emphasis`/
+  `delete` wrapper instead of staying nested inside it (`**$O(n)$ complexity**` round-tripped
+  to `$O(n)$** complexity**`). Fixed by [#908](https://github.com/verveguy/liminis/issues/908):
+  `EquationNode`/`FootnoteNode` now carry a format bitmask mirroring `TextNode`'s (see
+  `getFormat`/`hasFormat`/`setFormat`/`toggleFormat` on both node classes), and
+  `convertInlineChildren` in `lexicalToMdast.ts` merges a run of consecutive siblings
+  sharing the same non-zero format into a single wrapper when the run contains a
+  non-text member. `other-strong-inline-math-not-wrapped` and
+  `other-delete-inline-math-not-wrapped` now round-trip byte-identical (no `.expected.md`
+  sidecar, so they're a permanent regression gate). `other-emphasis-footnote-not-wrapped`
+  keeps an `.expected.md` sidecar, but only to capture an unrelated, pre-existing
+  footnote-*definition* spacing normalization (`[^1]: A note.` → `[^1]:  A note.`, an
+  extra space already present on `footnotes.md` and `link-with-footnote-reference.md`,
+  neither of which this issue touches) — the marker-wrapping defect itself is fixed.
+  Additional coverage for this fix (italic wrapping math, a bare math-only span, math at
+  the end of a span, and a single span mixing text + math + footnote) lives directly
+  under `fixtures/roundtrip/`: `emphasis-inline-math.md`, `strong-inline-math-only.md`,
+  `strong-inline-math-trailing.md`, `strong-mixed-text-math-footnote.md`.
 
 ## Diagnosing a failure
 

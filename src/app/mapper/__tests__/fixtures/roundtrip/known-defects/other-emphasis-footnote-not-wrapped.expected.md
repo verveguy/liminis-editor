@@ -1,3 +1,3 @@
-_see note_[^1]
+_see note[^1]_
 
 [^1]:  A note.
