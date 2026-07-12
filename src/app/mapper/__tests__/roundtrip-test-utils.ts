@@ -32,6 +32,7 @@ import {
   DefinitionTermNode,
   DefinitionDescriptionNode,
   HtmlNode,
+  ListItemParagraphBreakNode,
 } from '../../editor/nodes';
 import { parseMarkdown } from '../../../markdown/parse';
 import { stringifyMarkdown } from '../../../markdown/stringify';
@@ -67,6 +68,7 @@ export const editorNodes = [
   DefinitionTermNode,
   DefinitionDescriptionNode,
   HtmlNode,
+  ListItemParagraphBreakNode,
 ];
 
 export function createTestEditor(

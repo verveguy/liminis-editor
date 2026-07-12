@@ -37,6 +37,7 @@ import {
   $createDefinitionTermNode,
   $createDefinitionDescriptionNode,
   $createCustomListItemNode,
+  $createListItemParagraphBreakNode,
   HorizontalRuleNode,
   ImageNode,
   CalloutNode,
@@ -627,19 +628,12 @@ function convertListItem(node: ListItem, parentList: List): CustomListItemNode {
       // lone paragraph already flattens correctly with no extra work needed.
       // But two consecutive paragraphs with nothing else between them would
       // then merge into one run of text with no separator. Mark that boundary
-      // with two consecutive LineBreakNodes (which aren't unwrapped) before
-      // flattening this paragraph's content, and detect that pair again on
-      // export to split back into two paragraphs.
-      // NOT fully unambiguous: a single mdast paragraph can itself contain two
-      // adjacent `break` nodes with no text between them (e.g. a line ending in
-      // "\" immediately followed by a line that is only "\"), and the same
-      // shape is reachable live in the editor (Shift+Enter twice in a row with
-      // nothing typed between) — both collide with this marker and get
-      // misread as a paragraph boundary on export. See the
-      // `other-list-item-double-hard-break` known-defect fixture.
+      // with a single ListItemParagraphBreakNode (a dedicated node type,
+      // unambiguous with LineBreakNode by construction — see #902) before
+      // flattening this paragraph's content, and detect it again on export to
+      // split back into two paragraphs.
       if (node.children[i - 1]?.type === 'paragraph') {
-        listItem.append($createLineBreakNode());
-        listItem.append($createLineBreakNode());
+        listItem.append($createListItemParagraphBreakNode());
       }
 
       const shouldPrefixThisParagraph = isFirstParagraph && shouldPrefixTaskMarker;
