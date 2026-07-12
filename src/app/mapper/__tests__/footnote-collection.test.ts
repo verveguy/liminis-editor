@@ -18,7 +18,7 @@ import { createTestEditor, roundTrip } from './roundtrip-test-utils';
  */
 function importToLexical(markdown: string): Promise<{ types: string[]; childCount: number; editor: LexicalEditor }> {
   return new Promise((resolve) => {
-    const editor = createTestEditor();
+    const { editor } = createTestEditor();
     const parsed = parseMarkdown(markdown);
 
     editor.update(

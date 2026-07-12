@@ -16,44 +16,53 @@ export interface StringifyOptions {
 const wikiLinkOptions = { aliasDivider: '|' };
 
 /**
- * Make all lists "tight" (no blank lines between items).
- * 
- * The mdast `spread` property on lists and list items controls whether
- * blank lines are added between items. By setting spread: false on all
- * lists and list items, we get compact lists without extra blank lines.
+ * Compute the mdast `spread` property on lists and list items, which
+ * controls whether blank lines are added between items (and, for a list
+ * item, between that item's own children).
+ *
+ * By default, lists stay "tight" (no blank lines) — the common case of an
+ * item holding a single paragraph. An item needs its own children ("spread")
+ * blank-line-separated when it holds more than one non-nested-list child
+ * (multiple paragraphs, or a paragraph alongside a code block/table/
+ * blockquote): abutting them with no blank line is ambiguous or misparses
+ * on the way back in. A nested list doesn't count towards this — it already
+ * reads unambiguously right after preceding content with no blank line.
+ * Per CommonMark, if any item in a list is "loose", the whole list must
+ * render loose too, or re-parsing collapses the blank lines and misreads
+ * item boundaries — so a list's spread is the OR of its items' spread.
  */
-function makeTightLists(node: any): any {
+function computeListSpread(node: any): any {
   if (!node || typeof node !== 'object') {
     return node;
   }
-  
-  if (node.type === 'list') {
-    return {
-      ...node,
-      spread: false,
-      children: node.children?.map((item: any) => ({
-        ...makeTightLists(item),
-        spread: false,
-      })),
-    };
-  }
-  
+
   if (node.type === 'listItem') {
+    const children = (node.children || []).map(computeListSpread);
+    const nonListChildCount = children.filter((c: any) => c.type !== 'list').length;
     return {
       ...node,
-      spread: false,
-      children: node.children?.map(makeTightLists),
+      spread: nonListChildCount > 1,
+      children,
     };
   }
-  
+
+  if (node.type === 'list') {
+    const children = (node.children || []).map(computeListSpread);
+    return {
+      ...node,
+      spread: children.some((item: any) => item.spread === true),
+      children,
+    };
+  }
+
   // Recursively process children
   if (node.children && Array.isArray(node.children)) {
     return {
       ...node,
-      children: node.children.map(makeTightLists),
+      children: node.children.map(computeListSpread),
     };
   }
-  
+
   return node;
 }
 
@@ -177,8 +186,8 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   // Normalize wiki-link nodes before stringifying
   processedRoot = normalizeWikiLinkNodes(processedRoot) as Root;
   
-  // Make lists tight (no blank lines between items) by default
-  processedRoot = makeTightLists(processedRoot) as Root;
+  // Compute real spread values for lists/list items (loose vs. tight)
+  processedRoot = computeListSpread(processedRoot) as Root;
   
   let result = toMarkdown(processedRoot, {
     extensions: [
@@ -227,8 +236,11 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
     join: [
       // Don't add blank line between paragraph and block when paragraph ends with ':'
       // This preserves the "label + block" pattern (e.g., "Fenced code:", "Block math:").
-      (left: any, right: any) => {
-        if (left.type === 'paragraph') {
+      // Doesn't apply inside a list item: a table/code fence there needs blank-line
+      // separation from the preceding paragraph to parse back correctly, regardless
+      // of how that paragraph ends.
+      (left: any, right: any, parent: any) => {
+        if (left.type === 'paragraph' && parent?.type !== 'listItem') {
           const lastChild = left.children?.[left.children.length - 1];
           const endsWithColon = lastChild?.type === 'text' && lastChild.value?.trimEnd().endsWith(':');
           if (endsWithColon && ['list', 'table', 'code', 'math'].includes(right.type)) {

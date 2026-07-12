@@ -340,58 +340,81 @@ function convertListNode(node: ListNode): List {
 }
 
 function convertListItemNode(node: ListItemNode, _ordered: boolean): ListItem {
-  const children: (Paragraph | List)[] = [];
-  const inlineChildren: PhrasingContentLike[] = [];
+  // Mirrors the flush-on-block-boundary dispatch used at the document root
+  // (convertLexicalNode): inline children (text/line breaks/links) accumulate
+  // into a buffer, which is flushed into a paragraph whenever a nested list or
+  // any other block-type child (ParagraphNode, CodeNode, TableNode, QuoteNode,
+  // etc.) is encountered. This preserves block content nested inside list
+  // items instead of silently dropping it.
+  const children: Content[] = [];
+  let inlineChildren: PhrasingContentLike[] = [];
 
-  for (const child of node.getChildren()) {
-    if ($isListNode(child)) {
-      // Nested list
-      if (inlineChildren.length > 0) {
+  const flushInline = (): void => {
+    if (inlineChildren.length > 0) {
       children.push({ type: 'paragraph', children: [...inlineChildren] as PhrasingContent[] });
-        inlineChildren.length = 0;
-      }
+      inlineChildren = [];
+    }
+  };
+
+  const kids = node.getChildren();
+  for (let i = 0; i < kids.length; i++) {
+    const child = kids[i];
+
+    if ($isListNode(child)) {
+      flushInline();
       children.push(convertListNode(child));
     } else if ($isTextNode(child)) {
       inlineChildren.push(...convertTextNode(child));
     } else if ($isLineBreakNode(child)) {
-      inlineChildren.push({ type: 'break' });
+      // Two consecutive LineBreakNodes mark a paragraph boundary inserted by
+      // convertListItem for consecutive mdast paragraphs (see its comment) —
+      // flush the current paragraph and start a new one instead of encoding
+      // a literal break. Not fully unambiguous — see convertListItem's
+      // comment and the `other-list-item-double-hard-break` known-defect
+      // fixture for a case this misreads.
+      const next = kids[i + 1];
+      if (next && $isLineBreakNode(next)) {
+        flushInline();
+        i++; // consume the marker's second LineBreakNode too
+      } else {
+        inlineChildren.push({ type: 'break' });
+      }
     } else if ($isLinkNode(child)) {
       inlineChildren.push(convertLinkNode(child));
+    } else {
+      // Any other block-type child (ParagraphNode, CodeNode, TableNode,
+      // QuoteNode, etc.) — flush accumulated inline text first, then delegate
+      // to the same block dispatcher used at the document root.
+      flushInline();
+      children.push(...convertLexicalNode(child));
+    }
+  }
+  flushInline();
+
+  // Preserve explicit task markers in text to keep round-trip stable.
+  // If a list item's first paragraph already starts with [ ] or [x], keep it
+  // and avoid setting `checked` to prevent duplicate markers on stringify.
+  let hasExplicitMarker = false;
+  const firstChild = children[0];
+  if (firstChild?.type === 'paragraph') {
+    const firstPhrasing = firstChild.children[0];
+    if (firstPhrasing?.type === 'text' && /^\[( |x|X)\]\s+/.exec(firstPhrasing.value)) {
+      hasExplicitMarker = true;
     }
   }
 
-  if (inlineChildren.length > 0) {
-    // Preserve explicit task markers in text to keep round-trip stable.
-    // If a list item text already starts with [ ] or [x], we keep it and
-    // avoid setting `checked` to prevent duplicate markers on stringify.
-    let hasExplicitMarker = false;
-    const firstInline = inlineChildren[0];
-    if (firstInline?.type === 'text') {
-      const textNode = firstInline;
-      const match = /^\[( |x|X)\]\s+/.exec(textNode.value);
-      if (match) {
-        hasExplicitMarker = true;
-      }
-    }
-
-    children.push({ type: 'paragraph', children: inlineChildren as PhrasingContent[] });
-
-    const checked = node.getChecked?.();
-    const checkedForOutput = hasExplicitMarker ? null : checked !== undefined ? checked : null;
-
-    return {
-      type: 'listItem',
-      spread: false,
-      checked: checkedForOutput,
-      children: children.length > 0 ? children : [{ type: 'paragraph', children: [{ type: 'text', value: '' }] }],
-    };
-  }
+  const checked = node.getChecked?.();
+  const checkedForOutput = hasExplicitMarker ? null : checked !== undefined ? checked : null;
 
   return {
     type: 'listItem',
+    // Real spread (blank-line placement between this item's own children,
+    // and consequently between sibling items) is computed by stringify.ts,
+    // which needs to see the final child shape regardless of which code path
+    // produced it.
     spread: false,
-    checked: node.getChecked?.() !== undefined ? node.getChecked?.() : null,
-    children: children.length > 0 ? children : [{ type: 'paragraph', children: [{ type: 'text', value: '' }] }],
+    checked: checkedForOutput,
+    children: children.length > 0 ? (children as ListItem['children']) : [{ type: 'paragraph', children: [{ type: 'text', value: '' }] }],
   };
 }
 
