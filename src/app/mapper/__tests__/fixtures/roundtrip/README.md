@@ -41,9 +41,6 @@ result and the fixture starts enforcing it).
   originated. Additional coverage for this fix (deeper nesting, first/last-child
   positioning, mixed block types, task-list items) lives directly under
   `fixtures/roundtrip/`.
-- **`898-*`**: reproduces [#898](https://github.com/verveguy/liminis/issues/898) — the
-  serializer over-escapes inline content, degrades image-inside-link badges, and
-  normalizes loose lists to tight lists.
 - **`other-*`**: additional round-trip fidelity losses discovered while building this
   corpus, for constructs the spec (FR-009) requires coverage of but that aren't part of
   the #897/#898 issue bodies: definition lists (converted to bold-term + paragraph,
