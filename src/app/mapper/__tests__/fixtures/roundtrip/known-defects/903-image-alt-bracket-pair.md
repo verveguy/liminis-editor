@@ -1,1 +1,1 @@
-![alt \[bracket\] text](./img.png)
+![alt [bracket] text](./img.png)

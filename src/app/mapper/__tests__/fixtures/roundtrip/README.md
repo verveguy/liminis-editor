@@ -41,15 +41,40 @@ result and the fixture starts enforcing it).
   originated. Additional coverage for this fix (deeper nesting, first/last-child
   positioning, mixed block types, task-list items) lives directly under
   `fixtures/roundtrip/`.
+- **`903-image-alt-bracket-pair`**: originally filed as `other-image-alt-bracket-escaping-
+  corrupted` — an image's alt text containing a bracket pair (e.g. `alt [bracket] text`)
+  was double-escaped by the bracket-preservation post-process step in `stringify.ts`,
+  corrupting the image syntax further on a second round trip. Fixed by
+  [#903](https://github.com/verveguy/liminis/issues/903) — image alt text with balanced
+  bracket pairs now round-trips byte-identical to its input (no `.expected.md` sidecar).
+  Renamed to the `903-*` convention and left under `known-defects/`, per the `897-*`
+  precedent, since the directory just tracks where the fixture originated. Additional
+  edge-case coverage for this fix (multiple pairs, leading/trailing placement, badge-
+  pattern nesting, pre-escaped source normalization) lives directly under
+  `fixtures/roundtrip/`.
 - **`other-*`**: additional round-trip fidelity losses discovered while building this
   corpus, for constructs the spec (FR-009) requires coverage of but that aren't part of
   the #897/#898 issue bodies: nested blockquotes (inner paragraphs collapse
   and nested quotes are hoisted out, mirroring the #897 mechanism at the blockquote
-  level rather than the list-item level). Image alt text containing a bracket pair
-  (e.g. `alt \[bracket\] text`) is also double-escaped by the bracket-preservation
-  post-process step in `stringify.ts`, corrupting the image syntax further on a second
-  round trip — discovered while adding #898 edge-case coverage but distinct from any of
-  that issue's three defects.
+  level rather than the list-item level).
+  A genuinely unbalanced bracket in image alt text (`other-image-alt-unbalanced-bracket-
+  corrupted`, e.g. `![unbalanced [ bracket](img.png)`) still corrupts on round trip — the
+  #903 fix only unescapes *properly nested* bracket pairs within an image's alt-text
+  span, so a lone unpaired `[` is deliberately left to the pre-existing (unchanged)
+  behavior. Similarly, an alt-text span with an *equal count* of escaped `[`/`]` but out
+  of nesting order (`other-image-alt-bracket-order-corrupted`, alt text `a]b[c`, sourced
+  as `![a\]b\[c](img.png)`) also still corrupts on round trip: equal counts alone don't
+  mean the brackets are balanced (the `]` here closes nothing), so naively unescaping it
+  would leave a bare `]` mid-label and truncate the image early — a strictly worse
+  failure than the pre-existing defect. The #903 fix checks nesting depth, not just
+  counts, specifically to avoid producing that worse corruption; the span is left
+  untouched and falls through to the same pre-existing (unchanged) bracket-preservation
+  behavior as the unbalanced-single-bracket case above.
+  A bracket pair in plain paragraph text outside any link/image (`other-plain-text-
+  bracket-pair-escaped`) is a regression-guard fixture for the bracket-preservation
+  regex's original, still-current, intended behavior (escaping a literal `[bracket]` pair
+  to `\[bracket\]`), added because #903 changed the surrounding code and nothing in this
+  corpus previously pinned that behavior down.
   These are not tracked by a specific issue yet; if one is filed, rename the fixture to
   match the `NNN-*` convention above.
 - **`other-titled-link-wikilink-url`**: a titled standard link whose URL is classified
