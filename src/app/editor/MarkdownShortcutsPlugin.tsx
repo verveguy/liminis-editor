@@ -2,9 +2,6 @@ import { useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
   registerMarkdownShortcuts,
-  UNORDERED_LIST,
-  ORDERED_LIST,
-  CHECK_LIST,
   HEADING,
   QUOTE,
   CODE,
@@ -20,14 +17,107 @@ import {
   // Text match transformers for links
   LINK,
   type TextMatchTransformer,
+  type ElementTransformer,
 } from '@lexical/markdown';
-import { $createTextNode } from 'lexical';
+import { $createTextNode, type ElementNode, type LexicalNode } from 'lexical';
 import { LinkNode } from '@lexical/link';
-import { $createCustomLinkNode } from './nodes';
+import { $createListItemNode, ListItemNode, type ListType } from '@lexical/list';
+import { $createCustomLinkNode, $createCustomListNode, $isCustomListNode, CustomListNode } from './nodes';
 import { $createImageNode, ImageNode } from './nodes/ImageNode';
 import { $createEquationNode, EquationNode } from './nodes';
 import type { TextFormatType } from 'lexical';
 import { getFileType } from '../../../renderer/utils/fileTypes';
+
+// Amount of spaces that define one indentation level, matching @lexical/markdown's own default.
+const LIST_INDENT_SIZE = 4;
+
+function getListIndent(whitespaces: string): number {
+  const tabs = whitespaces.match(/\t/g);
+  const spaces = whitespaces.match(/ /g);
+  let indent = 0;
+  if (tabs) {
+    indent += tabs.length;
+  }
+  if (spaces) {
+    indent += Math.floor(spaces.length / LIST_INDENT_SIZE);
+  }
+  return indent;
+}
+
+/**
+ * Builds an `ElementTransformer.replace` for list markdown shortcuts ("- ", "1. ", "[] ")
+ * that creates `CustomListNode`s instead of going through `@lexical/markdown`'s built-in
+ * UNORDERED_LIST/ORDERED_LIST/CHECK_LIST transformers.
+ *
+ * The stock transformers call `@lexical/list`'s raw `$createListNode`, which constructs a
+ * plain `ListNode`. Since this editor replaces the registered 'list' node type with
+ * `CustomListNode` (to carry markdown loose/tight "spread" state through the round trip —
+ * see #898), constructing a plain `ListNode` throws
+ * ("Create node: Type list in node ListNode does not match registered node CustomListNode
+ * with the same type") the instant a user types a list shortcut. Mirrors the stock
+ * `listReplace` logic (list creation + merging with an adjacent list of the same type)
+ * with `$createCustomListNode` substituted for `$createListNode`.
+ */
+function createCustomListReplace(listType: ListType) {
+  return (parentNode: ElementNode, children: LexicalNode[], match: string[], isImport: boolean): void => {
+    const previousNode = parentNode.getPreviousSibling();
+    const nextNode = parentNode.getNextSibling();
+    const listItem = $createListItemNode(listType === 'check' ? match[3]?.toLowerCase() === 'x' : undefined);
+
+    if ($isCustomListNode(nextNode) && nextNode.getListType() === listType) {
+      const firstChild = nextNode.getFirstChild();
+      if (firstChild !== null) {
+        firstChild.insertBefore(listItem);
+      } else {
+        nextNode.append(listItem);
+      }
+      parentNode.remove();
+    } else if ($isCustomListNode(previousNode) && previousNode.getListType() === listType) {
+      previousNode.append(listItem);
+      parentNode.remove();
+    } else {
+      const listNode = $createCustomListNode(listType, listType === 'number' ? Number(match[2]) : undefined);
+      listNode.append(listItem);
+      parentNode.replace(listNode);
+    }
+
+    listItem.append(...children);
+    if (!isImport) {
+      listItem.select(0, 0);
+    }
+    const indent = getListIndent(match[1]);
+    if (indent) {
+      listItem.setIndent(indent);
+    }
+  };
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const UNORDERED_LIST: ElementTransformer = {
+  dependencies: [CustomListNode, ListItemNode],
+  export: () => null,
+  regExp: /^(\s*)[-*+]\s/,
+  replace: createCustomListReplace('bullet'),
+  type: 'element',
+};
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const ORDERED_LIST: ElementTransformer = {
+  dependencies: [CustomListNode, ListItemNode],
+  export: () => null,
+  regExp: /^(\s*)(\d{1,})\.\s/,
+  replace: createCustomListReplace('number'),
+  type: 'element',
+};
+
+// eslint-disable-next-line react-refresh/only-export-components
+export const CHECK_LIST: ElementTransformer = {
+  dependencies: [CustomListNode, ListItemNode],
+  export: () => null,
+  regExp: /^(\s*)(?:[-*+]\s)?\s?(\[(\s|x)?\])\s/i,
+  replace: createCustomListReplace('check'),
+  type: 'element',
+};
 
 /**
  * Parses a wiki link alias and extracts format markers.

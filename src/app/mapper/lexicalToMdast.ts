@@ -25,6 +25,7 @@ import {
   $isC4Node,
   $isFrontmatterNode,
   $isFootnoteNode,
+  $isCustomListNode,
   ImageNode,
   CalloutNode,
   ToggleContainerNode,
@@ -323,23 +324,24 @@ function convertQuoteNode(node: ElementNode): Blockquote {
 function convertListNode(node: ListNode): List {
   const listType = node.getListType();
   const ordered = listType === 'number';
+  const spread = $isCustomListNode(node) ? node.getSpread() : false;
   const children: ListItem[] = [];
 
   for (const child of node.getChildren()) {
     if ($isListItemNode(child)) {
-      children.push(convertListItemNode(child, ordered));
+      children.push(convertListItemNode(child, ordered, spread));
     }
   }
 
   return {
     type: 'list',
     ordered,
-    spread: false,
+    spread,
     children,
   };
 }
 
-function convertListItemNode(node: ListItemNode, _ordered: boolean): ListItem {
+function convertListItemNode(node: ListItemNode, _ordered: boolean, spread: boolean): ListItem {
   // Mirrors the flush-on-block-boundary dispatch used at the document root
   // (convertLexicalNode): inline children (text/line breaks/links) accumulate
   // into a buffer, which is flushed into a paragraph whenever a nested list or
@@ -408,11 +410,13 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean): ListItem {
 
   return {
     type: 'listItem',
-    // Real spread (blank-line placement between this item's own children,
-    // and consequently between sibling items) is computed by stringify.ts,
-    // which needs to see the final child shape regardless of which code path
-    // produced it.
-    spread: false,
+    // Baseline spread mirrors the containing list's spread (itself carried
+    // through the round trip via CustomListNode, preserving the source
+    // document's loose/tight intent). stringify.ts's computeListSpread may
+    // still upgrade this to true (never downgrade to false) when an item's
+    // own child shape requires blank-line separation to parse back
+    // unambiguously, regardless of the source document's original spacing.
+    spread,
     checked: checkedForOutput,
     children: children.length > 0 ? (children as ListItem['children']) : [{ type: 'paragraph', children: [{ type: 'text', value: '' }] }],
   };
@@ -848,6 +852,24 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
   for (const child of node.getChildren()) {
     if ($isTextNode(child)) {
       children.push(...convertTextNode(child));
+    } else if ($isImageNode(child)) {
+      // Image nested inside a link (the "badge" pattern), e.g. a CI status badge
+      children.push({
+        type: 'image',
+        url: child.getSrc(),
+        alt: child.getAlt(),
+        title: child.getTitle(),
+      });
+    } else if ($isLineBreakNode(child)) {
+      children.push({ type: 'break' });
+    } else if ($isEquationNode(child)) {
+      children.push({ type: 'inlineMath', value: child.getEquation() } as unknown as PhrasingContent);
+    } else if ($isFootnoteNode(child)) {
+      children.push({
+        type: 'footnoteReference',
+        identifier: child.getFootnoteId(),
+        label: child.getFootnoteId(),
+      } as unknown as PhrasingContent);
     }
   }
 

@@ -20,8 +20,12 @@ const wikiLinkOptions = { aliasDivider: '|' };
  * controls whether blank lines are added between items (and, for a list
  * item, between that item's own children).
  *
- * By default, lists stay "tight" (no blank lines) — the common case of an
- * item holding a single paragraph. An item needs its own children ("spread")
+ * The incoming `node.spread` (already set by lexicalToMdast.ts's
+ * convertListNode/convertListItemNode from the list's CustomListNode, which
+ * carries the source document's original loose/tight state through the
+ * round trip) is the baseline and is never downgraded to false here — that
+ * would silently re-introduce the loose-list-forced-tight defect. It can
+ * only be upgraded to true: an item needs its own children ("spread")
  * blank-line-separated when it holds more than one non-nested-list child
  * (multiple paragraphs, or a paragraph alongside a code block/table/
  * blockquote): abutting them with no blank line is ambiguous or misparses
@@ -29,7 +33,8 @@ const wikiLinkOptions = { aliasDivider: '|' };
  * reads unambiguously right after preceding content with no blank line.
  * Per CommonMark, if any item in a list is "loose", the whole list must
  * render loose too, or re-parsing collapses the blank lines and misreads
- * item boundaries — so a list's spread is the OR of its items' spread.
+ * item boundaries — so a list's spread is the OR of its own baseline and its
+ * items' spread.
  */
 function computeListSpread(node: any): any {
   if (!node || typeof node !== 'object') {
@@ -41,7 +46,7 @@ function computeListSpread(node: any): any {
     const nonListChildCount = children.filter((c: any) => c.type !== 'list').length;
     return {
       ...node,
-      spread: nonListChildCount > 1,
+      spread: node.spread === true || nonListChildCount > 1,
       children,
     };
   }
@@ -50,7 +55,7 @@ function computeListSpread(node: any): any {
     const children = (node.children || []).map(computeListSpread);
     return {
       ...node,
-      spread: children.some((item: any) => item.spread === true),
+      spread: node.spread === true || children.some((item: any) => item.spread === true),
       children,
     };
   }
@@ -185,10 +190,10 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   
   // Normalize wiki-link nodes before stringifying
   processedRoot = normalizeWikiLinkNodes(processedRoot) as Root;
-  
+
   // Compute real spread values for lists/list items (loose vs. tight)
   processedRoot = computeListSpread(processedRoot) as Root;
-  
+
   let result = toMarkdown(processedRoot, {
     extensions: [
       gfmToMarkdown({
@@ -282,6 +287,22 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   // Post-process: collapse excessive blank lines introduced during stringify
   // Keep at most one blank line between blocks.
   result = result.replace(/\n{3,}/g, '\n\n');
+
+  // Post-process: unescape intraword underscores, outside of code and math.
+  // mdast-util-to-markdown escapes every `_` in text conservatively, but CommonMark
+  // never lets an intraword underscore (flanked by alphanumerics on both sides) open
+  // or close emphasis — so escaping it is unnecessary. An underscore adjacent to
+  // whitespace/punctuation (e.g. `_word_`) can still form emphasis and must stay escaped.
+  // Code (fenced blocks and inline spans) and math ($...$ / $$...$$) are skipped: their
+  // content is emitted verbatim, so a literal `\_` there (e.g. a regex/shell escape, or
+  // a LaTeX subscript marker) is the user's own text and must not be rewritten. The fenced
+  // code alternative backreferences the opening fence run so a closing line using a
+  // different fence character/length (or a same-character run that's just code content)
+  // doesn't end the protected region early.
+  result = result.replace(
+    /^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[ \t]*$|(`+)[^\n]*?\2|\$\$[\s\S]*?\$\$|\$[^\n$]*?\$|((?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}]))/gmu,
+    (match, _fenceRun, _inlineOpen, underscore) => (underscore === undefined ? match : '_')
+  );
 
   return result;
 }

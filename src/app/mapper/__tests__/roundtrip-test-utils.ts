@@ -9,7 +9,7 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { createEditor, LexicalEditor } from 'lexical';
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
-import { ListNode, ListItemNode, registerList } from '@lexical/list';
+import { ListItemNode, registerList } from '@lexical/list';
 import { CodeNode, CodeHighlightNode } from '@lexical/code';
 import { AutoLinkNode } from '@lexical/link';
 import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
@@ -25,6 +25,7 @@ import {
   C4Node,
   FrontmatterNode,
   CustomLinkNode,
+  CustomListNode,
   FootnoteNode,
 } from '../../editor/nodes';
 import { parseMarkdown } from '../../../markdown/parse';
@@ -37,7 +38,7 @@ import { createTwoFilesPatch } from 'diff';
 export const editorNodes = [
   HeadingNode,
   QuoteNode,
-  ListNode,
+  CustomListNode,
   ListItemNode,
   CodeNode,
   CodeHighlightNode,

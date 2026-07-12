@@ -41,9 +41,6 @@ result and the fixture starts enforcing it).
   originated. Additional coverage for this fix (deeper nesting, first/last-child
   positioning, mixed block types, task-list items) lives directly under
   `fixtures/roundtrip/`.
-- **`898-*`**: reproduces [#898](https://github.com/verveguy/liminis/issues/898) — the
-  serializer over-escapes inline content, degrades image-inside-link badges, and
-  normalizes loose lists to tight lists.
 - **`other-*`**: additional round-trip fidelity losses discovered while building this
   corpus, for constructs the spec (FR-009) requires coverage of but that aren't part of
   the #897/#898 issue bodies: definition lists (converted to bold-term + paragraph,
@@ -52,6 +49,10 @@ result and the fixture starts enforcing it).
   level rather than the list-item level), HTML blocks (attributes and tags stripped,
   leaving only inner text), and inline HTML (tags escaped as literal text). Table
   column alignment is also lost (`:---`, `:---:`, `----:` all collapse to plain `-`).
+  Image alt text containing a bracket pair (e.g. `alt \[bracket\] text`) is also
+  double-escaped by the bracket-preservation post-process step in `stringify.ts`,
+  corrupting the image syntax further on a second round trip — discovered while adding
+  #898 edge-case coverage but distinct from any of that issue's three defects.
   These are not tracked by a specific issue yet; if one is filed, rename the fixture to
   match the `NNN-*` convention above.
 - **`other-list-item-double-hard-break`**: a residual gap in the #897 fix itself. That
@@ -69,6 +70,18 @@ result and the fixture starts enforcing it).
   relies on. Closing it properly needs a marker Lexical won't merge/garbage-collect (e.g.
   a dedicated custom node), which is a larger change than a conversion-function patch —
   see the "Plan B" contingency discussed for #897.
+- **`other-strong-inline-math-not-wrapped`, `other-emphasis-footnote-not-wrapped`,
+  `other-delete-inline-math-not-wrapped`**: discovered while fixing #898 review feedback
+  that `convertStrong`/`convertEmphasis`/`convertDelete` in `mdastToLexical.ts` silently
+  dropped `EquationNode`/`FootnoteNode`/`LineBreakNode` children (e.g. `**$x$**` or
+  `_see note[^1]_` lost the math/footnote entirely). That data-loss bug is fixed — these
+  nodes are now passed through unformatted rather than skipped — but a residual gap
+  remains: only `TextNode` can carry Lexical's bold/italic/strikethrough format bits, so
+  on export the equation/footnote node falls outside the mdast `strong`/`emphasis`/
+  `delete` wrapper instead of staying nested inside it (`**$O(n)$ complexity**` round-trips
+  to `$O(n)$** complexity**`). Content and order are preserved; only the marker span
+  shifts. Closing this fully would mean giving non-text inline nodes a way to carry
+  format state, a larger change than the data-loss fix itself.
 
 ## Diagnosing a failure
 

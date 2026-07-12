@@ -9,9 +9,9 @@ import {
   LexicalEditor,
 } from 'lexical';
 import { $createHeadingNode, $createQuoteNode } from '@lexical/rich-text';
-import { $createListNode, $createListItemNode } from '@lexical/list';
+import { $createListItemNode } from '@lexical/list';
 import { $createCodeNode } from '@lexical/code';
-import { $createHorizontalRuleNode, $createCalloutNode, $createToggleNode, $createEquationNode, $createMermaidNode, $createC4Node } from './nodes';
+import { $createHorizontalRuleNode, $createCalloutNode, $createToggleNode, $createEquationNode, $createMermaidNode, $createC4Node, $createCustomListNode } from './nodes';
 import {
   $createTableNode,
   $createTableRowNode,
@@ -112,7 +112,7 @@ const BLOCK_OPTIONS: BlockOption[] = [
       editor.update(() => {
         const selection = $getSelection();
         if ($isRangeSelection(selection)) {
-          const list = $createListNode('bullet');
+          const list = $createCustomListNode('bullet');
           const item = $createListItemNode();
           list.append(item);
           selection.insertNodes([list]);
@@ -130,7 +130,7 @@ const BLOCK_OPTIONS: BlockOption[] = [
       editor.update(() => {
         const selection = $getSelection();
         if ($isRangeSelection(selection)) {
-          const list = $createListNode('number');
+          const list = $createCustomListNode('number');
           const item = $createListItemNode();
           list.append(item);
           selection.insertNodes([list]);
@@ -148,7 +148,7 @@ const BLOCK_OPTIONS: BlockOption[] = [
       editor.update(() => {
         const selection = $getSelection();
         if ($isRangeSelection(selection)) {
-          const list = $createListNode('check');
+          const list = $createCustomListNode('check');
           const item = $createListItemNode();
           list.append(item);
           selection.insertNodes([list]);

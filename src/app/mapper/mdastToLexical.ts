@@ -3,6 +3,7 @@ import {
   $createTextNode,
   $createLineBreakNode,
   $isTextNode,
+  $isLineBreakNode,
   $getRoot,
   LexicalEditor,
   ParagraphNode,
@@ -10,23 +11,27 @@ import {
   LineBreakNode,
 } from 'lexical';
 import { $createHeadingNode, $createQuoteNode, HeadingNode, QuoteNode, type HeadingTagType } from '@lexical/rich-text';
-import { $createListNode, $createListItemNode, ListNode, ListItemNode } from '@lexical/list';
+import { $createListItemNode, ListItemNode, type ListNode } from '@lexical/list';
 import { $createCodeNode, CodeNode } from '@lexical/code';
 import { LinkNode, $isLinkNode } from '@lexical/link';
 import type { TextFormatType } from 'lexical';
 import {
   $createHorizontalRuleNode,
   $createImageNode,
+  $isImageNode,
   $createCalloutNode,
   $createToggleContainerNode,
   $createToggleTitleNode,
   $createToggleContentNode,
   $createEquationNode,
+  $isEquationNode,
   $createFootnoteNode,
+  $isFootnoteNode,
   $createMermaidNode,
   $createC4Node,
   $createFrontmatterNode,
   $createCustomLinkNode,
+  $createCustomListNode,
   HorizontalRuleNode,
   ImageNode,
   CalloutNode,
@@ -582,7 +587,8 @@ function convertBlockquote(node: Blockquote): LexicalBlockNode[] {
 function convertList(node: List): ListNode {
   const hasCheckedItems = node.children.some((item: ListItem) => item.checked !== null);
   const listType = node.ordered ? 'number' : hasCheckedItems ? 'check' : 'bullet';
-  const list = $createListNode(listType);
+  const list = $createCustomListNode(listType);
+  list.setSpread(node.spread === true);
 
   for (const item of node.children) {
     const listItem = convertListItem(item, node);
@@ -928,7 +934,7 @@ interface WikiLink {
   };
 }
 
-function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | EquationNode | FootnoteNode | LineBreakNode)[] {
+function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] {
   // Defensive: handle null/undefined nodes
   if (!node?.type) {
     console.warn('[mdastToLexical] convertInlineNode received invalid node:', node);
@@ -954,8 +960,9 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | Equati
       return [$createLineBreakNode()];
     case 'image': {
       const imageNode = node as Image;
-      // Images in inline context become text placeholder
-      return [$createTextNode(`![${imageNode.alt || ''}](${imageNode.url})`)];
+      // Images nested inline (e.g. the "badge" pattern: an image inside a link)
+      // become a real ImageNode child, preserving the image through the round trip.
+      return [$createImageNode(imageNode.url, imageNode.alt || '', { title: imageNode.title ?? undefined })];
     }
     case 'inlineMath':
       // Inline math from mdast-util-math: $...$
@@ -1065,8 +1072,8 @@ function applyFormatToLinkChildren(
   }
 }
 
-function convertStrong(node: Strong): (TextNode | LinkNode)[] {
-  const nodes: (TextNode | LinkNode)[] = [];
+function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] {
+  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] = [];
   const marker = (node as any).data?._strongMarker;
   for (const child of node.children) {
     const converted = convertInlineNode(child);
@@ -1081,14 +1088,17 @@ function convertStrong(node: Strong): (TextNode | LinkNode)[] {
         // Apply bold formatting to wiki link's text children
         applyFormatToLinkChildren(n, 'bold', marker);
         nodes.push(n);
+      } else if ($isImageNode(n) || $isEquationNode(n) || $isFootnoteNode(n) || $isLineBreakNode(n)) {
+        // These have no bold/italic representation — pass through unformatted
+        nodes.push(n);
       }
     }
   }
   return nodes;
 }
 
-function convertEmphasis(node: Emphasis): (TextNode | LinkNode)[] {
-  const nodes: (TextNode | LinkNode)[] = [];
+function convertEmphasis(node: Emphasis): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] {
+  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] = [];
   const marker = (node as any).data?._emphasisMarker;
   for (const child of node.children) {
     const converted = convertInlineNode(child);
@@ -1102,6 +1112,9 @@ function convertEmphasis(node: Emphasis): (TextNode | LinkNode)[] {
       } else if ($isLinkNode(n)) {
         // Apply italic formatting to wiki link's text children
         applyFormatToLinkChildren(n, 'italic', marker);
+        nodes.push(n);
+      } else if ($isImageNode(n) || $isEquationNode(n) || $isFootnoteNode(n) || $isLineBreakNode(n)) {
+        // These have no bold/italic representation — pass through unformatted
         nodes.push(n);
       }
     }
@@ -1144,8 +1157,8 @@ function convertLink(node: Link): LinkNode {
   return link;
 }
 
-function convertDelete(node: Delete): (TextNode | LinkNode)[] {
-  const nodes: (TextNode | LinkNode)[] = [];
+function convertDelete(node: Delete): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] {
+  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | LineBreakNode)[] = [];
   for (const child of node.children) {
     const converted = convertInlineNode(child);
     for (const n of converted) {
@@ -1155,6 +1168,9 @@ function convertDelete(node: Delete): (TextNode | LinkNode)[] {
       } else if ($isLinkNode(n)) {
         // Apply strikethrough formatting to wiki link's text children
         applyFormatToLinkChildren(n, 'strikethrough');
+        nodes.push(n);
+      } else if ($isImageNode(n) || $isEquationNode(n) || $isFootnoteNode(n) || $isLineBreakNode(n)) {
+        // These have no strikethrough representation — pass through unformatted
         nodes.push(n);
       }
     }
