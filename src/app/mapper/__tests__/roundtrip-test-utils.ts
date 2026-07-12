@@ -27,6 +27,9 @@ import {
   CustomLinkNode,
   CustomListNode,
   FootnoteNode,
+  DefinitionListNode,
+  DefinitionTermNode,
+  DefinitionDescriptionNode,
 } from '../../editor/nodes';
 import { parseMarkdown } from '../../../markdown/parse';
 import { stringifyMarkdown } from '../../../markdown/stringify';
@@ -58,6 +61,9 @@ export const editorNodes = [
   C4Node,
   FrontmatterNode,
   FootnoteNode,
+  DefinitionListNode,
+  DefinitionTermNode,
+  DefinitionDescriptionNode,
 ];
 
 export function createTestEditor(

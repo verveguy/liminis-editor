@@ -50,3 +50,20 @@ export type { SerializedCustomListNode } from './CustomListNode';
 
 export { FootnoteNode, $createFootnoteNode, $isFootnoteNode } from './FootnoteNode';
 export type { SerializedFootnoteNode } from './FootnoteNode';
+
+export {
+  DefinitionListNode,
+  DefinitionTermNode,
+  DefinitionDescriptionNode,
+  $createDefinitionListNode,
+  $createDefinitionTermNode,
+  $createDefinitionDescriptionNode,
+  $isDefinitionListNode,
+  $isDefinitionTermNode,
+  $isDefinitionDescriptionNode,
+} from './DefinitionListNode';
+export type {
+  SerializedDefinitionListNode,
+  SerializedDefinitionTermNode,
+  SerializedDefinitionDescriptionNode,
+} from './DefinitionListNode';

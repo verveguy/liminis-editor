@@ -70,6 +70,9 @@ import {
   FootnoteNode,
   CustomLinkNode,
   CustomListNode,
+  DefinitionListNode,
+  DefinitionTermNode,
+  DefinitionDescriptionNode,
 } from './nodes';
 import { importMarkdownToLexical, importMarkdownToLexicalInEditorState } from '../mapper/mdastToLexical';
 import { exportLexicalToMdast } from '../mapper/lexicalToMdast';
@@ -195,6 +198,9 @@ const editorNodes = [
   C4Node,
   FrontmatterNode,
   FootnoteNode,
+  DefinitionListNode,
+  DefinitionTermNode,
+  DefinitionDescriptionNode,
 ];
 
 // Mirror of $exitCodeNodeOnEnter in @lexical/code-core@0.44 (CodeExtension.register).
