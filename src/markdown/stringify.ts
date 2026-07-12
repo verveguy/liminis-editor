@@ -321,10 +321,10 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   // escaped characters as a unit so an escaped closing bracket in the alt text
   // isn't confused with the image label's own (unescaped) terminating ']'.
   result = result.replace(/!\[((?:\\.|[^\]\n])*)\]\(/g, (match, alt) => {
-    if (!/\\[\[\]]/.test(alt)) {
+    if (!/\\[[\]]/.test(alt)) {
       return match;
     }
-    const unescaped = alt.replace(/\\([\[\]])/g, '$1');
+    const unescaped = alt.replace(/\\([[\]])/g, '$1');
     let depth = 0;
     for (const ch of unescaped) {
       if (ch === '[') {
