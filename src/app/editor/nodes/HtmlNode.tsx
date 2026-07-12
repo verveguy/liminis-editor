@@ -17,7 +17,7 @@ import {
   Spread,
   $applyNodeReplacement,
 } from 'lexical';
-import { createElement } from 'react';
+import { createElement, Fragment } from 'react';
 
 export type SerializedHtmlNode = Spread<
   {
@@ -49,8 +49,15 @@ function $convertHtmlElement(domNode: HTMLElement): DOMConversionOutput | null {
   if (encoded === null) {
     return null;
   }
-  const html = decodeUnicodeBase64(encoded);
-  return { node: $createHtmlNode(html, inline) };
+  // Malformed/hand-edited clipboard data can contain an invalid base64
+  // payload — decode defensively so a bad paste doesn't crash the whole
+  // paste operation.
+  try {
+    const html = decodeUnicodeBase64(encoded);
+    return { node: $createHtmlNode(html, inline) };
+  } catch {
+    return null;
+  }
 }
 
 export class HtmlNode extends DecoratorNode<JSX.Element> {
@@ -138,7 +145,10 @@ export class HtmlNode extends DecoratorNode<JSX.Element> {
   }
 
   decorate(): JSX.Element {
-    return createElement(this.__inline ? 'span' : 'div', { className: 'editor-raw-html' }, this.__html);
+    // createDOM() already provides the wrapping element (with class
+    // 'editor-raw-html') that this content is portaled into — render only
+    // the text here, not another nested copy of the same wrapper.
+    return createElement(Fragment, null, this.__html);
   }
 }
 
