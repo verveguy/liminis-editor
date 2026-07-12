@@ -751,42 +751,164 @@ function convertDefinitionListNode(node: DefinitionListNode): Content {
   } as unknown as Content;
 }
 
-function convertInlineChildren(node: ElementNode): PhrasingContentLike[] {
-  const children: PhrasingContentLike[] = [];
+// The bold/italic/strikethrough bits of Lexical's TextFormat bitmask.
+// (bit 8 = underline, 16 = code, and higher bits aren't representable in markdown here.)
+const MERGEABLE_FORMAT_MASK = 1 | 2 | 4;
 
-  for (const child of node.getChildren()) {
+// Returns the bold/italic/strikethrough bits a child can contribute to a shared
+// strong/emphasis/delete wrapper, or null if the child can't participate in one
+// (e.g. inline code, or a node type with no format bitmask like images/breaks).
+function getMergeableFormat(child: LexicalNode): number | null {
+  if ($isTextNode(child)) {
+    if (child.hasFormat('code')) {
+      return null;
+    }
+    return child.getFormat() & MERGEABLE_FORMAT_MASK;
+  }
+  if ($isEquationNode(child) || $isFootnoteNode(child)) {
+    return child.getFormat() & MERGEABLE_FORMAT_MASK;
+  }
+  return null;
+}
+
+// Converts a single inline child using the same per-node rules as before this
+// issue's fix — no merging, no format wrapper applied here. Used both for
+// children that carry no format and for children whose format is already
+// handled by convertTextNode (a lone formatted TextNode).
+function convertSingleInlineChild(child: LexicalNode): PhrasingContentLike[] {
+  if ($isTextNode(child)) {
+    return convertTextNode(child);
+  } else if ($isLineBreakNode(child)) {
+    // Soft line break (from trailing double-spaces in markdown)
+    return [{ type: 'break' }];
+  } else if ($isLinkNode(child)) {
+    return [convertLinkNode(child)];
+  } else if ($isImageNode(child)) {
+    // Handle ImageNode that ended up inside a paragraph (from markdown shortcut)
+    // Convert to inline mdast image
+    const image: Image = {
+      type: 'image',
+      url: child.getSrc(),
+      alt: child.getAlt(),
+      title: child.getTitle(),
+    };
+    return [image];
+  } else if ($isEquationNode(child)) {
+    // Handle EquationNode that ended up inside a paragraph (from markdown shortcut)
+    // Convert to inlineMath mdast node
+    return [{ type: 'inlineMath', value: child.getEquation() }];
+  } else if ($isFootnoteNode(child)) {
+    // Footnote reference: convert back to footnoteReference mdast node
+    return [{
+      type: 'footnoteReference',
+      identifier: child.getFootnoteId(),
+      label: child.getFootnoteId(),
+    } as unknown as PhrasingContent];
+  }
+  return [];
+}
+
+// Converts a run of consecutive siblings that all share the same non-zero
+// bold/italic/strikethrough bits into a single mdast strong/emphasis/delete
+// wrapper, so a non-text child (math, footnote reference) in the middle of a
+// formatted span doesn't get left outside the marker's boundary.
+function convertFormattedRun(runChildren: LexicalNode[], format: number): PhrasingContent {
+  const content: PhrasingContent[] = [];
+  let strongMarker: '_' | '*' | null = null;
+  let emphasisMarker: '_' | '*' | null = null;
+
+  for (const child of runChildren) {
     if ($isTextNode(child)) {
-      children.push(...convertTextNode(child));
-    } else if ($isLineBreakNode(child)) {
-      // Soft line break (from trailing double-spaces in markdown)
-      children.push({ type: 'break' });
-    } else if ($isLinkNode(child)) {
-      children.push(convertLinkNode(child));
-    } else if ($isImageNode(child)) {
-      // Handle ImageNode that ended up inside a paragraph (from markdown shortcut)
-      // Convert to inline mdast image
-      const imageNode = child;
-      const image: Image = {
-        type: 'image',
-        url: imageNode.getSrc(),
-        alt: imageNode.getAlt(),
-        title: imageNode.getTitle(),
-      };
-      children.push(image);
+      const text = child.getTextContent();
+      if (text === '') {
+        continue;
+      }
+      content.push({ type: 'text', value: text });
+      const style = child.getStyle() || '';
+      strongMarker = strongMarker ?? getMarkdownMarker(style, '--md-strong-marker');
+      emphasisMarker = emphasisMarker ?? getMarkdownMarker(style, '--md-emphasis-marker');
     } else if ($isEquationNode(child)) {
-      // Handle EquationNode that ended up inside a paragraph (from markdown shortcut)
-      // Convert to inlineMath mdast node
-      const equationNode = child;
-      const equation = equationNode.getEquation();
-      children.push({ type: 'inlineMath', value: equation });
+      content.push({ type: 'inlineMath', value: child.getEquation() });
     } else if ($isFootnoteNode(child)) {
-      // Footnote reference: convert back to footnoteReference mdast node
-      children.push({
+      content.push({
         type: 'footnoteReference',
         identifier: child.getFootnoteId(),
         label: child.getFootnoteId(),
       } as unknown as PhrasingContent);
     }
+  }
+
+  return wrapWithFormat(content, format, strongMarker, emphasisMarker);
+}
+
+// Nests content in strong/emphasis/delete wrappers matching convertTextNode's
+// order: bold innermost, then italic, then strikethrough outermost.
+function wrapWithFormat(
+  content: PhrasingContent[],
+  format: number,
+  strongMarker: '_' | '*' | null,
+  emphasisMarker: '_' | '*' | null,
+): PhrasingContent {
+  let result: PhrasingContent[] = content;
+
+  if (format & 1) {
+    // Bold
+    result = [{
+      type: 'strong',
+      children: result,
+      data: strongMarker ? { _strongMarker: strongMarker } : undefined,
+    } as PhrasingContent];
+  }
+
+  if (format & 2) {
+    // Italic
+    result = [{
+      type: 'emphasis',
+      children: result,
+      data: emphasisMarker ? { _emphasisMarker: emphasisMarker } : undefined,
+    } as PhrasingContent];
+  }
+
+  if (format & 4) {
+    // Strikethrough
+    result = [{ type: 'delete', children: result }];
+  }
+
+  return result[0];
+}
+
+function convertInlineChildren(node: ElementNode): PhrasingContentLike[] {
+  const children: PhrasingContentLike[] = [];
+  const kids = node.getChildren();
+
+  let i = 0;
+  while (i < kids.length) {
+    const child = kids[i];
+    const format = getMergeableFormat(child);
+
+    if (format) {
+      // Find the maximal run of consecutive siblings sharing this exact
+      // format, tracking whether it contains a non-text (math/footnote) node —
+      // only those runs need the merged wrapper; all-text runs keep the
+      // existing per-node path below (untouched, per FR-006).
+      let j = i + 1;
+      let hasNonTextMember = !$isTextNode(child);
+      while (j < kids.length && getMergeableFormat(kids[j]) === format) {
+        if (!$isTextNode(kids[j])) {
+          hasNonTextMember = true;
+        }
+        j++;
+      }
+
+      if (hasNonTextMember) {
+        children.push(convertFormattedRun(kids.slice(i, j), format));
+        i = j;
+        continue;
+      }
+    }
+
+    children.push(...convertSingleInlineChild(child));
+    i++;
   }
 
   return children;
