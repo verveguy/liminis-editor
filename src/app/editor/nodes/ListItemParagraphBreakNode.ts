@@ -56,10 +56,15 @@ export class ListItemParagraphBreakNode extends ElementNode {
     return true;
   }
 
+  // Renders two <br> elements — the same visual gap the previous two-LineBreakNode
+  // marker produced — so a list item with consecutive paragraphs still shows a
+  // blank-line-like separator while editing, instead of the paragraphs visually
+  // running together with no boundary at all.
   createDOM(): HTMLElement {
     const el = document.createElement('span');
-    el.style.display = 'none';
     el.setAttribute(MARKER_ATTRIBUTE, '');
+    el.appendChild(document.createElement('br'));
+    el.appendChild(document.createElement('br'));
     return el;
   }
 
@@ -69,8 +74,9 @@ export class ListItemParagraphBreakNode extends ElementNode {
 
   exportDOM(): DOMExportOutput {
     const el = document.createElement('span');
-    el.style.display = 'none';
     el.setAttribute(MARKER_ATTRIBUTE, '');
+    el.appendChild(document.createElement('br'));
+    el.appendChild(document.createElement('br'));
     return { element: el };
   }
 
