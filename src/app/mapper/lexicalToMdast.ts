@@ -375,10 +375,7 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean, spread: bool
     }
   };
 
-  const kids = node.getChildren();
-  for (let i = 0; i < kids.length; i++) {
-    const child = kids[i];
-
+  for (const child of node.getChildren()) {
     if ($isListNode(child)) {
       flushInline();
       children.push(convertListNode(child));
