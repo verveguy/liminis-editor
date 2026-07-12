@@ -59,34 +59,37 @@ describe('Live-editing double Shift+Enter inside a list item (#902 FR-004)', () 
     // this state can only collide with the marker if the marker isn't a distinct type.
     const { editor, dispose } = createTestEditor(undefined, true);
 
-    editor.update(
-      () => {
-        const list = $createCustomListNode('bullet');
-        const listItem = $createListItemNode();
-        listItem.append(
-          $createTextNode('Line one'),
-          $createLineBreakNode(),
-          $createLineBreakNode(),
-          $createTextNode('Line two'),
-        );
-        list.append(listItem);
-        $getRoot().append(list);
-      },
-      { discrete: true },
-    );
+    try {
+      editor.update(
+        () => {
+          const list = $createCustomListNode('bullet');
+          const listItem = $createListItemNode();
+          listItem.append(
+            $createTextNode('Line one'),
+            $createLineBreakNode(),
+            $createLineBreakNode(),
+            $createTextNode('Line two'),
+          );
+          list.append(listItem);
+          $getRoot().append(list);
+        },
+        { discrete: true },
+      );
 
-    const mdast = exportLexicalToMdast(editor);
-    dispose();
+      const mdast = exportLexicalToMdast(editor);
 
-    const list = mdast.children[0];
-    expect(list.type).toBe('list');
-    if (list.type !== 'list') throw new Error('expected a list');
-    expect(list.children).toHaveLength(1);
-    const [listItem] = list.children;
-    expect(listItem.children).toHaveLength(1);
-    const [paragraph] = listItem.children;
-    expect(paragraph.type).toBe('paragraph');
-    if (paragraph.type !== 'paragraph') throw new Error('expected a paragraph');
-    expect(paragraph.children.map((c) => c.type)).toEqual(['text', 'break', 'break', 'text']);
+      const list = mdast.children[0];
+      expect(list.type).toBe('list');
+      if (list.type !== 'list') throw new Error('expected a list');
+      expect(list.children).toHaveLength(1);
+      const [listItem] = list.children;
+      expect(listItem.children).toHaveLength(1);
+      const [paragraph] = listItem.children;
+      expect(paragraph.type).toBe('paragraph');
+      if (paragraph.type !== 'paragraph') throw new Error('expected a paragraph');
+      expect(paragraph.children.map((c) => c.type)).toEqual(['text', 'break', 'break', 'text']);
+    } finally {
+      dispose();
+    }
   });
 });
