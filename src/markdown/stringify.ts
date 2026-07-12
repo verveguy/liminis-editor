@@ -230,6 +230,26 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
             const aliasPart = hasAlias ? `${wikiLinkOptions.aliasDivider}${alias}` : emptyAlias ? `${wikiLinkOptions.aliasDivider}` : '';
             return `[[${value}${aliasPart}]]`;
           },
+          // Override mdast-util-definition-list's default (`:` + 3 spaces, i.e. a
+          // 4-char marker matching a 4-space continuation indent) with the
+          // single-space `: ` marker convention used throughout PHP Markdown
+          // Extra source and this codebase's own fixtures/spec examples, so a
+          // `: Definition` input round-trips byte-identical instead of being
+          // reformatted to `:   Definition`.
+          defListDescription: (node: any, _parent: any, state: any, info: any) => {
+            const exit = state.enter('defListDescription');
+            const value = state.indentLines(
+              state.containerFlow(node, info),
+              (line: string, index: number, blank: boolean) => {
+                if (index) {
+                  return blank ? '' : '  ' + line;
+                }
+                return blank ? ':' : ': ' + line;
+              },
+            );
+            exit();
+            return value;
+          },
         } as Record<string, unknown>,
       },
     ],
