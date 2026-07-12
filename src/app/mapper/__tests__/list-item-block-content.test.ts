@@ -13,9 +13,8 @@ import { describe, it, expect } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { $getRoot, $createTextNode, $createLineBreakNode } from 'lexical';
-import { $createListItemNode } from '@lexical/list';
 import { discoverFixtures, roundTrip, formatUnifiedDiff, createTestEditor, type FixtureEntry } from './roundtrip-test-utils';
-import { $createCustomListNode } from '../../editor/nodes';
+import { $createCustomListNode, $createCustomListItemNode } from '../../editor/nodes';
 import { exportLexicalToMdast } from '../lexicalToMdast';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -63,7 +62,7 @@ describe('Live-editing double Shift+Enter inside a list item (#902 FR-004)', () 
       editor.update(
         () => {
           const list = $createCustomListNode('bullet');
-          const listItem = $createListItemNode();
+          const listItem = $createCustomListItemNode();
           listItem.append(
             $createTextNode('Line one'),
             $createLineBreakNode(),

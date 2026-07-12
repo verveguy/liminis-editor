@@ -91,8 +91,12 @@ export class ListItemParagraphBreakNode extends ElementNode {
     };
   }
 
-  static importJSON(_serializedNode: SerializedListItemParagraphBreakNode): ListItemParagraphBreakNode {
-    return $createListItemParagraphBreakNode();
+  static importJSON(serializedNode: SerializedListItemParagraphBreakNode): ListItemParagraphBreakNode {
+    const node = $createListItemParagraphBreakNode();
+    node.setFormat(serializedNode.format);
+    node.setIndent(serializedNode.indent);
+    node.setDirection(serializedNode.direction);
+    return node;
   }
 
   exportJSON(): SerializedListItemParagraphBreakNode {
