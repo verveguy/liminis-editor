@@ -1066,8 +1066,10 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
     }
   }
 
-  // Check if this should be a wiki-link
-  if (isWikiLinkUrl(url)) {
+  // Check if this should be a wiki-link. A title is a strong signal that the
+  // author deliberately used standard markdown link syntax — wiki-link syntax
+  // has no title slot, so promoting a titled link would silently drop it.
+  if (isWikiLinkUrl(url) && !linkNode.getTitle()) {
     // Convert URL back to wiki-link target
     let target: string;
 

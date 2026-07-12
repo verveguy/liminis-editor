@@ -77,15 +77,22 @@ result and the fixture starts enforcing it).
   corpus previously pinned that behavior down.
   These are not tracked by a specific issue yet; if one is filed, rename the fixture to
   match the `NNN-*` convention above.
-- **`other-titled-link-wikilink-url`**: a titled standard link whose URL is classified
-  as a wiki-link by `isWikiLinkUrl` in `lexicalToMdast.ts` (relative `.md` paths,
-  directory paths, and anchor-only URLs) is exported as a mdast `wikiLink` node instead
-  of a `link` node. The `wikiLink` mdast type has no title concept, so the title is
-  silently dropped even after [#904](https://github.com/verveguy/liminis/issues/904)
-  fixed title round-tripping for standard `link` nodes. Pre-existing and orthogonal to
-  #904 — the URL-shape-based link-vs-wiki-link classification, not title handling, is
-  the root cause. Out of scope for #904 per its own spec, which only covers
-  `https://...`-style URLs (never wiki-link-classified).
+- **`other-titled-link-wikilink-url`**: originally reproduced
+  [#919](https://github.com/verveguy/liminis/issues/919) — a titled standard link whose
+  URL is classified as a wiki-link by `isWikiLinkUrl` in `lexicalToMdast.ts` (relative
+  `.md` paths, directory paths, and anchor-only URLs) was exported as a mdast `wikiLink`
+  node instead of a `link` node. The `wikiLink` mdast type has no title concept, so the
+  title was silently dropped even after [#904](https://github.com/verveguy/liminis/issues/904)
+  fixed title round-tripping for standard `link` nodes. Fixed by guarding the wiki-link
+  promotion in `convertLinkNode` on the link having no title (`isWikiLinkUrl(url) &&
+  !linkNode.getTitle()`) — a title is a strong signal the author deliberately used
+  standard markdown link syntax, which wiki-link syntax has no slot for. This now
+  round-trips byte-identical to its input (no `.expected.md` sidecar), so it's become a
+  permanent regression gate rather than a documented defect. Left under `known-defects/`
+  rather than moved, per the `897-*` precedent above. Additional coverage (untitled
+  variant proving the wiki-link promotion heuristic itself is unchanged, plus the other
+  URL shapes `isWikiLinkUrl` classifies — anchor-suffixed `.md` path, bare anchor, and
+  directory-style path — each with a title) lives directly under `fixtures/roundtrip/`.
 - **`other-table-column-alignment-lost`, `other-table-single-column-aligned`**:
   originally reproduced [#907](https://github.com/verveguy/liminis/issues/907) — GFM
   table column alignment (`:---` left, `:---:` center, `---:` right) collapsed to a
