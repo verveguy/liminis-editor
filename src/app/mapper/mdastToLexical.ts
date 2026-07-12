@@ -2,7 +2,6 @@ import {
   $createParagraphNode,
   $createTextNode,
   $createLineBreakNode,
-  $isTextNode,
   $isLineBreakNode,
   $getRoot,
   LexicalEditor,
@@ -32,6 +31,9 @@ import {
   $createFrontmatterNode,
   $createCustomLinkNode,
   $createCustomListNode,
+  $createDefinitionListNode,
+  $createDefinitionTermNode,
+  $createDefinitionDescriptionNode,
   HorizontalRuleNode,
   ImageNode,
   CalloutNode,
@@ -41,11 +43,13 @@ import {
   MermaidNode,
   C4Node,
   FrontmatterNode,
+  DefinitionListNode,
   CalloutType,
 } from '../editor/nodes';
 import { parseFormattedAlias } from '../editor/MarkdownShortcutsPlugin';
 import { $createTableNode, $createTableRowNode, $createTableCellNode, TableNode, TableRowNode, TableCellNode, TableCellHeaderStates } from '@lexical/table';
 import type { Root, Content, PhrasingContent, List, ListItem, Table, TableRow, TableCell, Heading, Paragraph, Blockquote, Code, Image, Link, Text, Strong, Emphasis, InlineCode, Delete, Html } from 'mdast';
+import type { DefListNode as MdastDefListNode } from 'mdast-util-definition-list';
 import DOMPurify from 'dompurify';
 import { getFileType } from '../../../renderer/utils/fileTypes';
 
@@ -63,7 +67,8 @@ type LexicalBlockNode =
   | EquationNode
   | MermaidNode
   | C4Node
-  | FrontmatterNode;
+  | FrontmatterNode
+  | DefinitionListNode;
 
 // Convert mdast tree to Lexical editor state
 export function importMarkdownToLexical(
@@ -349,39 +354,30 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
       return results;
     }
     case 'defList': {
-      // Definition list: convert to paragraphs since Lexical has no native <dl>
-      const defListNode = node as { children: { type: string; children?: any[] }[] };
-      const results: LexicalBlockNode[] = [];
+      // Definition list: build a dedicated DefinitionListNode so the term/description
+      // structure survives round-tripping (see lexicalToMdast's convertDefinitionListNode).
+      const defListNode = node as unknown as MdastDefListNode;
+      const container = $createDefinitionListNode();
       for (const child of defListNode.children) {
         if (child.type === 'defListTerm') {
-          // Term: bold paragraph
-          const termPara = $createParagraphNode();
-          for (const inlineChild of (child.children || []) as PhrasingContent[]) {
-            const nodes = convertInlineNode(inlineChild);
-            for (const n of nodes) {
-              if ($isTextNode(n)) {
-                n.toggleFormat('bold');
-              }
-              termPara.append(n);
+          const term = $createDefinitionTermNode();
+          for (const inlineChild of child.children) {
+            for (const n of convertInlineNode(inlineChild)) {
+              term.append(n);
             }
           }
-          results.push(termPara);
+          container.append(term);
         } else if (child.type === 'defListDescription') {
-          // Definition: convert children as indented block nodes
-          if (child.children) {
-            for (const contentChild of child.children as Content[]) {
-              const nodes = convertBlockNode(contentChild);
-              for (const n of nodes) {
-                if ('setIndent' in n && typeof n.setIndent === 'function') {
-                  n.setIndent(1);
-                }
-              }
-              results.push(...nodes);
+          const description = $createDefinitionDescriptionNode();
+          for (const contentChild of child.children as Content[]) {
+            for (const n of convertBlockNode(contentChild)) {
+              description.append(n);
             }
           }
+          container.append(description);
         }
       }
-      return results;
+      return [container];
     }
     default:
       // For unknown nodes, log a warning and create an empty paragraph

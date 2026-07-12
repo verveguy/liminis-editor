@@ -27,6 +27,9 @@ import {
   $isFrontmatterNode,
   $isFootnoteNode,
   $isCustomListNode,
+  $isDefinitionListNode,
+  $isDefinitionTermNode,
+  $isDefinitionDescriptionNode,
   ImageNode,
   CalloutNode,
   ToggleContainerNode,
@@ -34,6 +37,7 @@ import {
   MermaidNode,
   C4Node,
   FrontmatterNode,
+  DefinitionListNode,
 } from '../editor/nodes';
 import type {
   Root,
@@ -54,6 +58,7 @@ import type {
   Link,
   Html,
 } from 'mdast';
+import type { DefListTermNode, DefListDescriptionNode } from 'mdast-util-definition-list';
 
 // Convert Lexical editor state to mdast tree
 export function exportLexicalToMdast(editor: LexicalEditor): Root {
@@ -280,6 +285,10 @@ function convertLexicalNode(node: LexicalNode): Content[] {
 
   if ($isC4Node(node)) {
     return [convertC4Node(node)];
+  }
+
+  if ($isDefinitionListNode(node)) {
+    return [convertDefinitionListNode(node)];
   }
 
   // Fallback: create paragraph
@@ -699,6 +708,41 @@ function convertToggleContainerNode(node: ToggleContainerNode): Content[] {
   });
 
   return result;
+}
+
+// Reconstructs a defList/defListTerm/defListDescription mdast node from a
+// DefinitionListNode. These node types aren't part of @types/mdast's core
+// Content union (mirroring the footnoteDefinition precedent above), so the
+// result is cast with `as unknown as Content` at the return site.
+function convertDefinitionListNode(node: DefinitionListNode): Content {
+  const children: (DefListTermNode | DefListDescriptionNode)[] = [];
+
+  for (const child of node.getChildren()) {
+    if ($isDefinitionTermNode(child)) {
+      const termChildren = convertInlineChildren(child) as PhrasingContent[];
+      children.push({
+        type: 'defListTerm',
+        children: termChildren.length > 0 ? termChildren : [{ type: 'text', value: '' }],
+      } as unknown as DefListTermNode);
+    } else if ($isDefinitionDescriptionNode(child)) {
+      const descriptionChildren: Content[] = [];
+      for (const descriptionChild of child.getChildren()) {
+        descriptionChildren.push(...convertLexicalNode(descriptionChild));
+      }
+      children.push({
+        type: 'defListDescription',
+        spread: false,
+        children: descriptionChildren.length > 0
+          ? descriptionChildren
+          : [{ type: 'paragraph', children: [{ type: 'text', value: '' }] }],
+      } as unknown as DefListDescriptionNode);
+    }
+  }
+
+  return {
+    type: 'defList',
+    children,
+  } as unknown as Content;
 }
 
 function convertInlineChildren(node: ElementNode): PhrasingContentLike[] {
