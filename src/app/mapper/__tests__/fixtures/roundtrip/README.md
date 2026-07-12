@@ -95,21 +95,6 @@ result and the fixture starts enforcing it).
   `known-defects/` rather than moved, per the `897-*` precedent above. Additional
   coverage for this fix (a combined block+inline document, and a check that genuine
   literal `<`/`>` in prose still escapes) lives directly under `fixtures/roundtrip/`.
-- **`other-list-item-double-hard-break`**: a residual gap in the #897 fix itself. That
-  fix marks the boundary between two consecutive mdast paragraphs inside a list item by
-  inserting two bare, adjacent `LineBreakNode`s (see `convertListItem` in
-  `mdastToLexical.ts`), then detects that pair again on export to split back into two
-  paragraphs. But a *single* mdast paragraph can itself contain two adjacent `break`
-  nodes with no text between them — e.g. a line ending in `\` immediately followed by a
-  line that is only `\` — which produces the exact same two-bare-adjacent-`LineBreakNode`
-  shape and gets misread as the paragraph-boundary marker, splitting what should stay one
-  paragraph (with two hard breaks) into two paragraphs. The same ambiguity is reachable
-  purely by live editing too (pressing Shift+Enter twice in a row inside a list item with
-  nothing typed between), independent of any markdown parsing. Content isn't lost — only
-  reformatted — but this is a real, demonstrated gap in the "unambiguous sentinel" the fix
-  relies on. Closing it properly needs a marker Lexical won't merge/garbage-collect (e.g.
-  a dedicated custom node), which is a larger change than a conversion-function patch —
-  see the "Plan B" contingency discussed for #897.
 - **`other-strong-inline-math-not-wrapped`, `other-emphasis-footnote-not-wrapped`,
   `other-delete-inline-math-not-wrapped`**: discovered while fixing #898 review feedback
   that `convertStrong`/`convertEmphasis`/`convertDelete` in `mdastToLexical.ts` silently
@@ -148,6 +133,41 @@ result and the fixture starts enforcing it).
   mechanism. Covered by `emphasis-inline-math-only.md`, `emphasis-footnote-only.md`
   (footnote-definition case, same pre-existing spacing sidecar as above), and
   `strong-inline-math-only-underscore.md`.
+
+## The `902-list-item-double-hard-break*` fixture set
+
+Fixed [#902](https://github.com/verveguy/liminis/issues/902): the #897 fix's
+paragraph-boundary marker (two bare, adjacent `LineBreakNode`s) was ambiguous with a
+genuine double hard break occurring inside a single mdast paragraph (e.g. a line ending
+in `\` immediately followed by a line that is only `\`), which got misread as the
+marker and incorrectly split one paragraph into two. The marker is now a dedicated
+`ListItemParagraphBreakNode` (`editor/nodes/ListItemParagraphBreakNode.ts`), structurally
+distinct from `LineBreakNode` by construction, so no number of consecutive real hard
+breaks can ever collide with it.
+
+- **`902-list-item-double-hard-break`** (promoted from
+  `known-defects/other-list-item-double-hard-break`, the original reproducing fixture):
+  a list item paragraph with a trailing-backslash line immediately followed by a
+  backslash-only line, then more text — the exact ambiguous shape #902 closes.
+- **`902-list-item-double-hard-break/`**: additional edge-case coverage —
+  `three-consecutive-paragraphs` (multiple paragraph-boundary markers in sequence),
+  `double-break-adjacent-to-boundary` (a double hard break and a genuine
+  paragraph-boundary marker next to each other in the same item), `triple-hard-breaks`
+  (three consecutive breaks, not just two), `nested-list-double-break` (the ambiguity at
+  a nested list's own item), and `task-list-double-break` (an unordered checklist item).
+
+**A note on byte-identity**: fixtures containing a hard break authored with the
+trailing-backslash notation carry an `.expected.md` sidecar rather than being
+byte-identical to their input. This is *not* a residual #902 defect — it's a
+pre-existing, orthogonal normalization in `stringify.ts`'s hard-break handling (from
+`mdast-util-to-markdown`) that rewrites `\` + newline to two trailing spaces + newline
+for *any* hard break, anywhere in the pipeline, independent of list items or this
+marker. (It's also not optional: a genuinely empty line — no backslash, just the
+continuation indent and trailing spaces — reads back as a blank line and terminates the
+paragraph, so the backslash notation is the only way to author "two adjacent hard breaks
+with literally nothing between them" in source markdown at all.) What #902 actually
+guarantees — and what each `.expected.md` here asserts — is that the output stays a
+*single* paragraph containing the right number of `break` nodes, never split into two.
 
 ## Diagnosing a failure
 
