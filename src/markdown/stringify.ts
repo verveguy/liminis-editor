@@ -301,6 +301,47 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   result = result.replace(/\\\[\\\[([^\]\n]+?)\\\]\\\]/g, '[[$1]]');
   result = result.replace(/\\\[\\\[([^\]\n]+?)\]\]/g, '[[$1]]');
 
+  // Post-process: unescape balanced bracket pairs inside image alt text
+  // mdast-util-to-markdown always escapes both '[' and ']' within an image's
+  // alt-text label (unlike plain phrasing, where only '[' is unsafe), so a
+  // literal bracket pair like "see [note] here" serializes as
+  // "see \[note\] here" regardless of whether the source was already escaped
+  // (the AST only stores the plain alt string; escaped and unescaped sources
+  // are indistinguishable once parsed). The bracket-preservation regex below
+  // was written for the plain-phrasing case (escaped opener, bare closer) and
+  // mis-fires on this already-fully-escaped span, corrupting it (see #903).
+  // Strip the escapes back to literal brackets whenever an image's alt-text
+  // span contains a properly nested run of escaped brackets — every ']'
+  // closes a preceding '[' and depth returns to 0 by the end of the span. An
+  // equal open/close *count* alone isn't sufficient (e.g. "a\]b\[c" has one of
+  // each but the ']' closes nothing): unescaping that would leave a bare ']'
+  // in the middle of the image label and truncate it early, so any span with
+  // an out-of-order or otherwise unbalanced bracket is left untouched and
+  // deferred to the existing behavior below. `(?:\\.|[^\]\n])*` consumes
+  // escaped characters as a unit so an escaped closing bracket in the alt text
+  // isn't confused with the image label's own (unescaped) terminating ']'.
+  result = result.replace(/!\[((?:\\.|[^\]\n])*)\]\(/g, (match, alt) => {
+    if (!/\\[[\]]/.test(alt)) {
+      return match;
+    }
+    const unescaped = alt.replace(/\\([[\]])/g, '$1');
+    let depth = 0;
+    for (const ch of unescaped) {
+      if (ch === '[') {
+        depth++;
+      } else if (ch === ']') {
+        depth--;
+        if (depth < 0) {
+          return match;
+        }
+      }
+    }
+    if (depth !== 0) {
+      return match;
+    }
+    return `![${unescaped}](`;
+  });
+
   // Post-process: preserve escaped brackets (ensure closing bracket is also escaped)
   result = result.replace(/\\\[([^\]\n]+)\](?!\])/g, '\\[$1\\]');
 
