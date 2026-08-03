@@ -8,7 +8,9 @@ import globals from 'globals'
 // The React-hooks and ADR-024 no-browser-dialog rule blocks that used to be
 // keyed to `src/editor/**` in liminis-app apply to all of `src/**` here.
 export default tseslint.config(
-  { ignores: ['node_modules/**', 'coverage/**'] },
+  // The config files themselves are outside the tsconfig project, so the
+  // type-aware parser can't handle them.
+  { ignores: ['node_modules/**', 'coverage/**', 'eslint.config.js', 'vitest.config.ts'] },
 
   js.configs.recommended,
 

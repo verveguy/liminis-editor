@@ -16,7 +16,7 @@ import {
 } from 'lexical';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
-import { openLink } from '../../../messaging-electron';
+import { useHostMessages } from '../../../host/messages';
 import { $isMermaidNode } from './MermaidNode';
 import { DiagramContextMenu, useDiagramContextMenu } from './DiagramContextMenu';
 
@@ -41,6 +41,7 @@ function MermaidRenderer({
   const renderIdRef = useRef(0);
   const linkHandlerRef = useRef<((event: Event) => void) | null>(null);
   const contextMenu = useDiagramContextMenu();
+  const { openLink } = useHostMessages();
 
   useEffect(() => {
     const container = containerRef.current;
@@ -157,7 +158,7 @@ function MermaidRenderer({
     };
 
     void renderDiagram();
-  }, [code]);
+  }, [code, openLink]);
 
   return (
     <>
