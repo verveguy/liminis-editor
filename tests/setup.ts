@@ -7,9 +7,9 @@ if (typeof document !== 'undefined') {
   Object.defineProperty(document, 'compatMode', { value: 'CSS1Compat' })
 }
 
-// NOTE: deliberately no `window.api` mock here. The package reaches its host
+// NOTE: deliberately no host-global mock here. The package reaches its host
 // only through injected EditorHostServices (FR-003/FR-008), so a test that
-// needs host behaviour supplies a stub service rather than a global.
+// needs host behaviour supplies a stub service rather than patching a global.
 
 afterAll(() => {
   vi.clearAllMocks()
