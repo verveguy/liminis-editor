@@ -2,7 +2,7 @@
   "name": "@liminis/editor",
   "version": "0.1.0",
   "private": true,
-  "description": "Lexical-based markdown WYSIWYG editor with mdast round-trip, extracted from liminis-app",
+  "description": "Lexical-based markdown WYSIWYG editor with mdast round-trip and a host-injection seam",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
