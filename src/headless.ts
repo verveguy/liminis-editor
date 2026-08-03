@@ -1,14 +1,21 @@
 /**
  * `@liminis/editor/headless` — the DOM-free surface.
  *
- * Consumed by the Electron **main** process, which compiles with `lib: ["ES2024"]`
- * and no DOM libs. Nothing re-exported from here may transitively import
- * Lexical, `react-dom` (client), or anything that touches `document`/`window`.
- * `renderC4DiagramToSVG` uses `react-dom/server`, which is DOM-free.
+ * Consumed by the Electron **main** process, which declares `lib: ["ES2024"]`
+ * and no DOM libs. Nothing exported from here may reference a DOM global or
+ * transitively import Lexical, `react-dom` (client), or anything that touches
+ * `document`/`window`. `renderC4DiagramToSVG` uses `react-dom/server`, which is
+ * DOM-free; the MathJax *lite* adaptor is typed over `LiteElement`, not
+ * `HTMLElement`, which is why only the lite factory appears here.
  *
- * If you are tempted to widen this entry, check first that the addition still
- * typechecks under `liminis-app/tsconfig.main.json` — the fix is to prune the
- * import graph, never to widen main's `lib`.
+ * **This contract is by convention, not by compiler enforcement.** Main's
+ * `lib: ["ES2024"]` does *not* currently make `Document`/`HTMLElement` unresolvable
+ * — some dependency already in `src/main`'s own graph pulls the DOM lib in (this
+ * predates the package extraction; `@types/node` alone does not do it). So a
+ * DOM-typed export added here would compile silently rather than failing main's
+ * typecheck. Widening this entry therefore requires reading the addition's import
+ * graph yourself. The fix for a violation is always to prune that graph, never to
+ * widen main's `lib`.
  */
 
 // C4 diagram subsystem — parse, layout, and server-side SVG rendering
@@ -42,18 +49,14 @@ export type {
   ManualLayout,
 } from './app/editor/c4/types'
 
-// MathJax document factories (equation rendering, server-side export)
-export {
-  createLiteAdaptorDocument,
-  createBrowserAdaptorDocument,
-  TEX_PACKAGES,
-} from './mathjax-config'
-export type {
-  TeXPackage,
-  MathDocument,
-  LiteMathJaxInstance,
-  BrowserMathJaxInstance,
-} from './mathjax-config'
+// MathJax lite-adaptor factory (equation rendering, server-side export).
+//
+// `createBrowserAdaptorDocument` / `BrowserMathJaxInstance` are deliberately NOT
+// re-exported here: they are typed over `Document` and `HTMLElement`, which would
+// contradict this entry's DOM-free contract. Their only consumer is
+// `EquationComponent.tsx` inside the package, which imports them directly.
+export { createLiteAdaptorDocument, TEX_PACKAGES } from './mathjax-config'
+export type { TeXPackage, MathDocument, LiteMathJaxInstance } from './mathjax-config'
 
 // File-type detection, used by both the mdast mapper and app-side callers
 export { getFileType } from './utils/file-types'
