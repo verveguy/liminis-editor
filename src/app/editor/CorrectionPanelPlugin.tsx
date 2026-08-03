@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot, $isTextNode } from 'lexical';
 import { toast } from 'sonner';
-import { useCorrectionStore } from '../../../renderer/stores/correctionStore';
+import { useCorrectionStore } from '../../../stores/correctionStore';
 import {
   parseCorrectionsYaml,
   serializeCorrectionsYaml,

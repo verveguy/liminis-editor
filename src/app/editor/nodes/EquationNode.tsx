@@ -19,7 +19,7 @@ import {
   $applyNodeReplacement,
 } from 'lexical';
 import { createElement, lazy, Suspense } from 'react';
-import { createLiteAdaptorDocument } from '../../../../shared/mathjax-config';
+import { createLiteAdaptorDocument } from '../../../mathjax-config';
 
 // Lightweight MathJax instance for DOM export (copy/paste serialization)
 const { adaptor: exportAdaptor, document: exportDocument } = createLiteAdaptorDocument({ fontCache: 'none' });
