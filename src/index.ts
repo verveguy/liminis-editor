@@ -74,4 +74,14 @@ export { findSvgElement } from './app/editor/nodes/diagram-utils'
 // --- DOM-free surface, re-exported for renderer-side convenience ----------
 // Renderer consumers may import these from here; the Electron main process must
 // use '@liminis/editor/headless' instead (it has no DOM libs).
+//
+// NOTE: `./headless` also exports a `ParseResult` (the C4 parser's `{diagram,
+// errors}`), which this entry's explicit markdown `ParseResult` above shadows —
+// explicit exports win over `export *` in both ES and TypeScript. The C4 shape is
+// therefore reachable from here only under the alias below. `./headless` itself
+// exports it unaliased, where there is no collision.
 export * from './headless'
+export type {
+  ParseResult as C4ParseResult,
+  ParseError as C4ParseError,
+} from './app/editor/c4/types'
