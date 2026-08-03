@@ -112,6 +112,24 @@ export default tseslint.config(
           ],
         },
       ],
+      // The other half of FR-008 / SC-004. `no-restricted-imports` only covers
+      // module paths; the preload API is reached through a global, so it needs a
+      // syntax rule. Uses `no-restricted-syntax` rather than another
+      // `no-restricted-properties` entry because a second declaration of that
+      // rule would replace the ADR-024 dialog entries above wholesale, and
+      // because this is an error where those are warnings.
+      //
+      // Matches `window.api`, `window?.api`, `globalThis.api` and their optional
+      // -chained forms — ESTree models `a?.b` as a MemberExpression too.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[object.name=/^(window|globalThis)$/][property.name='api']",
+          message:
+            '@liminis/editor must not reach into the host via window.api. Add the capability to EditorHostServices (src/host/types.ts), give it a safe default (src/host/defaults.ts), and implement it in the host adapter. See ADR-075.',
+        },
+      ],
     },
   },
 
