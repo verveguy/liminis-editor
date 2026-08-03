@@ -119,8 +119,19 @@ export default tseslint.config(
       // rule would replace the ADR-024 dialog entries above wholesale, and
       // because this is an error where those are warnings.
       //
-      // Matches `window.api`, `window?.api`, `globalThis.api` and their optional
-      // -chained forms — ESTree models `a?.b` as a MemberExpression too.
+      // Three selectors, because one AST shape does not cover the ways this
+      // reach-in can be spelled:
+      //
+      //  1. Dotted: `window.api`, `window?.api`, `globalThis.api`. ESTree models
+      //     `a?.b` as a MemberExpression too, so the optional forms come free.
+      //  2. Computed: `window['api']`, `window?.['api']`. Here `property` is a
+      //     Literal with a `value`, not an Identifier with a `name`, so selector
+      //     (1) does not match it.
+      //  3. Cast: `(window as unknown as { api: … }).api`. The object is a
+      //     TSAsExpression rather than an Identifier, so neither of the above
+      //     matches. This is the form a regression would most likely take —
+      //     plain `window.api` already fails typecheck here, since the package
+      //     deliberately carries no declaration for it.
       'no-restricted-syntax': [
         'error',
         {
@@ -128,6 +139,18 @@ export default tseslint.config(
             "MemberExpression[object.name=/^(window|globalThis)$/][property.name='api']",
           message:
             '@liminis/editor must not reach into the host via window.api. Add the capability to EditorHostServices (src/host/types.ts), give it a safe default (src/host/defaults.ts), and implement it in the host adapter. See ADR-075.',
+        },
+        {
+          selector:
+            "MemberExpression[object.name=/^(window|globalThis)$/][computed=true][property.value='api']",
+          message:
+            '@liminis/editor must not reach into the host via window["api"]. Add the capability to EditorHostServices (src/host/types.ts), give it a safe default (src/host/defaults.ts), and implement it in the host adapter. See ADR-075.',
+        },
+        {
+          selector:
+            "MemberExpression[object.type='TSAsExpression'] > Identifier.property[name='api']",
+          message:
+            '@liminis/editor must not reach into the host by casting window to expose `api`. Add the capability to EditorHostServices (src/host/types.ts), give it a safe default (src/host/defaults.ts), and implement it in the host adapter. See ADR-075.',
         },
       ],
     },
