@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getSelection, $isRangeSelection } from 'lexical';
-import { useCorrectionStore } from '../../../stores/correctionStore';
+import { useCorrectionStore } from '../../stores/correctionStore';
 
 export interface SelectionContextMenuEvent {
   position: { x: number; y: number };

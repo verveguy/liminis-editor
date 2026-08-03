@@ -52,7 +52,7 @@ export function resolveHostServices(
     notifyError: services?.notifyError ?? defaultNotifyError,
     // Left undefined on purpose when absent: the plugins that use these treat
     // "service missing" as "feature unavailable, do nothing" — exactly what the
-    // pre-extraction `if (!window.api?…) return` guards did.
+    // pre-extraction host-API presence guards did.
     resolveWikiLinks: services?.resolveWikiLinks,
     onScrollToAnchor: services?.onScrollToAnchor,
     corrections: services?.corrections,

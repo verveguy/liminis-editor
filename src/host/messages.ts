@@ -12,13 +12,18 @@ import type { TextEdit, UIToHostMessage } from '../types'
 import { useEditorHost } from './context'
 import type { EditorHostBridge, EditorLogger, EditorLoggerFactory } from './types'
 
+/**
+ * Members are declared as function-typed properties rather than methods on
+ * purpose: callers destructure them (`const { openLink } = useHostMessages()`),
+ * which the `unbound-method` lint rule rightly flags for real methods.
+ */
 export interface HostMessageApi {
-  postMessage(message: UIToHostMessage): void
-  requestInit(): void
-  requestSettings(): void
-  applyTextEdits(edits: TextEdit[], reason: 'typing' | 'drag' | 'paste' | 'format'): void
-  writeAsset(dataUri: string, suggestedName?: string): void
-  openLink(url: string): void
+  postMessage: (message: UIToHostMessage) => void
+  requestInit: () => void
+  requestSettings: () => void
+  applyTextEdits: (edits: TextEdit[], reason: 'typing' | 'drag' | 'paste' | 'format') => void
+  writeAsset: (dataUri: string, suggestedName?: string) => void
+  openLink: (url: string) => void
 }
 
 export function createHostMessageApi(bridge: EditorHostBridge, log: EditorLogger): HostMessageApi {

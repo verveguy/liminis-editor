@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot, $getNodeByKey, $createTextNode, LexicalNode, $isElementNode } from 'lexical';
 import { $isFrontmatterNode, FrontmatterNode } from './nodes';
-import { useEditorStore } from '../../../stores/editorStore';
+import { useEditorStore } from '../../stores/editorStore';
 
 // Simple YAML frontmatter parser for MDC files
 // Only handles the fields we need: description, alwaysApply, globs

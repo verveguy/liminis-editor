@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
+import { useEditorHost } from '../../host/context';
 
 /**
  * Normalize text for anchor matching.
@@ -19,26 +20,27 @@ function normalizeForMatch(text: string): string {
 /**
  * AnchorScrollPlugin - Scrolls to headings when anchor links are clicked
  *
- * This plugin listens for `editor:scrollToAnchor` IPC events (sent from main process
- * when an anchor link like `[[#Heading Name]]` is clicked) and scrolls to the matching
- * heading in the document.
+ * This plugin listens for host "scroll to anchor" requests (raised when an anchor
+ * link like `[[#Heading Name]]` is clicked) and scrolls to the matching heading in
+ * the document.
  *
  * The plugin:
- * 1. Subscribes to `editor:scrollToAnchor` events via preload API
+ * 1. Subscribes via the injected `onScrollToAnchor` host service
  * 2. Finds headings by text matching (case-insensitive, normalizes special chars)
  * 3. Scrolls within the editor scroll container
  * 4. Cleans up the subscription on unmount
  */
 export function AnchorScrollPlugin(): null {
   const [editor] = useLexicalComposerContext();
+  const { onScrollToAnchor } = useEditorHost();
 
   useEffect(() => {
-    // Early exit if the preload API is not available
-    if (!window.api?.editor?.onScrollToAnchor) {
+    // Early exit if the host does not offer anchor scrolling
+    if (!onScrollToAnchor) {
       return;
     }
 
-    const unsubscribe = window.api.editor.onScrollToAnchor((anchor: string) => {
+    const unsubscribe = onScrollToAnchor((anchor: string) => {
       const normalizedAnchor = normalizeForMatch(anchor);
       const rootElement = editor.getRootElement();
 
@@ -75,7 +77,7 @@ export function AnchorScrollPlugin(): null {
     });
 
     return unsubscribe;
-  }, [editor]);
+  }, [editor, onScrollToAnchor]);
 
   return null;
 }
