@@ -1,21 +1,22 @@
 /**
- * Two review findings from the Validate round, both about state that placement
- * mutates behind the caller's back.
+ * Two properties of placement, both about state it mutates behind the caller's
+ * back.
  *
- * 1. **Placement clobbered the user's selection** (CodeRabbit). Placement is a
- *    background operation — it runs whenever a re-parse invalidates the offset
- *    table, not in response to anything the user did — but it moved the caret
- *    twice per anchor: `$placeMarkForAnchor` sets the range it is about to
+ * 1. **Placement leaves the user's selection alone.** Placement is a background
+ *    operation — it runs whenever a re-parse invalidates the offset table, not
+ *    in response to anything the user did — and it moves the caret twice per
+ *    anchor on its way: `$placeMarkForAnchor` sets the range it is about to
  *    wrap, and `$wrapSelectionInMarkNode` then collapses the selection into
- *    the mark it just created. So a document with live annotations yanked the
- *    caret into the last-placed mark while the user was typing.
+ *    the mark it created. Both must be undone, or a document with live
+ *    annotations yanks the caret into the last-placed mark while the user is
+ *    typing.
  *
- * 2. **Annotated-serialize mode is not re-entrant** (@handarbeit-pruefer).
+ * 2. **Annotated-serialize mode is not re-entrant, and says so.**
  *    `setAnnotateTarget` writes module-level sentinel state shared by every
- *    editor in the process. Safe today only because the one caller is
- *    synchronous — now asserted rather than assumed, so a future async slip or
- *    second call site fails loudly instead of silently producing a wrong
- *    anchor range.
+ *    editor in the process. That is safe only while its one caller stays
+ *    synchronous, so the invariant is asserted rather than assumed: a future
+ *    async slip or a second call site fails loudly instead of silently
+ *    producing a wrong anchor range.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { $getRoot, $getSelection, $isRangeSelection, $createRangeSelection, $setSelection, createEditor, type LexicalEditor } from 'lexical';
@@ -144,7 +145,12 @@ describe('placement preserves the user selection', () => {
 describe('annotated-serialize mode is not re-entrant', () => {
   it('throws when enabled while already enabled, naming both ids', () => {
     setAnnotateTarget('first');
-    expect(() => setAnnotateTarget('second')).toThrow(/already active for "first"/);
+    // Both ids, not just the active one: a regression that dropped the
+    // attempted id would still satisfy a match on "first" alone, and the
+    // attempted id is the half that tells you which call site is at fault.
+    expect(() => setAnnotateTarget('second')).toThrow(
+      /setAnnotateTarget\("second"\) while annotate mode is already active for "first"/,
+    );
     setAnnotateTarget(null);
   });
 
