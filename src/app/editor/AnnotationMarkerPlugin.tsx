@@ -37,9 +37,7 @@ export function AnnotationMarkerPlugin({
   const [editor] = useLexicalComposerContext();
   // Cleanups from the previous decoration pass, run before the next one —
   // avoids leaking listeners/attributes onto an element a since-removed or
-  // since-recreated target no longer covers. A plain array rather than a Map
-  // keyed by element: two targets could in principle resolve to the same DOM
-  // element, and a Map would silently drop one of their cleanups.
+  // since-recreated target no longer covers.
   const cleanupsRef = useRef<Cleanup[]>([]);
 
   const decorate = useCallback(() => {
@@ -47,52 +45,83 @@ export function AnnotationMarkerPlugin({
     for (const cleanup of cleanups) cleanup();
     cleanups.length = 0;
 
+    // Group by DOM element before decorating, rather than iterating targets.
+    // Overlapping annotations share one MarkNode — and therefore one element —
+    // by design (`removeMarksForAnnotation` keeps a mark alive while it still
+    // carries other ids). Decorating per-target would attach a second listener
+    // pair to that shared element, so one click fired `onActivateAnnotation`
+    // once per overlapping annotation, and title/aria-label/data-kind/active
+    // would each reflect only whichever target happened to be processed last.
+    const byElement = new Map<HTMLElement, MarkerTarget[]>();
     for (const target of targets) {
       const config = kinds[target.kind];
       if (!config || config.markerStyle === 'none') continue;
+      for (const element of markElementsForId(editor, target.annotationId)) {
+        const existing = byElement.get(element);
+        if (existing) existing.push(target);
+        else byElement.set(element, [target]);
+      }
+    }
 
+    for (const [element, elementTargets] of byElement) {
+      // Visual classes are additive — every annotation covering this element
+      // contributes its kind's marker style and any host-supplied className, so
+      // an overlap can be styled as one.
+      const classes = new Set<string>();
+      for (const target of elementTargets) {
+        classes.add(`annotation-mark-${kinds[target.kind].markerStyle}`);
+        const extra = target.presentation?.className;
+        if (extra) classes.add(extra);
+      }
+
+      // Identity and behaviour are single-valued, so one target has to speak
+      // for the element: the active annotation if one of them is active,
+      // otherwise the first in document order. Activation fires exactly once.
+      const representative =
+        elementTargets.find((t) => t.annotationId === activeAnnotationId) ?? elementTargets[0];
+      const isActive = elementTargets.some((t) => t.annotationId === activeAnnotationId);
+
+      const baseLabel = representative.presentation?.label ?? representative.kind;
       // A host-supplied `presentation.label` wins over the kind default; the
       // flagged suffix still applies so the uncertainty isn't hidden by an
-      // override.
-      const baseLabel = target.presentation?.label ?? target.kind;
-      const label =
-        target.outcome === 'flagged'
+      // override, and an overlap says so rather than silently naming one of them.
+      const flaggedLabel =
+        representative.outcome === 'flagged'
           ? `${baseLabel} — location uncertain since this text changed`
           : baseLabel;
-      const extraClass = target.presentation?.className;
-      const isActive = target.annotationId === activeAnnotationId;
+      const label =
+        elementTargets.length > 1
+          ? `${flaggedLabel} (+${elementTargets.length - 1} more here)`
+          : flaggedLabel;
 
-      for (const element of markElementsForId(editor, target.annotationId)) {
-        element.classList.toggle(ACTIVE_CLASS, isActive);
-        element.classList.add(`annotation-mark-${config.markerStyle}`);
-        if (extraClass) element.classList.add(extraClass);
-        element.dataset.annotationKind = target.kind;
-        element.title = label;
-        element.tabIndex = 0;
-        element.setAttribute('role', 'button');
-        element.setAttribute('aria-label', label);
+      for (const className of classes) element.classList.add(className);
+      element.classList.toggle(ACTIVE_CLASS, isActive);
+      element.dataset.annotationKind = representative.kind;
+      element.title = label;
+      element.tabIndex = 0;
+      element.setAttribute('role', 'button');
+      element.setAttribute('aria-label', label);
 
-        const handleClick = () => onActivateAnnotation(target.annotationId);
-        const handleKeydown = (e: KeyboardEvent) => {
-          if (e.key !== 'Enter' && e.key !== ' ') return;
-          e.preventDefault();
-          onActivateAnnotation(target.annotationId);
-        };
-        element.addEventListener('click', handleClick);
-        element.addEventListener('keydown', handleKeydown);
+      const activate = () => onActivateAnnotation(representative.annotationId);
+      const handleKeydown = (e: KeyboardEvent) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        activate();
+      };
+      element.addEventListener('click', activate);
+      element.addEventListener('keydown', handleKeydown);
 
-        cleanups.push(() => {
-          element.classList.remove(ACTIVE_CLASS, `annotation-mark-${config.markerStyle}`);
-          if (extraClass) element.classList.remove(extraClass);
-          delete element.dataset.annotationKind;
-          element.removeAttribute('title');
-          element.removeAttribute('aria-label');
-          element.removeAttribute('role');
-          element.removeAttribute('tabindex');
-          element.removeEventListener('click', handleClick);
-          element.removeEventListener('keydown', handleKeydown);
-        });
-      }
+      cleanups.push(() => {
+        element.classList.remove(ACTIVE_CLASS);
+        for (const className of classes) element.classList.remove(className);
+        delete element.dataset.annotationKind;
+        element.removeAttribute('title');
+        element.removeAttribute('aria-label');
+        element.removeAttribute('role');
+        element.removeAttribute('tabindex');
+        element.removeEventListener('click', activate);
+        element.removeEventListener('keydown', handleKeydown);
+      });
     }
   }, [editor, targets, kinds, activeAnnotationId, onActivateAnnotation]);
 

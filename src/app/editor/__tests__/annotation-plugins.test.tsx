@@ -7,13 +7,15 @@
  * cases the spec calls out as edge cases.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { render, cleanup, act } from '@testing-library/react';
 import { LexicalComposer as Composer } from '@lexical/react/LexicalComposer';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
+import { $createRangeSelection, $getRoot, $setSelection } from 'lexical';
+import { $isMarkNode, $wrapSelectionInMarkNode } from '@lexical/mark';
 import { parseMarkdown } from '../../../markdown/parse';
 import { importMarkdownToLexicalInEditorState } from '../../mapper/mdastToLexical';
 import { editorNodes } from '../../mapper/__tests__/roundtrip-test-utils';
@@ -302,5 +304,124 @@ describe('AnnotationMarkerPlugin — scroll-to edge cases', () => {
     );
 
     expect(document.querySelectorAll('[data-annotation-kind]').length).toBe(0);
+  });
+});
+
+/**
+ * Overlapping annotations share one MarkNode, and therefore one DOM element —
+ * the spec lists that as an edge case, and `removeMarksForAnnotation` is built
+ * for it. Decorating per-target attached a second listener pair to the shared
+ * element, so one click fired `onActivateAnnotation` once per annotation
+ * (review finding, @handarbeit-pruefer).
+ */
+describe('AnnotationMarkerPlugin — overlapping annotations on one element', () => {
+  const OVERLAP_KINDS: AnnotationKindConfigs = {
+    comment: { markerStyle: 'highlight', createAffordance: { surface: 'toolbar' }, retainMarkOnCreate: true },
+  };
+
+  /** Seeds the document and puts two annotation ids on the same MarkNode. */
+  function OverlapHarness({
+    onActivate,
+    activeId,
+  }: {
+    onActivate: (id: string) => void;
+    activeId: string | null;
+  }) {
+    const [editor] = useLexicalComposerContext();
+    const seeded = useRef(false);
+
+    if (!seeded.current) {
+      seeded.current = true;
+      editor.update(
+        () => {
+          importMarkdownToLexicalInEditorState(parseMarkdown(MARKDOWN).root);
+          const textNode = $getRoot().getAllTextNodes()[0];
+          const idx = textNode.getTextContent().indexOf('quick brown fox');
+          const selection = $createRangeSelection();
+          selection.anchor.set(textNode.getKey(), idx, 'text');
+          selection.focus.set(textNode.getKey(), idx + 'quick brown fox'.length, 'text');
+          $setSelection(selection);
+          // Both ids on one MarkNode — exactly what $wrapSelectionInMarkNode
+          // produces when a second annotation covers already-marked text.
+          $wrapSelectionInMarkNode(selection, false, 'a1');
+          for (const node of $getRoot().getAllTextNodes()) {
+            const parent = node.getParent();
+            if (parent && $isMarkNode(parent)) parent.addID('a2');
+          }
+        },
+        { discrete: true },
+      );
+    }
+
+    const targets: MarkerTarget[] = [
+      { annotationId: 'a1', kind: 'comment', anchor: OVERLAP_ANCHOR, outcome: 'unchanged' },
+      { annotationId: 'a2', kind: 'comment', anchor: OVERLAP_ANCHOR, outcome: 'unchanged' },
+    ];
+
+    return (
+      <AnnotationMarkerPlugin
+        targets={targets}
+        kinds={OVERLAP_KINDS}
+        activeAnnotationId={activeId}
+        onActivateAnnotation={onActivate}
+        scrollToAnnotation={null}
+      />
+    );
+  }
+
+  const OVERLAP_ANCHOR = captureAnchor(MARKDOWN, { start: 4, end: 19 }, 'v1');
+
+  function renderOverlap(onActivate: (id: string) => void, activeId: string | null = null) {
+    return render(
+      <Composer
+        initialConfig={{
+          namespace: 'overlap-test',
+          nodes: editorNodes,
+          onError: (e: Error) => {
+            throw e;
+          },
+        }}
+      >
+        <RichTextPlugin
+          contentEditable={<ContentEditable />}
+          placeholder={null}
+          ErrorBoundary={LexicalErrorBoundary}
+        />
+        <OverlapHarness onActivate={onActivate} activeId={activeId} />
+      </Composer>,
+    );
+  }
+
+  it('fires onActivateAnnotation exactly once when the shared marker is clicked', () => {
+    const onActivate = vi.fn();
+    const { container } = renderOverlap(onActivate);
+
+    const mark = container.querySelector('mark');
+    expect(mark).not.toBeNull();
+
+    act(() => {
+      mark!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onActivate).toHaveBeenCalledTimes(1);
+  });
+
+  it('activates the active annotation, not merely the first in document order', () => {
+    // 'a2' is second in `targets`, so a plain first-wins rule would pick 'a1'
+    // and a per-target loop would fire for both.
+    const onActivate = vi.fn();
+    const { container } = renderOverlap(onActivate, 'a2');
+
+    act(() => {
+      container.querySelector('mark')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onActivate).toHaveBeenCalledTimes(1);
+    expect(onActivate).toHaveBeenCalledWith('a2');
+  });
+
+  it("says so in the accessible label rather than naming only one annotation", () => {
+    const { container } = renderOverlap(vi.fn());
+    expect(container.querySelector('mark')!.getAttribute('aria-label')).toContain('+1 more here');
   });
 });

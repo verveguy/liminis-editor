@@ -45,12 +45,21 @@ export function AnnotationPlugin({ kinds, onCreateAnnotation, logger }: Annotati
   const [editor] = useLexicalComposerContext();
 
   const mintId = useCallback((): string => {
-    // crypto.randomUUID is unavailable in some non-secure contexts; the id only
-    // has to be unique within this document's live marks, so a fallback is fine.
+    // crypto.randomUUID is unavailable in some non-secure contexts (an
+    // unpackaged Electron or file:// window); the id only has to be unique
+    // within this document's live marks, so a fallback is fine.
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID();
     }
-    return `anno-${Math.floor(performance.now() * 1000).toString(36)}-${(globalThis.isSecureContext ? 's' : 'u')}`;
+    // A timestamp alone is not enough: `performance.now()` is coarsened for
+    // fingerprinting protection, so two creates in quick succession can land on
+    // the same value. Ids gate mark placement and removal via `hasID`/`deleteID`,
+    // so a collision would merge two annotations onto one live mark and let
+    // removing either delete the other's anchor. The random suffix makes that
+    // effectively impossible without needing a real UUID source.
+    const stamp = Math.floor(performance.now() * 1000).toString(36);
+    const random = Math.random().toString(36).slice(2, 10);
+    return `anno-${stamp}-${random}-${globalThis.isSecureContext ? 's' : 'u'}`;
   }, []);
 
   useEffect(() => {
