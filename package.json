@@ -42,6 +42,7 @@
     "@lexical/code-prism": "^0.44.0",
     "@lexical/link": "^0.44.0",
     "@lexical/list": "^0.44.0",
+    "@lexical/mark": "^0.44.0",
     "@lexical/markdown": "^0.44.0",
     "@lexical/react": "^0.44.0",
     "@lexical/rich-text": "^0.44.0",
