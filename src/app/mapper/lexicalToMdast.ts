@@ -1445,6 +1445,41 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
     // Extract alias and formatting from children
     // Use full text content from all children to avoid data loss with mixed-format aliases
     const displayText = node.getTextContent();
+
+    // Annotate mode (`setAnnotateTarget`) brackets a live mark's own text with
+    // sentinel tokens so `locateLiveMarkdownRange` can recover the mark's real
+    // raw-markdown range. `getTextContent()` above flattens through MarkNode
+    // but never calls `sentinelAugmentedText`, so an annotation anchored inside
+    // a wiki-link's alias emitted no tokens at all — capture then found none
+    // and silently declined (review finding, @handarbeit-pruefer). Note this
+    // reaches further than hand-written `[[…|…]]`: a plain `[text](page.md)`
+    // link is promoted to wiki-link syntax by the branch above, so it was
+    // affected too.
+    //
+    // The alias is the only slot in wiki-link syntax that can carry the
+    // tokens, so they go there — but every *decision* below (alias-or-not,
+    // representative format) still reads the sentinel-free `displayText`. That
+    // matters: annotate mode must not turn a `[[page]]` into a `[[page|…]]`,
+    // because `locateLiveMarkdownRange`'s offset math requires everything
+    // outside the bracketed span to stay byte-identical to a plain export.
+    //
+    // Concatenating the flattened children must reproduce `displayText`
+    // exactly before the augmented form is trusted; otherwise we emit the
+    // plain text, the same "decline rather than mis-place" trade the rest of
+    // this pathway makes.
+    //
+    // Known gap: a wiki-link with no alias (`[[the quick brown fox]]`) has
+    // nowhere to put the tokens without inventing an alias, which would be
+    // exactly the structural change ruled out above. An annotation anchored
+    // there still declines to capture.
+    let aliasText = displayText;
+    if (linkChildren.map((child) => child.getTextContent()).join('') === displayText) {
+      const augmented = linkChildren
+        .map((child) => ($isTextNode(child) ? sentinelAugmentedText(child) : child.getTextContent()))
+        .join('');
+      if (augmented !== displayText) aliasText = augmented;
+    }
+
     let textFormat = 0;
 
     // Use the format of the first TextNode child as the representative format.
@@ -1462,11 +1497,11 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
     const data: any = {};
     if (hasAlias) {
       // Format the alias with markers if the text has formatting
-      data.alias = formatAliasWithMarkers(displayText, textFormat);
+      data.alias = formatAliasWithMarkers(aliasText, textFormat);
     } else if (textFormat !== 0 && displayText) {
       // No alias (displayText === target) but text is formatted
       // We need to create an alias to preserve the formatting
-      data.alias = formatAliasWithMarkers(displayText, textFormat);
+      data.alias = formatAliasWithMarkers(aliasText, textFormat);
     } else if (aliasState === 'empty') {
       data._emptyAlias = true;
     } else {

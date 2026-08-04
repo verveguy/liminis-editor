@@ -120,6 +120,21 @@ function SelectionContextMenu({
   return (
     <div
       ref={menuRef}
+      // Keep the document selection alive across a menu click. This overlay is
+      // a fixed-position sibling of the contenteditable, so pressing a button
+      // in it moves focus out of the editor on `mousedown` and collapses
+      // `window.getSelection()` — before any `onClick` handler runs. The
+      // annotation create path reads that native selection
+      // (`AnnotationPlugin`) and bails silently on a collapsed one, so a
+      // contextMenu-surfaced kind would capture no anchor while the correction
+      // panel still opened as if nothing had gone wrong (review finding,
+      // @handarbeit-pruefer). Preventing the default mousedown action stops
+      // the focus shift without affecting the subsequent click.
+      //
+      // Liminis doesn't feel this today only because it supplies no
+      // `onCreateAnnotation`, leaving the command unlistened — i.e. it would
+      // have bitten the first host to wire the callback up.
+      onMouseDown={(e) => e.preventDefault()}
       style={{
         ...menuStyle,
         left: x,

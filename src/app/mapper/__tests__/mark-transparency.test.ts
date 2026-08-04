@@ -324,4 +324,72 @@ describe('annotated-serialize sentinel survival under stringify post-processing 
     const disk = await exportMarkdown(md, () => wrapPlainTextInMark('snake_case_word', 'c1'));
     expect(disk).toBe(md);
   });
+
+  /**
+   * Wiki-link aliases are the one inline slot whose text `convertLinkNode`
+   * derives from `node.getTextContent()` rather than from the converted
+   * children, so it flattened through MarkNode (correct for a disk write) but
+   * never reached `sentinelAugmentedText` — an annotation anchored inside an
+   * alias emitted no tokens at all and capture silently declined.
+   *
+   * This bites wider than hand-written `[[…|…]]`: `convertLinkNode` promotes
+   * a plain `[text](page.md)` link to wiki-link syntax, so ordinary markdown
+   * links to local pages took the same path.
+   */
+  describe('sentinels inside a wiki-link alias', () => {
+    it('brackets a mark anchored inside an explicit wiki-link alias', async () => {
+      const md = 'See [[some-page|the quick brown fox]] here.\n';
+      const wrapped = await exportAnnotated(md, 'c1', () => wrapPlainTextInMark('quick', 'c1'));
+
+      const openToken = markOpenToken('c1');
+      const closeToken = markCloseToken('c1');
+      expect(wrapped).toContain(openToken);
+      expect(wrapped).toContain(closeToken);
+
+      // The tokens bracket exactly the marked text, and everything outside
+      // them is byte-identical to the plain export — the property
+      // `locateLiveMarkdownRange`'s offset math rests on.
+      const firstOpen = wrapped.indexOf(openToken);
+      const lastClose = wrapped.lastIndexOf(closeToken);
+      expect(wrapped.slice(firstOpen + openToken.length, lastClose)).toBe('quick');
+      expect(wrapped.slice(0, firstOpen)).toBe('See [[some-page|the ');
+      expect(wrapped.slice(lastClose + closeToken.length)).toBe(' brown fox]] here.\n');
+    });
+
+    it('brackets a mark inside a plain markdown link that gets promoted to wiki-link syntax', async () => {
+      const md = 'See [the quick brown fox](page.md) here.\n';
+      const wrapped = await exportAnnotated(md, 'c1', () => wrapPlainTextInMark('quick', 'c1'));
+
+      const openToken = markOpenToken('c1');
+      const closeToken = markCloseToken('c1');
+      const firstOpen = wrapped.indexOf(openToken);
+      const lastClose = wrapped.lastIndexOf(closeToken);
+      expect(firstOpen).toBeGreaterThan(-1);
+      expect(wrapped.slice(firstOpen + openToken.length, lastClose)).toBe('quick');
+      expect(wrapped.slice(0, firstOpen)).toBe('See [[page|the ');
+      expect(wrapped.slice(lastClose + closeToken.length)).toBe(' brown fox]] here.\n');
+    });
+
+    it('leaves the disk-write export of an aliased wiki-link untouched', async () => {
+      // The augmented text is only ever substituted when sentinels were
+      // actually inserted, so the ordinary export is byte-identical whether or
+      // not the alias carries a mark.
+      const md = 'See [[some-page|the quick brown fox]] here.\n';
+      expect(await exportMarkdown(md, () => wrapPlainTextInMark('quick', 'c1'))).toBe(md);
+      expect(await exportMarkdown(md)).toBe(md);
+    });
+
+    it('does not invent an alias for an unaliased wiki-link (known gap: no capture there)', async () => {
+      // `[[the quick brown fox]]` has nowhere to put the tokens. Emitting an
+      // alias to make room would change the structure of the annotated export
+      // and break the byte-identity the offset math depends on, so the
+      // annotation declines to capture instead — the same safe fallback every
+      // unlocatable anchor takes.
+      const md = 'See [[the quick brown fox]] here.\n';
+      const wrapped = await exportAnnotated(md, 'c1', () => wrapPlainTextInMark('quick', 'c1'));
+
+      expect(wrapped).not.toContain(markOpenToken('c1'));
+      expect(wrapped).toBe(md);
+    });
+  });
 });
