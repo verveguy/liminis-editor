@@ -20,6 +20,15 @@ automatically the next time the suite runs.
 - **`<name>.error.txt`**: if `roundTrip()` is expected to throw for a fixture, add a
   sibling `.error.txt` containing a substring of the expected error message. The suite
   asserts the promise rejects with a matching error instead of comparing output text.
+- **`<name>.idempotence-exempt.txt`**: every fixture's round-tripped output (input-or-
+  `.expected.md`, whichever applies) is itself round-tripped a second time with no edits,
+  and that second pass must be byte-identical to the first (see "Idempotence" below). If a
+  fixture's *first-pass* output is legitimately, pre-existingly non-idempotent for reasons
+  unrelated to what the fixture is testing, add a sibling `.idempotence-exempt.txt`
+  containing the reason; the suite skips the second-pass assertion for that fixture only.
+  An exemption file that exists but is empty is a hard error — the reason is mandatory.
+  This is not a general escape hatch — it exists for one documented case today (see the
+  `902-list-item-double-hard-break*` section below).
 
 A file is only picked up as a fixture if it ends in `.md` and its name does not end in
 `.expected.md`; `README.md` itself is excluded.
@@ -200,6 +209,114 @@ paragraph, so the backslash notation is the only way to author "two adjacent har
 with literally nothing between them" in source markdown at all.) What #902 actually
 guarantees — and what each `.expected.md` here asserts — is that the output stays a
 *single* paragraph containing the right number of `break` nodes, never split into two.
+
+**A note on idempotence**: the same trailing-spaces normalization means the *first-pass*
+output above is not a stable fixed point either — the double-hard-break marker serializes
+as a line containing only the two trailing spaces of a hard break, and CommonMark treats
+a whitespace-only line as blank regardless of trailing spaces, so re-parsing that output
+splits the paragraph on a second pass. [#943](https://github.com/verveguy/liminis/issues/943)
+identified this as an instance of exactly the class of pre-existing, documented
+normalization its own Out of Scope section excludes from the idempotence guarantee it
+otherwise added to this suite (see "Idempotence" below) — so `902-list-item-double-hard-
+break` and four of its five sibling fixtures (`double-break-adjacent-to-boundary`,
+`nested-list-double-break`, `task-list-double-break`, `triple-hard-breaks`) each carry a
+`.idempotence-exempt.txt` sidecar recording this. `three-consecutive-paragraphs` is
+unaffected (no whitespace-only line results) and needs no exemption.
+
+## Idempotence
+
+Beyond matching its expected first-pass output, every fixture's output is round-tripped a
+*second* time with no edits, and that second pass must be byte-identical to the first —
+added by [#943](https://github.com/verveguy/liminis/issues/943) (FR-003/SC-002) to catch
+drift that only shows up once a document is already in its round-tripped, canonical form.
+This matters most for `.expected.md` fixtures: matching the sidecar on the first pass says
+nothing about whether that sidecar's own content is itself a stable fixed point. See the
+`.idempotence-exempt.txt` sidecar convention above for the documented, out-of-scope
+exceptions.
+
+**Every exemption in this corpus**, in full (there are five, all one pre-existing cause):
+
+| Fixture | Reason |
+| - | - |
+| `902-list-item-double-hard-break` | #902's double-hard-break marker serializes as a whitespace-only line, which CommonMark re-reads as blank, splitting the paragraph on the second pass. Carries the full written reason. |
+| `902-list-item-double-hard-break/double-break-adjacent-to-boundary` | Same cause; cross-references the root sidecar. |
+| `902-list-item-double-hard-break/nested-list-double-break` | Same cause; cross-references the root sidecar. |
+| `902-list-item-double-hard-break/task-list-double-break` | Same cause; cross-references the root sidecar. |
+| `902-list-item-double-hard-break/triple-hard-breaks` | Same cause; cross-references the root sidecar. |
+
+Fixing that underlying hard-break normalization is out of scope for #943 and needs its
+own issue. No other fixture in the corpus is exempt, including all 22 in
+`known-defects/` — asserting a *defective* first-pass output does not stop that output
+from being a stable fixed point, and in this corpus every one of them is.
+
+## The `50-*` fixture set
+
+Ported by [#943](https://github.com/verveguy/liminis/issues/943) from
+[verveguy/zusammen#62](https://github.com/verveguy/zusammen/pull/62): the markdown
+serializer was non-idempotent around lists. The concrete reported defect — a single blank
+line between a preceding block and a following list was dropped to zero — came from a
+custom `join` override in `stringify.ts` that forced zero blank lines whenever a paragraph
+ending in `:` was immediately followed by a `list`/`table`/`code`/`math` node, regardless
+of the source's actual blank-line count (which mdast doesn't represent at all — blank-line
+count between flow siblings is discarded on parse). Fixed by excluding `list` from that
+override's target types, so a colon-ending paragraph before a list now gets the same
+one-blank-line promotion every other preceding-block type already got. `table`/`code`/
+`math` keep the pre-existing zero-blank "label:" convention — unchanged and out of this
+issue's scope.
+
+A second, previously undiscovered defect was fixed alongside it: a post-process regex
+(`result.replace(/\n{3,}/g, '\n\n')`) meant to collapse runs of 2+ blank lines between
+sibling blocks turned out to have no legitimate job left for that purpose —
+`mdast-util-to-markdown`'s own join logic already never emits 3+ consecutive newlines for
+sibling flow blocks by construction — and its only real effect was corrupting intentional
+multi-blank-line runs inside verbatim content (fenced code block bodies, frontmatter YAML
+block-scalar values). Removed outright rather than made verbatim-span-aware.
+
+- **`50-colon-paragraph-blank-line-before-list.md`,
+  `50-colon-paragraph-blank-line-before-numbered-list.md`**: the reported defect, fixed —
+  now byte-identical.
+- **`50-colon-paragraph-no-blank-before-list.md`** + `.expected.md`: the tight-adjacency
+  case (no source blank line) for a colon-ending paragraph — pins the accepted one-time
+  canonicalization diff of gaining a blank line, consistent with every other
+  preceding-block type.
+- **`50-heading-blank-line-before-list.md`, `50-blockquote-blank-line-before-list.md`,
+  `50-code-block-blank-line-before-list.md`, `50-table-blank-line-before-list.md`,
+  `50-list-blank-line-before-list.md`**: every other preceding-block type before a list,
+  each already stable and byte-identical before and after this fix.
+- **`50-multiple-blank-lines-between-paragraphs.md`,
+  `50-multiple-blank-lines-before-list.md`** (each with `.expected.md`): pin the 2+-blank-
+  line-collapses-to-one canonicalization that the removed regex used to (incorrectly)
+  implement, proving the library's own join logic provides the same guarantee without it.
+- **`50-blank-lines-inside-fenced-code-block.md`,
+  `50-blank-lines-inside-frontmatter-yaml.md`**: byte-identical regression fixtures for the
+  verbatim-content corruption the removed regex caused.
+- **`50-nested-list-blank-line-separation.md`** + `.expected.md`: a blank line before a
+  nested list inside a list item canonicalizes to zero, not one — this is a distinct,
+  pre-existing convention from the top-level fix (governed by `computeListSpread`'s
+  tight/loose classification, not the `join` override), left unchanged and pinned here to
+  document it explicitly rather than leave it as an implicit assumption.
+- **`50-list-first-block-in-document.md`, `50-list-at-end-of-document.md`**: edge cases at
+  the start/end of a document, both byte-identical.
+- **`50-reference-readme.md`** + `.expected.md`: a synthetic, ~13.8 KB document exercising
+  the representative corpus's constructs at realistic document scale, including the exact
+  reported defect phrase. Ported from Zusammen with its prose adapted to Liminis's own
+  architecture, but its construct inventory preserved position-for-position; its
+  `.expected.md` is generated from *this* repository's pipeline rather than copied.
+  Reaches a stable fixed point after one canonicalization pass; its only differences from
+  the original bytes are blank-line canonicalization.
+
+## The `943-*` fixtures
+
+Two fixtures added by [#943](https://github.com/verveguy/liminis/issues/943) beyond the
+ported `50-*` set, pinning the half of the `join` override that deliberately did *not*
+change — the corpus had no regression guard for it on either side:
+
+- **`943-colon-paragraph-blank-line-before-table.md`** + `.expected.md`
+- **`943-colon-paragraph-blank-line-before-math.md`** + `.expected.md`
+
+Each is a colon-ending paragraph, a blank line, and a table or block-math node. Both
+still canonicalize the blank line away, confirming the "label:" convention survives for
+`table`/`code`/`math` while `list` no longer participates in it.
 
 ## Diagnosing a failure
 
