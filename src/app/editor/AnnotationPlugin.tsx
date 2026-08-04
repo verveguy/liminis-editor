@@ -54,7 +54,14 @@ export function AnnotationPlugin({ kinds, onCreateAnnotation, logger }: Annotati
   }, []);
 
   useEffect(() => {
-    return editor.registerCommand(
+    // The deferred anchor read below outlives the command handler, so it can
+    // still be pending when this plugin unmounts — the document is swapped, or
+    // the panel owning it closes, in the same tick the command fired. Left
+    // unguarded it would then touch a torn-down editor and call the host back
+    // with a stale rect and a stale closure. Cleared in the cleanup below.
+    let cancelled = false;
+
+    const unregister = editor.registerCommand(
       OPEN_ANNOTATION_COMPOSER_COMMAND,
       ({ kind }) => {
         const config = kinds[kind];
@@ -92,6 +99,7 @@ export function AnnotationPlugin({ kinds, onCreateAnnotation, logger }: Annotati
         wrapNativeRangeInMark(editor, nativeRange, id);
 
         queueMicrotask(() => {
+          if (cancelled) return;
           const anchor = readAnchorFields(editor, id);
           // Comments keep the mark (it is their live anchor and the composer's
           // highlight); corrections discard it so nothing ever paints.
@@ -103,6 +111,11 @@ export function AnnotationPlugin({ kinds, onCreateAnnotation, logger }: Annotati
       },
       COMMAND_PRIORITY_CRITICAL,
     );
+
+    return () => {
+      cancelled = true;
+      unregister();
+    };
   }, [editor, kinds, onCreateAnnotation, logger, mintId]);
 
   return null;
