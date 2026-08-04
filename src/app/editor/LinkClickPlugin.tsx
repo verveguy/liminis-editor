@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { openLink } from '../../messaging-electron';
+import { useHostMessages } from '../../host/messages';
 
 interface LinkClickPluginProps {
   /** When false (read-only mode), clicks follow links immediately without requiring modifier key */
@@ -26,6 +26,7 @@ interface LinkClickPluginProps {
  */
 export function LinkClickPlugin({ editable = true }: LinkClickPluginProps) {
   const [editor] = useLexicalComposerContext();
+  const { openLink } = useHostMessages();
 
   useEffect(() => {
     const rootElement = editor.getRootElement();
@@ -99,7 +100,7 @@ export function LinkClickPlugin({ editable = true }: LinkClickPluginProps) {
       rootElement.classList.remove('modifier-held');
       rootElement.classList.remove('links-clickable');
     };
-  }, [editor, editable]);
+  }, [editor, editable, openLink]);
 
   return null;
 }

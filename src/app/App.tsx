@@ -2,15 +2,9 @@ import { useCallback, useEffect, useMemo, useState, useRef, type MutableRefObjec
 import { Editor } from './editor';
 import type { SelectionContextMenuEvent } from './editor/SelectionContextMenuPlugin';
 import type { SweepFn } from './editor/AmbientCorrectionPlugin';
-import {
-  addMessageHandler,
-  requestInit,
-  applyTextEdits,
-} from '../messaging-electron';
 import type { HostToUIMessage, SlashMDSettings, TextEdit, ThemeOverrides } from '../types';
-import { createLogger } from '../../shared/logger';
-
-const log = createLogger('slashmd/App');
+import { useEditorHost } from '../host/context';
+import { useHostMessages } from '../host/messages';
 
 // Cursor state with fuzzy anchoring for robust restoration
 export interface CursorState {
@@ -76,6 +70,9 @@ interface AppProps {
 }
 
 export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, onSelectionContextMenu, onSubstitutionDetected, sweepRef, className = 'min-h-screen p-0' }: AppProps) {
+  const { bridge, logger } = useEditorHost();
+  const log = useMemo(() => logger('slashmd/App'), [logger]);
+  const { requestInit, applyTextEdits } = useHostMessages();
   const [internalContent, setInternalContent] = useState<string | null>(null);
   const [settings, setSettings] = useState<SlashMDSettings | null>(null);
   const [assetBaseUri, setAssetBaseUri] = useState<string | undefined>(undefined);
@@ -130,11 +127,11 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
       }
     }
     prevPropContent.current = propContent;
-  }, [propContent]);
+  }, [propContent, log]);
 
   useEffect(() => {
     log.info('Setting up message handler');
-    const removeHandler = addMessageHandler((message: HostToUIMessage) => {
+    const removeHandler = bridge.addMessageHandler((message: HostToUIMessage) => {
       log.debug('Handling message', message.type);
       switch (message.type) {
         case 'DOC_INIT':
@@ -195,7 +192,7 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
     }
 
     return removeHandler;
-  }, [propContent]);
+  }, [propContent, bridge, requestInit, log]);
 
   // Apply theme overrides as CSS variables
   useEffect(() => {
@@ -228,7 +225,7 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
       // Call prop onChange if provided
       propOnChange?.(markdown);
     }
-  }, [propOnChange]);
+  }, [propOnChange, applyTextEdits, log]);
 
   // Track cursor position whenever it changes
   const handleCursorChange = useCallback((cursor: CursorState) => {

@@ -20,7 +20,7 @@ import {
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
 import { useCallback, useEffect, useRef, useState, ChangeEvent, forwardRef, RefObject } from 'react';
-import { createBrowserAdaptorDocument } from '../../../../shared/mathjax-config';
+import { createBrowserAdaptorDocument } from '../../../mathjax-config';
 import { $isEquationNode } from './EquationNode';
 
 // Initialize MathJax once for the renderer process

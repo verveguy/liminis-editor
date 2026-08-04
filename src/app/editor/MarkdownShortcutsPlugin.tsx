@@ -26,7 +26,7 @@ import { $createCustomLinkNode, $createCustomListNode, $isCustomListNode, Custom
 import { $createImageNode, ImageNode } from './nodes/ImageNode';
 import { $createEquationNode, EquationNode } from './nodes';
 import type { TextFormatType } from 'lexical';
-import { getFileType } from '../../../renderer/utils/fileTypes';
+import { getFileType } from '../../utils/file-types';
 
 // Amount of spaces that define one indentation level, matching @lexical/markdown's own default.
 const LIST_INDENT_SIZE = 4;
