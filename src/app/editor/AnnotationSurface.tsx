@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import type { MutableRefObject } from 'react';
 import {
@@ -55,6 +55,12 @@ function AnnotationMarkPlacementPlugin({
   offsetsVersion: number;
 }) {
   const [editor] = useLexicalComposerContext();
+  // Ids this plugin has placed a mark for. Retracting a mark is keyed off this
+  // rather than off "every mark in the document" on purpose: a comment created
+  // through `AnnotationPlugin` with `retainMarkOnCreate` keeps its mark while
+  // the host is still deciding whether to persist it, and that mark is not
+  // ours to remove.
+  const placedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     // No outcome filter here: `deriveMarkerTargets` has already applied each
@@ -64,14 +70,29 @@ function AnnotationMarkPlacementPlugin({
     // would get a marker target the marker plugin then decorates but nothing
     // ever places, which is the one inconsistency the single policy exists to
     // prevent.
+    const eligible = new Set(targets.map((target) => target.annotationId));
+
+    // Retract first: an annotation the host removed, or whose outcome or
+    // live-mark policy now declines it, must lose the mark it was given.
+    // Without this the MarkNode survives every later pass — still in the
+    // document, still rendering as a bare <mark>, and no longer decorated by
+    // the marker plugin (which only walks current targets), so it becomes an
+    // undismissable highlight with nothing behind it.
+    for (const id of placedRef.current) {
+      if (eligible.has(id)) continue;
+      removeMarksForAnnotation(editor, id);
+      placedRef.current.delete(id);
+    }
+
     for (const target of targets) {
-      placeMarkForAnchor(
+      const placed = placeMarkForAnchor(
         editor,
         offsetSpansRef.current,
         markdownTextRef.current,
         target.anchor,
         target.annotationId,
       );
+      if (placed) placedRef.current.add(target.annotationId);
     }
     // The two refs are read fresh on every run; offsetsVersion (bumped whenever
     // a (re)parse produces new spans) is what should actually re-trigger this.
