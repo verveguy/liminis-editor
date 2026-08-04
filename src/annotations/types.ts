@@ -85,13 +85,25 @@ export interface AnnotationKindConfig<TPayload = unknown> {
   /**
    * Whether this annotation gets a live `MarkNode` in the document. Defaults to
    * {@link shouldPlaceLiveMark} over the annotation's outcome when omitted.
+   *
+   * Consulted only when `markerStyle` is not `none` — see
+   * {@link deriveMarkerTargets} for why that precedence exists.
    */
   livemarkPolicy?: (annotation: Annotation<TPayload>) => boolean
   /**
    * Whether the capture primitive leaves its transient mark in place after
    * capturing an anchor. Comments retain it (the composer highlights the
-   * passage); corrections discard it inside the same `editor.update()`, so
-   * nothing ever paints.
+   * passage); corrections discard it.
+   *
+   * The discard is *not* part of the wrapping update. `AnnotationPlugin` wraps
+   * inside the command handler, then reads the anchor back and removes the
+   * mark on a `queueMicrotask` — the read cannot be inline, because a command
+   * handler runs inside an active Lexical update and the nested wrap is not
+   * observable until that update flushes. The guarantee is therefore "removed
+   * before the browser paints" (microtasks drain ahead of paint), not "removed
+   * in the same update". Anything that pushes the discard past a task boundary
+   * — an `await`, a `setTimeout`, a `requestAnimationFrame` — would let the
+   * mark flash visibly first.
    */
   retainMarkOnCreate?: boolean
 }
@@ -137,6 +149,17 @@ export function shouldPlaceLiveMark(outcome: AnchorOutcome): boolean {
  * live-mark policy. Annotations whose `kind` has no configuration are dropped;
  * the caller is responsible for warning about them (the logger is injected at
  * the React layer, and this module stays dependency-free).
+ *
+ * `markerStyle: 'none'` takes precedence over `livemarkPolicy` and yields no
+ * target at all. A target is not merely a styling instruction — it is what
+ * makes `AnnotationMarkPlacementPlugin` wrap the text in a real `MarkNode`,
+ * which reaches the DOM as a `<mark>` element. `AnnotationMarkerPlugin` skips
+ * decoration for `none`, so that element would carry no `annotation-mark-*`
+ * class, and `styles.css` neutralizes the UA's default yellow `<mark>`
+ * background only under those classes — leaving a persistent uncontrolled
+ * highlight, the exact opposite of what `none` promises. Gating here rather
+ * than at paint time keeps the promise structural instead of leaving it to a
+ * host remembering to pair `none` with `livemarkPolicy: () => false`.
  */
 export function deriveMarkerTargets(
   annotations: readonly Annotation[],
@@ -147,6 +170,8 @@ export function deriveMarkerTargets(
   for (const annotation of annotations) {
     const config = kinds[annotation.kind]
     if (!config) continue
+
+    if (config.markerStyle === 'none') continue
 
     const outcome = annotation.outcome ?? 'unchanged'
     const placeLive = config.livemarkPolicy
