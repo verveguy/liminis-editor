@@ -147,7 +147,7 @@ function effectiveChildren(node: ElementNode): LexicalNode[] {
 // Annotated-serialize mode
 //
 // A throwaway variant of the export used only by the annotation capture
-// primitive (`annotation-marks.ts`'s `captureLiveMarkdownSlice`): while a
+// primitive (`annotation-marks.ts`'s `locateLiveMarkdownRange`): while a
 // target annotation id is set via `setAnnotateTarget`, that id's live
 // MarkNode(s) — already transparent to markdown — additionally get their
 // content bracketed with a pair of Unicode Private-Use-Area sentinel tokens
