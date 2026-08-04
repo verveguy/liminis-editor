@@ -10,7 +10,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { discoverFixtures } from './roundtrip-test-utils';
 
 describe('discoverFixtures', () => {
@@ -95,6 +96,50 @@ describe('discoverFixtures', () => {
       writeFileSync(join(dir, 'exempted.idempotence-exempt.txt'), 'Reason.\n', 'utf-8');
 
       expect(discoverFixtures(dir).map((f) => f.name)).toEqual(['exempted']);
+    });
+  });
+
+  describe('the real corpus', () => {
+    const CORPUS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'roundtrip');
+
+    // Both fixtures/roundtrip/README.md and ADR-076 state that the exemption set is
+    // exactly the five #902 hard-break fixtures, and that no `known-defects/` fixture is
+    // exempt (asserting a defective output does not stop that output being a stable fixed
+    // point). Those are load-bearing claims — they are the evidence that FR-004's "do not
+    // batch-exempt to get green" was honoured — but nothing verified them, so a sixth
+    // exemption could be added without either document noticing. These pin the membership
+    // of the set rather than its size, so adding fixtures does not churn them; adding an
+    // *exemption* deliberately fails, which is the point.
+    it('exempts exactly the five documented #902 hard-break fixtures', () => {
+      const exempt = discoverFixtures(CORPUS_DIR)
+        .filter((f) => f.idempotenceExempt !== null)
+        .map((f) => f.name)
+        .sort();
+
+      expect(exempt).toEqual([
+        '902-list-item-double-hard-break',
+        '902-list-item-double-hard-break/double-break-adjacent-to-boundary',
+        '902-list-item-double-hard-break/nested-list-double-break',
+        '902-list-item-double-hard-break/task-list-double-break',
+        '902-list-item-double-hard-break/triple-hard-breaks',
+      ]);
+    });
+
+    it('exempts no known-defects fixture', () => {
+      const exemptKnownDefects = discoverFixtures(CORPUS_DIR).filter(
+        (f) => f.name.startsWith('known-defects/') && f.idempotenceExempt !== null,
+      );
+
+      expect(exemptKnownDefects.map((f) => f.name)).toEqual([]);
+    });
+
+    it('gives every exemption a non-empty written reason', () => {
+      const exempt = discoverFixtures(CORPUS_DIR).filter((f) => f.idempotenceExempt !== null);
+
+      expect(exempt.length).toBeGreaterThan(0);
+      for (const fixture of exempt) {
+        expect(fixture.idempotenceExempt, `${fixture.name} has an empty reason`).toBeTruthy();
+      }
     });
   });
 });
