@@ -109,6 +109,24 @@ function recordOffsetSpan(
   const start = position?.start?.offset;
   const end = position?.end?.offset;
   if (start == null || end == null) return;
+
+  // An OffsetSpan is only usable if raw-markdown offsets inside it map to the
+  // TextNode's own character offsets one-for-one — the consumer subtracts
+  // `span.start` from a raw offset and uses the result as a Lexical text
+  // offset directly. mdast's `position` covers the *source* range while
+  // `node.value` is the *decoded* text, so any backslash escape or character
+  // reference in the span breaks that correspondence:
+  //
+  //   `a \* b`    → span width 6, node text "a * b" (5)
+  //   `a &amp; b` → span width 9, node text "a & b" (5)
+  //
+  // Past the escape every derived offset is skewed, and an offset near the end
+  // lands beyond the node's size. Dropping the span makes placement decline for
+  // that text (the anchor stays panel-only) rather than wrap the wrong
+  // characters or build a point Lexical rejects — the same "reject rather than
+  // mis-place" trade the rest of this pathway makes.
+  if (end - start !== textNode.getTextContentSize()) return;
+
   offsetSpanCollector.push({ start, end, nodeKey: textNode.getKey() });
 }
 
