@@ -78,8 +78,6 @@ import {
   CustomListItemNode,
 } from './nodes';
 import {
-  importMarkdownToLexical,
-  importMarkdownToLexicalInEditorState,
   importMarkdownToLexicalInEditorStateWithOffsets,
   importMarkdownToLexicalWithOffsets,
   type OffsetSpan,
@@ -309,10 +307,18 @@ function InitializePlugin({
   content: string;
   /**
    * Receives the raw-markdown offset->node table this parse produced, for the
-   * annotation surface's mark placement. Only supplied when annotations are
-   * enabled; otherwise the plain import runs and no spans are collected.
+   * annotation surface's mark placement.
+   *
+   * Deliberately not gated on whether annotations are currently enabled. This
+   * effect body runs exactly once (`hasInitialized`), so a host whose
+   * `annotationKinds` arrive after mount — an async config load, a
+   * feature-flag fetch — would otherwise leave the offset table permanently
+   * empty, and every later placement pass would silently find no containing
+   * span and place no marks at all. Collecting spans unconditionally costs one
+   * small record per text node on a path that is already walking every node,
+   * which is cheaper than the failure it removes.
    */
-  onOffsets?: (spans: OffsetSpan[], markdownText: string) => void;
+  onOffsets: (spans: OffsetSpan[], markdownText: string) => void;
 }) {
   const [editor] = useLexicalComposerContext();
   const hasInitialized = useRef(false);
@@ -323,11 +329,7 @@ function InitializePlugin({
 
     if (content) {
       const { root } = parseMarkdown(content);
-      if (onOffsets) {
-        onOffsets(importMarkdownToLexicalWithOffsets(editor, root), content);
-      } else {
-        importMarkdownToLexical(editor, root);
-      }
+      onOffsets(importMarkdownToLexicalWithOffsets(editor, root), content);
     }
   }, [editor, content, onOffsets]);
 
@@ -525,13 +527,13 @@ function ExternalUpdatePlugin({
   currentContentRef: React.MutableRefObject<string>;
   lastEditorChangeRef: React.MutableRefObject<number>;
   /**
-   * Same contract as `InitializePlugin`'s: an external reload re-parses the
-   * document from scratch, so the annotation surface's offset->node table must
-   * be rebuilt with it. Without this the table would keep pointing at node keys
-   * this reload destroyed, and mark placement would throw on a key Lexical no
-   * longer knows. Only supplied when annotations are enabled.
+   * Same contract as `InitializePlugin`'s, and unconditional for the same
+   * reason: an external reload re-parses the document from scratch, so the
+   * annotation surface's offset->node table must be rebuilt with it. Without
+   * this the table would keep pointing at node keys this reload destroyed, and
+   * mark placement would throw on a key Lexical no longer knows.
    */
-  onOffsets?: (spans: OffsetSpan[], markdownText: string) => void;
+  onOffsets: (spans: OffsetSpan[], markdownText: string) => void;
 }) {
   const [editor] = useLexicalComposerContext();
 
@@ -569,18 +571,14 @@ function ExternalUpdatePlugin({
       }
       
       const { root } = parseMarkdown(content);
-      let spans: OffsetSpan[] | null = null;
+      let spans: OffsetSpan[] = [];
       editor.update(
         () => {
-          if (onOffsets) {
-            spans = importMarkdownToLexicalInEditorStateWithOffsets(root);
-          } else {
-            importMarkdownToLexicalInEditorState(root);
-          }
+          spans = importMarkdownToLexicalInEditorStateWithOffsets(root);
         },
         { discrete: true }
       );
-      if (onOffsets && spans) onOffsets(spans, content);
+      onOffsets(spans, content);
     });
   }, [editor, content, lastExternalLoadRef, currentContentRef, lastEditorChangeRef, onOffsets]);
 
@@ -812,7 +810,7 @@ export function Editor({
             <OnChangePlugin onChange={handleChange} ignoreSelectionChange />
             <InitializePlugin
               content={initialContent}
-              onOffsets={annotationsEnabled ? handleOffsets : undefined}
+              onOffsets={handleOffsets}
             />
             <EditablePlugin editable={editable} />
             <AutoFocusPlugin />
@@ -826,7 +824,7 @@ export function Editor({
               lastExternalLoadRef={lastExternalLoadRef}
               currentContentRef={currentContentRef}
               lastEditorChangeRef={lastEditorChangeRef}
-              onOffsets={annotationsEnabled ? handleOffsets : undefined}
+              onOffsets={handleOffsets}
             />
             <SlashMenuPlugin />
             <DragHandlePlugin />
