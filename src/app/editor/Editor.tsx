@@ -843,7 +843,13 @@ export function Editor({
             <AnchorScrollPlugin />
             <SelectionContextMenuPlugin
               onSelectionContextMenu={onSelectionContextMenu}
-              correctionKindEnabled={!!annotationKinds?.correction}
+              // Only when the kind actually asks for a context-menu affordance:
+              // with none configured, or one on another surface, AnnotationPlugin
+              // would decline the command anyway, and dispatching from here would
+              // claim an entry point the kind never opted into.
+              correctionKindEnabled={
+                annotationKinds?.correction?.createAffordance?.surface === 'contextMenu'
+              }
             />
             <CorrectionPanelPlugin />
             {onSubstitutionDetected && (

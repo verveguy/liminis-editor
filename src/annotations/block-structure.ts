@@ -117,7 +117,11 @@ export interface SentenceChunk {
 // run of newlines. Naive by design (no NLP sentence-splitter dependency
 // exists in this codebase) — can mis-split on abbreviations/decimals, which
 // is acceptable for v1 fuzzy-matching scope.
-const SENTENCE_SPLIT = /(?<=[.!?])\s+|\n+/
+// The `\r\n|\r|\n` alternation rather than a bare `\n+`: with the latter, a
+// CRLF document leaves the `\r` on the end of the preceding chunk, and a fuzzy
+// re-attach onto that chunk would capture the carriage return into the durable
+// target text (review finding, CodeRabbit).
+const SENTENCE_SPLIT = /(?<=[.!?])\s+|(?:\r\n|\r|\n)+/
 
 /**
  * Split a block's text into sentence-sized chunks, so a light reword of one

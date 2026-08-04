@@ -32,7 +32,15 @@ const SRC = resolve(EDITOR_DIR, '..', '..');
 function runtimeSpecifiersOf(source: string): string[] {
   const specifiers: string[] = [];
 
-  for (const match of source.matchAll(/(?:^|\n)\s*(?:import|export)\s+([\s\S]*?)from\s+['"]([^'"]+)['"]/g)) {
+  // The clause may span lines, but must not span a `;` or a further
+  // import/export keyword. With an unconstrained `[\s\S]*?`, a statement with
+  // no `from` (a bare `import './x';`) pairs with the *next* `from` in the
+  // file and swallows everything between — dropping that specifier and its
+  // whole subtree from the walk. A silent false pass on exactly the property
+  // this suite exists to hold (review finding, CodeRabbit).
+  for (const match of source.matchAll(
+    /(?:^|\n)\s*(?:import|export)\s+((?:(?!\bimport\b|\bexport\b)[^;'"])*?)from\s+['"]([^'"]+)['"]/g,
+  )) {
     const [, clause, specifier] = match;
 
     // `import type { X } from '...'` — erased wholesale.
@@ -51,6 +59,12 @@ function runtimeSpecifiersOf(source: string): string[] {
     }
 
     specifiers.push(specifier);
+  }
+
+  // Bare side-effect imports carry no clause and no `from`, so the loop above
+  // cannot see them — but they are real runtime edges and must be walked.
+  for (const match of source.matchAll(/(?:^|\n)\s*import\s+['"]([^'"]+)['"]/g)) {
+    specifiers.push(match[1]);
   }
 
   // Dynamic `import('...')` is a *runtime* edge but an intentionally deferred

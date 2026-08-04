@@ -15,9 +15,19 @@ import { fileURLToPath } from 'node:url';
 
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Every `from '...'` specifier in a module's source, import and re-export alike. */
+/**
+ * Every module specifier in a source file — `from '...'` (import and re-export
+ * alike), bare side-effect `import '...'`, and dynamic `import('...')`. All
+ * three put a module in the runtime graph, so a scanner that saw only the first
+ * would let `import 'lexical'` or `await import('react')` slip past this guard
+ * (review finding, CodeRabbit).
+ */
 function specifiersOf(source: string): string[] {
-  return [...source.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
+  return [
+    ...source.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g),
+    ...source.matchAll(/(?:^|[\s;])import\s+['"]([^'"]+)['"]/g),
+    ...source.matchAll(/\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g),
+  ].map((m) => m[1]);
 }
 
 function resolveRelative(fromFile: string, specifier: string): string | null {
