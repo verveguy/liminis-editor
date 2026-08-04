@@ -169,6 +169,14 @@ export interface FixtureEntry {
   expected: string | null;
   /** Expected error message substring, if a `<name>.error.txt` sidecar exists */
   expectedError: string | null;
+  /**
+   * Reason a fixture is exempt from the second-pass idempotence assertion, if a
+   * `<name>.idempotence-exempt.txt` sidecar exists. Reserved for pre-existing,
+   * documented normalizations that are themselves non-idempotent and out of scope
+   * for the idempotence guarantee (see fixtures/roundtrip/README.md) — not a
+   * general-purpose escape hatch for new non-idempotency.
+   */
+  idempotenceExempt: string | null;
 }
 
 /**
@@ -195,6 +203,17 @@ export function discoverFixtures(dir: string): FixtureEntry[] {
       const stem = fullPath.slice(0, -'.md'.length);
       const expectedPath = `${stem}.expected.md`;
       const errorPath = `${stem}.error.txt`;
+      const idempotenceExemptPath = `${stem}.idempotence-exempt.txt`;
+
+      let idempotenceExempt: string | null = null;
+      if (existsSync(idempotenceExemptPath)) {
+        idempotenceExempt = readFileSync(idempotenceExemptPath, 'utf-8').trim();
+        if (idempotenceExempt === '') {
+          throw new Error(
+            `${idempotenceExemptPath} exists but is empty — it must state a reason (this is not a general escape hatch)`,
+          );
+        }
+      }
 
       const name = relative(dir, stem).split(sep).join('/');
       entries.push({
@@ -203,6 +222,7 @@ export function discoverFixtures(dir: string): FixtureEntry[] {
         input: readFileSync(fullPath, 'utf-8'),
         expected: existsSync(expectedPath) ? readFileSync(expectedPath, 'utf-8') : null,
         expectedError: existsSync(errorPath) ? readFileSync(errorPath, 'utf-8').trim() : null,
+        idempotenceExempt,
       });
     }
   }
