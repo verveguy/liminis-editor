@@ -3,7 +3,12 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { COMMAND_PRIORITY_CRITICAL } from 'lexical';
 import type { AnchorFields } from '../../annotations/anchor-model';
 import type { AnnotationKindConfigs } from '../../annotations/types';
-import { readAnchorFields, removeMarksForAnnotation, wrapNativeRangeInMark } from './annotation-marks';
+import {
+  readAnchorFields,
+  removeMarksForAnnotation,
+  removeMarksForAnnotations,
+  wrapNativeRangeInMark,
+} from './annotation-marks';
 import { OPEN_ANNOTATION_COMPOSER_COMMAND } from './annotationCommands';
 
 export interface AnnotationCreateEvent {
@@ -69,6 +74,14 @@ export function AnnotationPlugin({ kinds, onCreateAnnotation, logger }: Annotati
     // unguarded it would then touch a torn-down editor and call the host back
     // with a stale rect and a stale closure. Cleared in the cleanup below.
     let cancelled = false;
+    // Marks placed by a create whose anchor read hasn't run yet. The wrap is
+    // synchronous but the read-back is deferred, so between the two the mark
+    // exists in the document while its id exists nowhere else — the host has
+    // not been told, and `AnnotationMarkerPlugin` walks only host-supplied
+    // annotations. Dropping one there would strand a bare `<mark>` the user
+    // cannot dismiss until the document is reparsed (review finding,
+    // @handarbeit-pruefer). The cleanup retracts whatever is still in here.
+    const pendingIds = new Set<string>();
 
     const unregister = editor.registerCommand(
       OPEN_ANNOTATION_COMPOSER_COMMAND,
@@ -106,9 +119,14 @@ export function AnnotationPlugin({ kinds, onCreateAnnotation, logger }: Annotati
         // microtask runs after the outer update has flushed, so the mark is
         // really in the tree by then.
         wrapNativeRangeInMark(editor, nativeRange, id);
+        // The mark is now in the tree but its id has not been reported to the
+        // host yet, so nothing outside this plugin can clean it up. Tracked
+        // until the microtask hands it over (or the cleanup retracts it).
+        pendingIds.add(id);
 
         queueMicrotask(() => {
           if (cancelled) return;
+          pendingIds.delete(id);
           const anchor = readAnchorFields(editor, id);
           // Comments keep the mark (it is their live anchor and the composer's
           // highlight); corrections discard it so nothing ever paints.
@@ -124,6 +142,17 @@ export function AnnotationPlugin({ kinds, onCreateAnnotation, logger }: Annotati
     return () => {
       cancelled = true;
       unregister();
+      // Retract regardless of the kind's `retainMarkOnCreate`: a retained mark
+      // is only safe to leave behind because the host owns it from the moment
+      // `onCreateAnnotation` fires, and that never happened for these.
+      //
+      // Safe to touch the editor here: this cleanup runs as ordinary React
+      // work, not inside the Lexical update the command handler ran in, so the
+      // queued wrap has already been applied by the time we get here.
+      if (pendingIds.size > 0) {
+        removeMarksForAnnotations(editor, [...pendingIds]);
+        pendingIds.clear();
+      }
     };
   }, [editor, kinds, onCreateAnnotation, logger, mintId]);
 

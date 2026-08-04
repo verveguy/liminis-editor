@@ -14,7 +14,15 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
-import { $createRangeSelection, $getRoot, $setSelection, createEditor, type LexicalEditor } from 'lexical';
+import {
+  $createRangeSelection,
+  $getRoot,
+  $isElementNode,
+  $setSelection,
+  createEditor,
+  type LexicalEditor,
+  type LexicalNode,
+} from 'lexical';
 import { $isMarkNode, $wrapSelectionInMarkNode } from '@lexical/mark';
 import { parseMarkdown } from '../../../markdown/parse';
 import { importMarkdownToLexicalInEditorState } from '../../mapper/mdastToLexical';
@@ -215,6 +223,145 @@ describe('AnnotationPlugin — create on selection', () => {
     });
 
     expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  // The same race, one step further (review finding, @handarbeit-pruefer):
+  // declining to call back is not enough on its own. `wrapNativeRangeInMark`
+  // runs synchronously, so by the time the cancellation flag is set the mark is
+  // already in the document — and its id has been reported to nobody. Nothing
+  // can remove it afterwards: the host never learned it, and
+  // `AnnotationMarkerPlugin` walks only host-supplied annotations. For a
+  // marker-visible kind that leaves a bare `<mark>` the user cannot dismiss.
+  describe('retracting a mark whose create was cancelled', () => {
+    /** MarkNodes currently in the editor state, however deeply nested. */
+    function countMarkNodes(editor: LexicalEditor): number {
+      let count = 0;
+      editor.getEditorState().read(() => {
+        const visit = (node: LexicalNode): void => {
+          if ($isMarkNode(node)) count++;
+          if ($isElementNode(node)) for (const child of node.getChildren()) visit(child);
+        };
+        visit($getRoot());
+      });
+      return count;
+    }
+
+    function CancellableHarness({
+      onCreate,
+      dispatchRef,
+      editorRef,
+    }: {
+      onCreate: (e: AnnotationCreateEvent) => void
+      dispatchRef: { current: ((kind: string) => void) | null }
+      editorRef: { current: LexicalEditor | null }
+    }) {
+      const [editor] = useLexicalComposerContext();
+      editorRef.current = editor;
+
+      useEffect(() => {
+        editor.update(() => importMarkdownToLexicalInEditorState(parseMarkdown(MARKDOWN).root), {
+          discrete: true,
+        });
+        dispatchRef.current = (kind: string) => {
+          editor.dispatchCommand(OPEN_ANNOTATION_COMPOSER_COMMAND, { kind });
+        };
+      }, [editor, dispatchRef]);
+
+      return (
+        <AnnotationPlugin kinds={COMMENT_KINDS} onCreateAnnotation={onCreate} logger={testLogger} />
+      );
+    }
+
+    function renderCancellable(
+      onCreate: (e: AnnotationCreateEvent) => void,
+      dispatchRef: { current: ((kind: string) => void) | null },
+      editorRef: { current: LexicalEditor | null },
+    ) {
+      const tree = (handler: (e: AnnotationCreateEvent) => void) => (
+        <Composer
+          initialConfig={{
+            namespace: 'annotation-cancel-test',
+            nodes: editorNodes,
+            onError: (e: Error) => {
+              throw e;
+            },
+          }}
+        >
+          <RichTextPlugin
+            contentEditable={<ContentEditable />}
+            placeholder={null}
+            ErrorBoundary={LexicalErrorBoundary}
+          />
+          <CancellableHarness onCreate={handler} dispatchRef={dispatchRef} editorRef={editorRef} />
+        </Composer>
+      );
+      const utils = render(tree(onCreate));
+      return { ...utils, renderWith: (handler: (e: AnnotationCreateEvent) => void) => utils.rerender(tree(handler)) };
+    }
+
+    // The review named a second trigger — the effect re-running because a
+    // dependency's identity changed (`onCreateAnnotation`, `kinds`, `logger`).
+    // Probed rather than assumed, and it turns out not to strand anything:
+    // React flushes a re-render's effect cleanup *after* the pending
+    // microtask, so the original create completes normally and the host is
+    // told the id. Pinned here so the distinction is on the record — the
+    // retraction is for teardown, and a prop-identity change must not cancel a
+    // create in flight.
+    it('does not cancel an in-flight create when only the effect re-runs', async () => {
+      const onCreate = vi.fn();
+      const dispatchRef: { current: ((kind: string) => void) | null } = { current: null };
+      const editorRef: { current: LexicalEditor | null } = { current: null };
+      const { renderWith } = renderCancellable(onCreate, dispatchRef, editorRef);
+
+      await act(async () => {
+        selectText('quick brown fox');
+        dispatchRef.current!('comment');
+        renderWith(vi.fn());
+      });
+
+      // The original callback still fires, so the host owns the mark and it is
+      // correctly left in place for a retaining kind.
+      expect(onCreate).toHaveBeenCalledOnce();
+      expect(countMarkNodes(editorRef.current!)).toBe(1);
+    });
+
+    // Retraction applies to a retaining kind too. `retainMarkOnCreate` is only
+    // safe because the host takes ownership the moment `onCreateAnnotation`
+    // fires — which is exactly what did not happen here. COMMENT_KINDS sets it.
+    it('removes the mark on full unmount, retaining kind included', async () => {
+      const onCreate = vi.fn();
+      const dispatchRef: { current: ((kind: string) => void) | null } = { current: null };
+      const editorRef: { current: LexicalEditor | null } = { current: null };
+      const { unmount } = renderCancellable(onCreate, dispatchRef, editorRef);
+
+      await act(async () => {
+        selectText('quick brown fox');
+        dispatchRef.current!('comment');
+        unmount();
+      });
+
+      expect(onCreate).not.toHaveBeenCalled();
+      // The DOM is gone with the React tree, so assert on the editor state the
+      // mark actually lives in.
+      expect(countMarkNodes(editorRef.current!)).toBe(0);
+    });
+
+    // The retraction must not fire on the ordinary path — a comment's mark is
+    // its live anchor and has to survive a successful create.
+    it('leaves a successfully-created retaining mark alone', async () => {
+      const onCreate = vi.fn();
+      const dispatchRef: { current: ((kind: string) => void) | null } = { current: null };
+      const editorRef: { current: LexicalEditor | null } = { current: null };
+      renderCancellable(onCreate, dispatchRef, editorRef);
+
+      await act(async () => {
+        selectText('quick brown fox');
+        dispatchRef.current!('comment');
+      });
+
+      expect(onCreate).toHaveBeenCalledOnce();
+      expect(countMarkNodes(editorRef.current!)).toBe(1);
+    });
   });
 });
 
