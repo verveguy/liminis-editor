@@ -1,0 +1,3 @@
+Same pre-existing hard-break normalization non-idempotency documented on the
+sibling 902-list-item-double-hard-break.idempotence-exempt.txt — out of scope
+for #943 per its Out of Scope section.
