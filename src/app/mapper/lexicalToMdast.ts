@@ -370,7 +370,7 @@ function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[
 
   // Walk the label's siblings through the mark-transparent view so an
   // annotation over part of the footnote's own content doesn't hide it.
-  const siblings = effectiveChildren(parent);
+  const { nodes: siblings, marked } = effectiveChildrenWithMarkMembership(parent);
   const labelIndex = siblings.findIndex((n) => n.is(labelNode));
   let rest: LexicalNode[] = labelIndex === -1 ? [] : siblings.slice(labelIndex + 1);
 
@@ -382,11 +382,28 @@ function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[
   let restIndex = 0;
   let child: LexicalNode | null = rest[restIndex] ?? null;
 
+  // TextNodes are buffered and flushed through the shared run-merging path, for
+  // the same reason convertLinkNode and convertListItemNode do it: a mark that
+  // splits a formatted run inside the footnote's body would otherwise emit one
+  // delimiter pair per resulting sibling (`**big**** word**`).
+  let textRun: LexicalNode[] = [];
+  const flushTextRun = (): void => {
+    if (textRun.length > 0) {
+      contentChildren.push(...(convertInlinePhrasingList(textRun, marked) as PhrasingContent[]));
+      textRun = [];
+    }
+  };
+
   // Use the same inline conversion logic as convertInlineChildren
   while (child) {
     if ($isTextNode(child)) {
-      contentChildren.push(...convertTextNode(child));
-    } else if ($isLineBreakNode(child)) {
+      textRun.push(child);
+      restIndex++;
+      child = rest[restIndex] ?? null;
+      continue;
+    }
+    flushTextRun();
+    if ($isLineBreakNode(child)) {
       contentChildren.push({ type: 'break' });
     } else if ($isLinkNode(child)) {
       contentChildren.push(convertLinkNode(child) as unknown as PhrasingContent);
@@ -410,6 +427,7 @@ function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[
     restIndex++;
     child = rest[restIndex] ?? null;
   }
+  flushTextRun();
 
   return contentChildren;
 }
@@ -1334,10 +1352,29 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
   // Mark-transparent: this loop silently drops any child it doesn't recognize,
   // so an unflattened MarkNode over the link's text would delete that text from
   // the export entirely (`[note](...)` becoming `[](...)`).
-  for (const child of effectiveChildren(node)) {
+  //
+  // TextNodes are buffered rather than converted one at a time, then flushed
+  // through the shared run-merging path: flattening a mark away can split one
+  // formatted TextNode into several same-format siblings, and converting those
+  // independently emits a delimiter pair each — `[**abc def**]` becoming
+  // `[**abc**** def**]` once an annotation covers only "abc". Same reason
+  // convertListItemNode buffers.
+  const { nodes: linkChildren, marked } = effectiveChildrenWithMarkMembership(node);
+  let textRun: LexicalNode[] = [];
+  const flushTextRun = (): void => {
+    if (textRun.length > 0) {
+      children.push(...(convertInlinePhrasingList(textRun, marked) as PhrasingContent[]));
+      textRun = [];
+    }
+  };
+
+  for (const child of linkChildren) {
     if ($isTextNode(child)) {
-      children.push(...convertTextNode(child));
-    } else if ($isImageNode(child)) {
+      textRun.push(child);
+      continue;
+    }
+    flushTextRun();
+    if ($isImageNode(child)) {
       // Image nested inside a link (the "badge" pattern), e.g. a CI status badge
       children.push({
         type: 'image',
@@ -1359,6 +1396,7 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
       children.push({ type: 'html', value: child.getHtml() } as unknown as PhrasingContent);
     }
   }
+  flushTextRun();
 
   // Check if this should be a wiki-link. A title is a strong signal that the
   // author deliberately used standard markdown link syntax — wiki-link syntax
