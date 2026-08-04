@@ -193,6 +193,26 @@ describe('AnnotationPlugin — create on selection', () => {
 
     expect(onCreate).not.toHaveBeenCalled();
   });
+
+  // Review finding (@handarbeit-pruefer): the anchor read is deferred to a
+  // microtask, so it outlives the command handler. If the plugin unmounts in
+  // between — document swapped, owning panel closed — the callback must not
+  // touch the torn-down editor or call the host back with a stale rect.
+  it('does not call back after unmount when the deferred read is still pending', async () => {
+    const onCreate = vi.fn();
+    const dispatchRef: { current: ((kind: string) => void) | null } = { current: null };
+    const { unmount } = renderEditor(COMMENT_KINDS, onCreate, dispatchRef);
+
+    await act(async () => {
+      selectText('quick brown fox');
+      // Dispatch and unmount within the same synchronous turn, so the
+      // microtask queued by the handler is still pending when cleanup runs.
+      dispatchRef.current!('comment');
+      unmount();
+    });
+
+    expect(onCreate).not.toHaveBeenCalled();
+  });
 });
 
 describe('AnnotationMarkerPlugin — scroll-to edge cases', () => {
