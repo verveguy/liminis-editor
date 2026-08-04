@@ -11,7 +11,7 @@ import {
 import type { OffsetSpan } from '../mapper/mdastToLexical';
 import {
   collectLiveAnchorSnapshots,
-  placeMarkForAnchor,
+  placeMarksForAnchors,
   removeMarksForAnnotation,
 } from './annotation-marks';
 import { AnnotationPlugin, type AnnotationCreateEvent } from './AnnotationPlugin';
@@ -84,16 +84,17 @@ function AnnotationMarkPlacementPlugin({
       placedRef.current.delete(id);
     }
 
-    for (const target of targets) {
-      const placed = placeMarkForAnchor(
-        editor,
-        offsetSpansRef.current,
-        markdownTextRef.current,
-        target.anchor,
-        target.annotationId,
-      );
-      if (placed) placedRef.current.add(target.annotationId);
-    }
+    // One batched update for the whole set, not one per annotation: an
+    // `offsetsVersion` bump re-runs this pass over every target, and a
+    // per-target `editor.update()` would force a synchronous Lexical
+    // reconciliation each time (review finding, @handarbeit-pruefer).
+    const placed = placeMarksForAnchors(
+      editor,
+      offsetSpansRef.current,
+      markdownTextRef.current,
+      targets.map((target) => ({ anchor: target.anchor, id: target.annotationId })),
+    );
+    for (const id of placed) placedRef.current.add(id);
     // The two refs are read fresh on every run; offsetsVersion (bumped whenever
     // a (re)parse produces new spans) is what should actually re-trigger this.
   }, [editor, targets, offsetsVersion, offsetSpansRef, markdownTextRef]);

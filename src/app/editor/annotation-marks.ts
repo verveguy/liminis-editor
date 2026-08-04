@@ -336,51 +336,120 @@ export function placeMarkForAnchor(editor: LexicalEditor, offsetSpans: readonly 
   let placed = false;
   editor.update(
     () => {
-      if (liveMarkTexts(id).length > 0) {
-        placed = true;
-        return;
-      }
-
-      const located = locateInSpan(markdownText, anchor.targetText, {
-        occurrenceIndex: anchor.occurrenceIndex,
-        prefixContext: anchor.prefixContext,
-        suffixContext: anchor.suffixContext,
-      });
-      if (!located) return;
-
-      const startPoint = pointAtMarkdownOffset(offsetSpans, located.start, 'start');
-      const endPoint = pointAtMarkdownOffset(offsetSpans, located.end, 'end');
-      if (!startPoint || !endPoint) return;
-      // An `OffsetSpan[]` is only valid for the parse that produced it: a
-      // re-import (`$getRoot().clear()` + rebuild) destroys every node key in
-      // it. Callers are expected to refresh the table with each parse — but a
-      // point built from a dead key would make `$wrapSelectionInMarkNode`
-      // throw on `Point.getNode()`, turning a caller's bookkeeping slip into a
-      // crash inside the editor. Decline instead, same as any other
-      // unmappable anchor.
-      if (!$isTextNode($getNodeByKey(startPoint.key)) || !$isTextNode($getNodeByKey(endPoint.key))) return;
-      // A start/end offset that both fall inside the same untracked gap (e.g.
-      // a fenced code block, which today has no OffsetSpan coverage at all —
-      // unrelated to and much wider than a formatting delimiter) would
-      // otherwise snap to two DIFFERENT spans on opposite sides of that gap:
-      // start forward past it, end backward before it — an inverted
-      // selection that $wrapSelectionInMarkNode would silently wrap as
-      // everything *between* them, i.e. the entire gap, not the intended
-      // target. Reject rather than mis-place; matches the safe no-mark
-      // fallback this replaced (FR-008).
-      if (startPoint.span.start > endPoint.span.start) return;
-
-      const selection = $createRangeSelection();
-      selection.anchor.set(startPoint.key, startPoint.offset, 'text');
-      selection.focus.set(endPoint.key, endPoint.offset, 'text');
-      $setSelection(selection);
-
-      $wrapSelectionInMarkNode(selection, false, id);
-      placed = true;
+      placed = $placeMarkForAnchor(offsetSpans, markdownText, anchor, id);
     },
     { discrete: true },
   );
   return placed;
+}
+
+/**
+ * Places many anchors inside a *single* `editor.update()`.
+ *
+ * Same per-anchor logic as {@link placeMarkForAnchor}, but one Lexical
+ * reconciliation for the whole batch instead of one per annotation — a
+ * document with dozens of live annotations otherwise pays a synchronous
+ * reconcile each, every time a re-parse invalidates the offset table (review
+ * finding, @handarbeit-pruefer). Returns the ids that now have a live mark.
+ */
+export function placeMarksForAnchors(
+  editor: LexicalEditor,
+  offsetSpans: readonly OffsetSpan[],
+  markdownText: string,
+  entries: readonly { anchor: Anchor; id: string }[],
+): string[] {
+  const placedIds = new Set<string>();
+  if (entries.length === 0) return [];
+
+  // Back to front. Placing a mark splits the TextNode it lands in, and
+  // `offsetSpans` still describes the *unsplit* parse — so a placement
+  // invalidates the table for everything after it in the document, but not for
+  // anything before it (Lexical's splitText keeps the original key on the first
+  // segment). Working from the last target backwards therefore keeps every
+  // remaining entry's span valid. Without this, a second annotation in the same
+  // paragraph fails to place. `locateInSpan` is a pure string search, so the
+  // ordering pass can run outside the update.
+  const ordered = entries
+    .map((entry) => ({
+      entry,
+      at:
+        locateInSpan(markdownText, entry.anchor.targetText, {
+          occurrenceIndex: entry.anchor.occurrenceIndex,
+          prefixContext: entry.anchor.prefixContext,
+          suffixContext: entry.anchor.suffixContext,
+        })?.start ?? -1,
+    }))
+    .sort((a, b) => b.at - a.at)
+    .map((scored) => scored.entry);
+
+  editor.update(
+    () => {
+      for (const entry of ordered) {
+        if ($placeMarkForAnchor(offsetSpans, markdownText, entry.anchor, entry.id)) {
+          placedIds.add(entry.id);
+        }
+      }
+    },
+    { discrete: true },
+  );
+  // Reported in the caller's order, not the back-to-front order used above.
+  return entries.filter((entry) => placedIds.has(entry.id)).map((entry) => entry.id);
+}
+
+/**
+ * The per-anchor placement itself. Must run inside an active `editor.update()`
+ * (the `$` prefix is Lexical's convention for that), so a caller can batch many
+ * placements into one reconciliation.
+ */
+function $placeMarkForAnchor(offsetSpans: readonly OffsetSpan[], markdownText: string, anchor: Anchor, id: string): boolean {
+  if (liveMarkTexts(id).length > 0) return true;
+
+  const located = locateInSpan(markdownText, anchor.targetText, {
+    occurrenceIndex: anchor.occurrenceIndex,
+    prefixContext: anchor.prefixContext,
+    suffixContext: anchor.suffixContext,
+  });
+  if (!located) return false;
+
+  const startPoint = pointAtMarkdownOffset(offsetSpans, located.start, 'start');
+  const endPoint = pointAtMarkdownOffset(offsetSpans, located.end, 'end');
+  if (!startPoint || !endPoint) return false;
+  // An `OffsetSpan[]` is only valid for the parse that produced it: a
+  // re-import (`$getRoot().clear()` + rebuild) destroys every node key in
+  // it. Callers are expected to refresh the table with each parse — but a
+  // point built from a dead key would make `$wrapSelectionInMarkNode`
+  // throw on `Point.getNode()`, turning a caller's bookkeeping slip into a
+  // crash inside the editor. Decline instead, same as any other
+  // unmappable anchor.
+  const startNode = $getNodeByKey(startPoint.key);
+  const endNode = $getNodeByKey(endPoint.key);
+  if (!$isTextNode(startNode) || !$isTextNode(endNode)) return false;
+  // The offsets must also still fit the nodes. Placing a mark splits the
+  // TextNode it lands in, so a table entry for a node that an *earlier*
+  // placement already split can point past the end of what that key now holds
+  // — which makes Lexical throw `$getTextNodeOffset: invalid offset` from
+  // inside the update rather than returning. Decline instead. (The batch entry
+  // point below also orders placements so this does not arise in practice.)
+  if (startPoint.offset > startNode.getTextContentSize()) return false;
+  if (endPoint.offset > endNode.getTextContentSize()) return false;
+  // A start/end offset that both fall inside the same untracked gap (e.g.
+  // a fenced code block, which today has no OffsetSpan coverage at all —
+  // unrelated to and much wider than a formatting delimiter) would
+  // otherwise snap to two DIFFERENT spans on opposite sides of that gap:
+  // start forward past it, end backward before it — an inverted
+  // selection that $wrapSelectionInMarkNode would silently wrap as
+  // everything *between* them, i.e. the entire gap, not the intended
+  // target. Reject rather than mis-place; matches the safe no-mark
+  // fallback this replaced (FR-008).
+  if (startPoint.span.start > endPoint.span.start) return false;
+
+  const selection = $createRangeSelection();
+  selection.anchor.set(startPoint.key, startPoint.offset, 'text');
+  selection.focus.set(endPoint.key, endPoint.offset, 'text');
+  $setSelection(selection);
+
+  $wrapSelectionInMarkNode(selection, false, id);
+  return true;
 }
 
 /**

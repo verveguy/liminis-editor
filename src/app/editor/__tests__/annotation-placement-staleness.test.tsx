@@ -21,7 +21,7 @@ import {
 } from '../../mapper/mdastToLexical';
 import { editorNodes } from '../../mapper/__tests__/roundtrip-test-utils';
 import { captureAnchor } from '../../../annotations/anchor-model';
-import { placeMarkForAnchor, hasLiveMark } from '../annotation-marks';
+import { placeMarkForAnchor, placeMarksForAnchors, hasLiveMark } from '../annotation-marks';
 
 const ORIGINAL = 'The quick brown fox jumps over the lazy dog.\n';
 const EDITED = 'The sluggish purple mongoose naps beside the lazy dog.\n';
@@ -113,6 +113,53 @@ describe('stale anchor placement', () => {
     // Same text, so the anchor still locates — only the node keys are dead.
     expect(() => placeMarkForAnchor(editor, spans, ORIGINAL, anchor, 'a1')).not.toThrow();
     expect(hasLiveMark(editor, 'a1')).toBe(false);
+  });
+
+  it('places a whole batch in a single editor update', () => {
+    // Review finding (@handarbeit-pruefer): the placement pass ran one
+    // editor.update() per annotation, so an offsetsVersion bump forced a
+    // synchronous Lexical reconciliation per live annotation. Batching is now
+    // the path AnnotationSurface takes; this pins the update count.
+    const { editor, spans } = mount(ORIGINAL);
+    const entries = [
+      { anchor: captureAnchor(ORIGINAL, { start: 4, end: 9 }, 'v1'), id: 'a1' }, // "quick"
+      { anchor: captureAnchor(ORIGINAL, { start: 10, end: 15 }, 'v1'), id: 'a2' }, // "brown"
+      { anchor: captureAnchor(ORIGINAL, { start: 16, end: 19 }, 'v1'), id: 'a3' }, // "fox"
+    ];
+
+    let updates = 0;
+    const unregister = editor.registerUpdateListener(() => {
+      updates++;
+    });
+
+    const placed = placeMarksForAnchors(editor, spans, ORIGINAL, entries);
+    unregister();
+
+    expect(placed).toEqual(['a1', 'a2', 'a3']);
+    expect(updates).toBe(1);
+    expect(container!.querySelectorAll('mark').length).toBe(3);
+  });
+
+  it('places several annotations inside one text node without throwing', () => {
+    // Found while batching (review finding, @handarbeit-pruefer) but not caused
+    // by it: placing a mark splits the TextNode it lands in, so the parse-time
+    // offset table goes stale for that node. A second annotation in the same
+    // paragraph then resolved to an offset past the end of what the key now
+    // holds, and Lexical threw `$getTextNodeOffset: invalid offset` from inside
+    // the update. Two annotations in one paragraph is entirely ordinary, so
+    // this is pinned directly.
+    const { editor, spans } = mount(ORIGINAL);
+    const entries = [
+      { anchor: captureAnchor(ORIGINAL, { start: 4, end: 9 }, 'v1'), id: 'a1' }, // "quick"
+      { anchor: captureAnchor(ORIGINAL, { start: 10, end: 15 }, 'v1'), id: 'a2' }, // "brown"
+      { anchor: captureAnchor(ORIGINAL, { start: 16, end: 19 }, 'v1'), id: 'a3' }, // "fox"
+    ];
+
+    expect(() => placeMarksForAnchors(editor, spans, ORIGINAL, entries)).not.toThrow();
+
+    for (const { id } of entries) expect(hasLiveMark(editor, id)).toBe(true);
+    const marks = [...container!.querySelectorAll('mark')].map((m) => m.textContent);
+    expect(marks).toEqual(['quick', 'brown', 'fox']);
   });
 
   it('is idempotent — re-running placement for an id that already has a mark is a no-op', () => {
