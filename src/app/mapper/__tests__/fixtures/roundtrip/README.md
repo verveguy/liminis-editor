@@ -269,7 +269,7 @@ comparison is what catches fidelity loss; the second pass only catches drift.
 | `902-list-item-double-hard-break/triple-hard-breaks` | Same cause; cross-references the root sidecar. |
 
 Fixing that underlying hard-break normalization is out of scope for #943 and needs its
-own issue. No other fixture in the corpus is exempt, including all 22 in
+own issue. No other fixture in the corpus is exempt, including all 23 in
 `known-defects/` — asserting a *defective* first-pass output does not stop that output
 from being a stable fixed point, and in this corpus every one of them is.
 
