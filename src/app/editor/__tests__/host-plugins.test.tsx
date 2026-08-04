@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { render, act, cleanup } from '@testing-library/react'
 import { LexicalComposer } from '@lexical/react/LexicalComposer'
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'
@@ -37,7 +37,7 @@ function CaptureEditor({ onReady }: { onReady: (editor: LexicalEditor) => void }
 /** Mount a plugin inside a real Lexical editor under the given host services. */
 async function mountPlugin(
   services: EditorHostServices,
-  plugin: React.ReactNode
+  plugin: ReactNode
 ): Promise<{ editor: LexicalEditor; container: HTMLElement }> {
   let editor: LexicalEditor | null = null
   let container!: HTMLElement
