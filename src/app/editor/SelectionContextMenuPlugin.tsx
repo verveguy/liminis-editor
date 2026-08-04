@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
+import { OPEN_ANNOTATION_COMPOSER_COMMAND } from './annotationCommands';
 import { $getSelection, $isRangeSelection } from 'lexical';
 import { useCorrectionStore } from '../../stores/correctionStore';
 
@@ -20,6 +21,8 @@ export interface SelectionContextMenuEvent {
 
 interface SelectionContextMenuPluginProps {
   onSelectionContextMenu?: (event: SelectionContextMenuEvent) => void;
+  /** True when the host configured a `correction` annotation kind (ADR-076). */
+  correctionKindEnabled?: boolean;
 }
 
 // --- Menu overlay component ---
@@ -50,6 +53,12 @@ interface SelectionContextMenuProps {
   y: number;
   selectedText: string;
   onChatAboutThis: (() => void) | null;
+  /**
+   * Routes the "Correction…" entry through the shared annotation create
+   * command when the host has configured a `correction` kind. Null when it
+   * hasn't, in which case the entry behaves exactly as it always has.
+   */
+  onCaptureCorrectionAnchor: (() => void) | null;
   onClose: () => void;
 }
 
@@ -59,6 +68,7 @@ function SelectionContextMenu({
   y,
   selectedText,
   onChatAboutThis,
+  onCaptureCorrectionAnchor,
   onClose,
 }: SelectionContextMenuProps): JSX.Element | null {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -96,6 +106,11 @@ function SelectionContextMenu({
   };
 
   const handleCorrection = () => {
+    // Corrections are a kind of the unified annotation mechanism (ADR-076):
+    // authoring one captures an anchor through the same primitive comments
+    // use. The `correction` kind discards its transient mark, so nothing
+    // paints and the visible behaviour below is unchanged.
+    onCaptureCorrectionAnchor?.();
     useCorrectionStore.getState().open({ x, y }, selectedText);
     onClose();
   };
@@ -141,6 +156,7 @@ function SelectionContextMenu({
 
 export function SelectionContextMenuPlugin({
   onSelectionContextMenu,
+  correctionKindEnabled = false,
 }: SelectionContextMenuPluginProps) {
   const [editor] = useLexicalComposerContext();
   const [menuState, setMenuState] = useState<{
@@ -181,6 +197,16 @@ export function SelectionContextMenuPlugin({
     }
   }, [editor]);
 
+  // Dispatching the command rather than calling the capture primitive
+  // directly is deliberate: `annotationCommands` declares the command and
+  // nothing else, so this statically-imported plugin can enter the annotation
+  // mechanism without pulling any annotation machinery into the default
+  // (annotations-disabled) import graph. The listener lives in the lazily
+  // loaded surface, and is simply absent when annotations are off.
+  const captureCorrectionAnchor = useCallback(() => {
+    editor.dispatchCommand(OPEN_ANNOTATION_COMPOSER_COMMAND, { kind: 'correction' });
+  }, [editor]);
+
   const handleChatAboutThis = useCallback(() => {
     if (onSelectionContextMenu && menuState.selectedText) {
       onSelectionContextMenu({
@@ -197,6 +223,7 @@ export function SelectionContextMenuPlugin({
       y={menuState.y}
       selectedText={menuState.selectedText}
       onChatAboutThis={onSelectionContextMenu ? handleChatAboutThis : null}
+      onCaptureCorrectionAnchor={correctionKindEnabled ? captureCorrectionAnchor : null}
       onClose={close}
     />
   );

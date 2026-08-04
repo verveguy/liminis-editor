@@ -98,7 +98,17 @@ function walkStaticGraph(entry: string): Set<string> {
   return seen;
 }
 
-const ANNOTATION_MODULE = /(^|\/)(annotations\/|annotations\.ts$|Annotation[A-Za-z]*\.tsx?$|annotation-marks\.ts$|annotationCommands\.ts$)/;
+/**
+ * What counts as an "annotation module" for FR-004.
+ *
+ * `annotationCommands.ts` is deliberately excluded: it declares a Lexical
+ * command and imports nothing but `lexical`, carrying no anchor, mark or
+ * resolver machinery. Keeping it out of the lazy boundary is what lets a
+ * statically-imported plugin (the selection context menu) enter the mechanism
+ * without dragging any of it into the annotations-disabled graph. It is
+ * asserted below to stay that trivial.
+ */
+const ANNOTATION_MODULE = /(^|\/)(annotations\/|annotations\.ts$|Annotation[A-Za-z]*\.tsx?$|annotation-marks\.ts$)/;
 
 describe('SC-004: annotation modules are unreachable from Editor.tsx by static import', () => {
   const graph = walkStaticGraph(resolve(EDITOR_DIR, 'Editor.tsx'));
@@ -123,6 +133,12 @@ describe('SC-004: annotation modules are unreachable from Editor.tsx by static i
     expect(source).toMatch(/lazy\(\s*\(\)\s*=>\s*import\(['"]\.\/AnnotationSurface['"]\)\s*\)/);
     // ...and is not shadowed by a static import of the same module.
     expect(source).not.toMatch(/^\s*import\s+[^;]*from\s+['"]\.\/AnnotationSurface['"]/m);
+  });
+
+  it('keeps annotationCommands.ts trivial — a command declaration and nothing more', () => {
+    const source = readFileSync(resolve(EDITOR_DIR, 'annotationCommands.ts'), 'utf8');
+    const imports = [...source.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
+    expect(imports).toEqual(['lexical']);
   });
 
   it('keeps the annotation prop types as type-only imports', () => {

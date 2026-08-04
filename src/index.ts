@@ -36,6 +36,25 @@ export { Editor } from './app/editor'
 export type { SweepFn } from './app/editor/AmbientCorrectionPlugin'
 export type { SelectionContextMenuEvent } from './app/editor/SelectionContextMenuPlugin'
 
+// --- Annotations, React surface (ADR-076) ---------------------------------
+// The kind-configuration types a host needs to turn the mechanism on, plus the
+// create-event shape. The DOM-free anchor model, resolver and marker-target
+// helpers live on the `./annotations` subpath instead, so they stay callable
+// outside a rendered editor.
+export { OPEN_ANNOTATION_COMPOSER_COMMAND } from './app/editor/annotationCommands'
+export type { AnnotationCreateEvent } from './app/editor/AnnotationPlugin'
+export type {
+  Annotation,
+  AnnotationKind,
+  AnnotationKindConfig,
+  AnnotationKindConfigs,
+  AnnotationCreateAffordance,
+  AnnotationMarkerStyle,
+  AnnotationPresentation,
+  AnnotationEditorHandle,
+  MarkerTarget,
+} from './annotations/types'
+
 // --- Markdown pipeline -----------------------------------------------------
 export { parseMarkdown } from './markdown/parse'
 export type { ParseOptions, ParseResult } from './markdown/parse'
