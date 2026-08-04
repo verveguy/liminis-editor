@@ -216,12 +216,41 @@ describe('MarkNode transparency on export (#43)', () => {
     const wrapped = await exportMarkdown(md, () => wrapPlainTextInMark('Celebration time'));
     expect(wrapped).toBe(md);
   });
+
+  // Both cases below were review findings (@handarbeit-pruefer). `convertLinkNode`
+  // and `convertFootnoteInlineChildren` each hand-rolled their own inline loop,
+  // converting one child at a time instead of going through the shared
+  // run-merging path — so a mark splitting a formatted run inside a link or a
+  // footnote body re-emitted the delimiters per sibling. Neither the mid-bold
+  // cases above (paragraph context) nor the corpus suite (whole, unsplit text
+  // nodes) reached those two loops.
+  it('a mark splitting a bold run inside a link re-merges into one strong wrapper', async () => {
+    const md = 'see [**abc def**](http://x) end\n';
+    const wrapped = await exportMarkdown(md, () => wrapPlainTextInMark('abc'));
+    expect(wrapped).toBe(md); // not `[**abc**** def**]`
+  });
+
+  it('a mark splitting an italic run inside a link re-merges into one emphasis wrapper', async () => {
+    const md = 'see [*abc def*](http://x) end\n';
+    const wrapped = await exportMarkdown(md, () => wrapPlainTextInMark('def'));
+    expect(wrapped).toBe(md);
+  });
+
+  it("a mark splitting a bold run inside a footnote definition's body re-merges", async () => {
+    const md = 'Ref[^1].\n\n[^1]: body **big word** here.\n';
+    // Against the unwrapped baseline, not `md`: footnote definitions carry a
+    // pre-existing whitespace round-trip quirk unrelated to marks (see the
+    // footnote-label case above).
+    const unwrapped = await exportMarkdown(md);
+    const wrapped = await exportMarkdown(md, () => wrapPlainTextInMark('big'));
+    expect(wrapped).toBe(unwrapped); // not `**big**** word**`
+  });
 });
 
 /**
  * Annotated-serialize sentinel survival (#47): the throwaway "annotated"
  * export mode a comment's markdown-slice capture relies on
- * (`setAnnotateTarget`, `comment-anchor-marks.ts`'s `locateLiveMarkdownRange`)
+ * (`setAnnotateTarget`, `annotation-marks.ts`'s `locateLiveMarkdownRange`)
  * brackets a live mark's content with PUA sentinel tokens *before* running
  * the full `stringify.ts` pipeline — including its ~10 regex post-processing
  * passes (underscore unescaping, bracket unescaping, blank-line collapsing,
