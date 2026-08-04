@@ -55,6 +55,20 @@ describe('Markdown round-trip fixture corpus', () => {
           if (output !== expected) {
             throw new Error(formatUnifiedDiff(expected, output, fixture.name));
           }
+
+          // Idempotence (#943 FR-003): round-tripping the already-canonical output a
+          // second time with no edits must be a no-op fixed point, even for fixtures
+          // whose first pass legitimately changed bytes (.expected.md sidecars).
+          // Skipped for fixtures carrying a documented `.idempotence-exempt.txt`
+          // sidecar (see fixtures/roundtrip/README.md) — a pre-existing, out-of-scope
+          // normalization, not new non-idempotency introduced by this fix.
+          if (fixture.idempotenceExempt !== null) {
+            return;
+          }
+          const { output: secondOutput } = await roundTrip(output);
+          if (secondOutput !== output) {
+            throw new Error(formatUnifiedDiff(output, secondOutput, `${fixture.name} (second pass)`));
+          }
         });
       }
     });
