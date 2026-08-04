@@ -372,6 +372,45 @@ describe('stringifyMarkdown', () => {
       expect(result).not.toMatch(/\n{3,}/)
     })
 
+    // The paragraph-pair case above is the minimal one. The library guarantee FR-002
+    // relies on is broader than that, so pin it across the block types the serializer
+    // actually emits — each parsed from source containing a 3-blank-line run, which
+    // mdast discards at parse time (blank-line count between flow siblings has no mdast
+    // representation) and which the library therefore never reproduces.
+    const siblingPairs: Array<{ name: string; markdown: string }> = [
+      { name: 'paragraph then heading', markdown: 'A\n\n\n\n# H\n' },
+      { name: 'heading then paragraph', markdown: '# H\n\n\n\nA\n' },
+      { name: 'paragraph then fenced code', markdown: 'A\n\n\n\n```js\nconst a = 1;\n```\n' },
+      { name: 'fenced code then paragraph', markdown: '```js\nconst a = 1;\n```\n\n\n\nA\n' },
+      { name: 'paragraph then list', markdown: 'A\n\n\n\n- a\n- b\n' },
+      { name: 'list then paragraph', markdown: '- a\n- b\n\n\n\nA\n' },
+      { name: 'paragraph then table', markdown: 'A\n\n\n\n| a |\n| - |\n| 1 |\n' },
+      { name: 'table then paragraph', markdown: '| a |\n| - |\n| 1 |\n\n\n\nA\n' },
+      { name: 'paragraph then blockquote', markdown: 'A\n\n\n\n> q\n' },
+      { name: 'paragraph then thematic break', markdown: 'A\n\n\n\n---\n\n\n\nB\n' },
+      { name: 'paragraph then block math', markdown: 'A\n\n\n\n$$\nx\n$$\n' },
+      { name: 'paragraph then html block', markdown: 'A\n\n\n\n<div>x</div>\n' },
+      { name: 'nested list then list item', markdown: '- a\n\n  - b\n\n\n\n- c\n' },
+      { name: 'frontmatter then paragraph', markdown: '---\ntitle: x\n---\n\n\n\nA\n' },
+    ]
+
+    siblingPairs.forEach(({ name, markdown }) => {
+      it(`never emits 3+ consecutive newlines: ${name}`, () => {
+        const result = stringifyMarkdown(parseMarkdown(markdown).root)
+        // Mask verbatim regions (frontmatter, fenced code, block math) before asserting:
+        // FR-002 deliberately preserves blank-line runs *inside* those, and the guarantee
+        // being pinned here is only about the joins *between* sibling blocks. Each region
+        // is replaced by a single-line placeholder rather than deleted — deleting it would
+        // splice the newlines on either side into a run that was never in the output.
+        const VERBATIM = '<<verbatim>>'
+        const betweenBlocks = result
+          .replace(/^---\n[\s\S]*?\n---\n/, `${VERBATIM}\n`)
+          .replace(/^(```|~~~)[\s\S]*?^\1[ \t]*$/gm, VERBATIM)
+          .replace(/^\$\$[\s\S]*?^\$\$[ \t]*$/gm, VERBATIM)
+        expect(betweenBlocks).not.toMatch(/\n{3,}/)
+      })
+    })
+
     it('should convert backslash line breaks to two-space breaks', () => {
       const root: Root = {
         type: 'root',
