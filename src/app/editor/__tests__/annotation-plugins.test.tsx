@@ -14,7 +14,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
-import { $createRangeSelection, $getRoot, $setSelection } from 'lexical';
+import { $createRangeSelection, $getRoot, $setSelection, createEditor, type LexicalEditor } from 'lexical';
 import { $isMarkNode, $wrapSelectionInMarkNode } from '@lexical/mark';
 import { parseMarkdown } from '../../../markdown/parse';
 import { importMarkdownToLexicalInEditorState } from '../../mapper/mdastToLexical';
@@ -24,6 +24,7 @@ import { AnnotationMarkerPlugin } from '../AnnotationMarkerPlugin';
 import { OPEN_ANNOTATION_COMPOSER_COMMAND } from '../annotationCommands';
 import type { AnnotationKindConfigs, MarkerTarget } from '../../../annotations/types';
 import { captureAnchor } from '../../../annotations/anchor-model';
+import { markElementsByAnnotationId } from '../annotation-marks';
 
 const MARKDOWN = 'The quick brown fox jumps over the lazy dog.\n';
 
@@ -329,6 +330,7 @@ describe('AnnotationMarkerPlugin — overlapping annotations on one element', ()
   }) {
     const [editor] = useLexicalComposerContext();
     const seeded = useRef(false);
+    editorRef.current = editor;
 
     if (!seeded.current) {
       seeded.current = true;
@@ -370,6 +372,7 @@ describe('AnnotationMarkerPlugin — overlapping annotations on one element', ()
   }
 
   const OVERLAP_ANCHOR = captureAnchor(MARKDOWN, { start: 4, end: 19 }, 'v1');
+  const editorRef: { current: LexicalEditor | null } = { current: null };
 
   function renderOverlap(onActivate: (id: string) => void, activeId: string | null = null) {
     return render(
@@ -423,5 +426,105 @@ describe('AnnotationMarkerPlugin — overlapping annotations on one element', ()
   it("says so in the accessible label rather than naming only one annotation", () => {
     const { container } = renderOverlap(vi.fn());
     expect(container.querySelector('mark')!.getAttribute('aria-label')).toContain('+1 more here');
+  });
+
+  /**
+   * Decoration runs from an update listener, tears down and rebuilds every
+   * decorated element's listeners and attributes, and used to do a full tree
+   * walk per target. Both halves of that cost mattered on a path Lexical fires
+   * for cursor moves as well as edits (review finding, @handarbeit-pruefer).
+   */
+  it('does not re-decorate on a selection-only update', () => {
+    const onActivate = vi.fn();
+    const { container } = renderOverlap(onActivate);
+    const mark = container.querySelector('mark')!;
+
+    // Every decoration pass tears the element's listeners down and re-adds
+    // them with fresh closures, so counting addEventListener calls counts
+    // decoration passes. Instrument only after the initial pass has run.
+    let listenerAdds = 0;
+    const realAdd = mark.addEventListener.bind(mark);
+    mark.addEventListener = ((...args: Parameters<typeof realAdd>) => {
+      listenerAdds++;
+      return realAdd(...args);
+    }) as typeof mark.addEventListener;
+
+    const moveCaret = () =>
+      act(() => {
+        editorRef.current!.update(
+          () => {
+            const textNode = $getRoot().getAllTextNodes()[0];
+            const selection = $createRangeSelection();
+            selection.anchor.set(textNode.getKey(), 0, 'text');
+            selection.focus.set(textNode.getKey(), 0, 'text');
+            $setSelection(selection);
+          },
+          { discrete: true },
+        );
+      });
+
+    moveCaret();
+    moveCaret();
+
+    expect(listenerAdds).toBe(0);
+    // ...and the element is still decorated, i.e. skipping did not drop it.
+    expect(mark.getAttribute('role')).toBe('button');
+  });
+});
+
+describe('markElementsByAnnotationId', () => {
+  it('resolves many ids in one pass, in document order, skipping ids with no mark', () => {
+    const el = document.createElement('div');
+    el.contentEditable = 'true';
+    document.body.appendChild(el);
+    const editor = createEditor({
+      namespace: 'by-id-test',
+      nodes: editorNodes,
+      onError: (e) => {
+        throw e;
+      },
+    });
+    editor.setRootElement(el);
+
+    editor.update(
+      () => {
+        importMarkdownToLexicalInEditorState(parseMarkdown(MARKDOWN).root);
+        const textNode = $getRoot().getAllTextNodes()[0];
+        const wrap = (needle: string, id: string) => {
+          const node = $getRoot().getAllTextNodes().find((n) => n.getTextContent().includes(needle))!;
+          const idx = node.getTextContent().indexOf(needle);
+          const selection = $createRangeSelection();
+          selection.anchor.set(node.getKey(), idx, 'text');
+          selection.focus.set(node.getKey(), idx + needle.length, 'text');
+          $setSelection(selection);
+          $wrapSelectionInMarkNode(selection, false, id);
+        };
+        void textNode;
+        // Back to front, so each wrap leaves the earlier text intact.
+        wrap('fox', 'b');
+        wrap('quick', 'a');
+      },
+      { discrete: true },
+    );
+
+    const found = markElementsByAnnotationId(editor, new Set(['a', 'b', 'absent']));
+
+    expect([...found.keys()].sort()).toEqual(['a', 'b']);
+    expect(found.get('a')![0].textContent).toBe('quick');
+    expect(found.get('b')![0].textContent).toBe('fox');
+    expect(found.has('absent')).toBe(false);
+
+    el.remove();
+  });
+
+  it('returns an empty map without walking anything when given no ids', () => {
+    const editor = createEditor({
+      namespace: 'by-id-empty',
+      nodes: editorNodes,
+      onError: (e) => {
+        throw e;
+      },
+    });
+    expect(markElementsByAnnotationId(editor, new Set()).size).toBe(0);
   });
 });

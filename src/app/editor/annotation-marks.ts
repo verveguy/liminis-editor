@@ -560,6 +560,38 @@ export function markElementsForId(editor: LexicalEditor, id: string): HTMLElemen
 }
 
 /**
+ * {@link markElementsForId} for many ids at once, in one tree walk.
+ *
+ * The marker plugin re-decorates on every editor update, and calling the
+ * single-id form per annotation makes that O(annotations x nodes) on a path
+ * that runs after each edit (review finding, @handarbeit-pruefer). One walk
+ * makes it O(nodes) regardless of how many annotations are live. Element lists
+ * are in document order, and ids with no live mark are simply absent.
+ */
+export function markElementsByAnnotationId(
+  editor: LexicalEditor,
+  ids: ReadonlySet<string>,
+): Map<string, HTMLElement[]> {
+  const byId = new Map<string, HTMLElement[]>();
+  if (ids.size === 0) return byId;
+
+  editor.getEditorState().read(() => {
+    for (const markNode of collectMarkNodesInOrder($getRoot())) {
+      const element = editor.getElementByKey(markNode.getKey());
+      if (!element) continue;
+      for (const id of markNode.getIDs()) {
+        if (!ids.has(id)) continue;
+        const existing = byId.get(id);
+        if (existing) existing.push(element);
+        else byId.set(id, [element]);
+      }
+    }
+  });
+
+  return byId;
+}
+
+/**
  * Removes every `MarkNode` wrapping `id` (annotation deleted, or composer
  * cancelled before submit). A mark shared with other annotation ids
  * (overlapping annotations) keeps its other ids and stays in the tree; a mark

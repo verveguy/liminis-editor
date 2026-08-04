@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import type { AnnotationKindConfigs, MarkerTarget } from '../../annotations/types';
-import { markElementsForId } from './annotation-marks';
+import { markElementsByAnnotationId, markElementsForId } from './annotation-marks';
 
 interface AnnotationMarkerPluginProps {
   targets: MarkerTarget[];
@@ -52,11 +52,21 @@ export function AnnotationMarkerPlugin({
     // pair to that shared element, so one click fired `onActivateAnnotation`
     // once per overlapping annotation, and title/aria-label/data-kind/active
     // would each reflect only whichever target happened to be processed last.
-    const byElement = new Map<HTMLElement, MarkerTarget[]>();
-    for (const target of targets) {
+    const decoratable = targets.filter((target) => {
       const config = kinds[target.kind];
-      if (!config || config.markerStyle === 'none') continue;
-      for (const element of markElementsForId(editor, target.annotationId)) {
+      return !!config && config.markerStyle !== 'none';
+    });
+    // One tree walk for the whole set, not one per target — this runs after
+    // every content edit, so the single-id lookup would make it
+    // O(annotations x nodes) per keystroke.
+    const elementsById = markElementsByAnnotationId(
+      editor,
+      new Set(decoratable.map((target) => target.annotationId)),
+    );
+
+    const byElement = new Map<HTMLElement, MarkerTarget[]>();
+    for (const target of decoratable) {
+      for (const element of elementsById.get(target.annotationId) ?? []) {
         const existing = byElement.get(element);
         if (existing) existing.push(target);
         else byElement.set(element, [target]);
@@ -130,7 +140,14 @@ export function AnnotationMarkerPlugin({
   }, [decorate]);
 
   useEffect(() => {
-    return editor.registerUpdateListener(() => {
+    return editor.registerUpdateListener(({ dirtyElements, dirtyLeaves }) => {
+      // Selection-only updates cannot move or recreate a mark's element, so
+      // there is nothing to re-decorate. Lexical fires this listener on every
+      // cursor move as well as every edit, and decoration tears down and
+      // rebuilds each element's listeners and attributes — so skipping the
+      // no-op case takes arrow-key navigation off that path entirely
+      // (review finding, @handarbeit-pruefer).
+      if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return;
       decorate();
     });
   }, [editor, decorate]);
