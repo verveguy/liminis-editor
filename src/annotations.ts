@@ -53,10 +53,11 @@ export {
   blockPlainText,
   sentenceChunks,
 } from './annotations/block-structure';
-export type { Block, BlockType } from './annotations/block-structure';
+export type { Block, BlockType, SentenceChunk } from './annotations/block-structure';
 
 // Span alignment, used when mapping an anchor onto a live document offset span.
 export { locateInSpan } from './annotations/anchor-align';
+export type { SpanRange, LocateInSpanOptions } from './annotations/anchor-align';
 
 // The annotation primitive and its per-kind configuration — the sole difference
 // between the comment feature and the correction feature (SC-001).
