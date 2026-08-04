@@ -113,4 +113,42 @@ describe('deriveMarkerTargets', () => {
 
     expect(targets[0].presentation).toBeUndefined()
   })
+
+  // A target is what causes a real MarkNode — and therefore a <mark> element —
+  // to be placed. A `none` kind's element is skipped by the marker plugin's
+  // decoration pass, so it would carry no `annotation-mark-*` class, and
+  // styles.css neutralizes the UA's default yellow <mark> only under those
+  // classes. `none` must therefore mean "no target", not "an undecorated one".
+  describe("markerStyle 'none' places no live mark", () => {
+    const NONE_KIND: AnnotationKindConfigs = { comment: { markerStyle: 'none' } }
+
+    it('derives no target under the default live-mark policy', () => {
+      const targets = deriveMarkerTargets([annotation({ outcome: 'unchanged' })], NONE_KIND)
+      expect(targets).toEqual([])
+    })
+
+    it('derives no target for a re-attached anchor either', () => {
+      const targets = deriveMarkerTargets([annotation({ outcome: 're-attached' })], NONE_KIND)
+      expect(targets).toEqual([])
+    })
+
+    it('takes precedence over a livemarkPolicy that opts in', () => {
+      const kinds: AnnotationKindConfigs = {
+        comment: { markerStyle: 'none', livemarkPolicy: () => true },
+      }
+      expect(deriveMarkerTargets([annotation()], kinds)).toEqual([])
+    })
+
+    it('does not suppress other kinds in the same pass', () => {
+      const kinds: AnnotationKindConfigs = {
+        ...COMMENT_KIND,
+        correction: { markerStyle: 'none' },
+      }
+      const targets = deriveMarkerTargets(
+        [annotation({ id: 'x1', kind: 'correction' }), annotation({ id: 'c1' })],
+        kinds,
+      )
+      expect(targets.map((t) => t.annotationId)).toEqual(['c1'])
+    })
+  })
 })
