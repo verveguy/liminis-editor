@@ -56,7 +56,7 @@ import { parseFormattedAlias } from '../editor/MarkdownShortcutsPlugin';
 import { $createTableNode, $createTableRowNode, $createTableCellNode, TableNode, TableRowNode, TableCellNode, TableCellHeaderStates } from '@lexical/table';
 import type { Root, Content, PhrasingContent, List, ListItem, Table, TableRow, TableCell, Heading, Paragraph, Blockquote, Code, Image, Link, Text, Strong, Emphasis, InlineCode, Delete, Html } from 'mdast';
 import type { DefListNode as MdastDefListNode } from 'mdast-util-definition-list';
-import { getFileType } from '../../../renderer/utils/fileTypes';
+import { getFileType } from '../../utils/file-types';
 
 type LexicalBlockNode =
   | ParagraphNode

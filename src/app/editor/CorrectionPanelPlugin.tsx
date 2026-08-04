@@ -2,18 +2,21 @@
  * CorrectionPanelPlugin — floating correction panel inside the Lexical editor.
  *
  * Opens when useCorrectionStore.isOpen is true. Loads suggestions from three
- * sources progressively: the local corrections YAML file (immediate), then
- * knowledge_find_entities and knowledge_search_passages via MCP (async).
+ * sources progressively: the host's corrections store (immediate), then entity
+ * and passage suggestions from the host's knowledge services (async).
  *
- * On confirm, writes a same_as entry to .liminis/knowledge-corrections.yaml
- * and calls knowledge_apply_corrections to sync the knowledge graph.
+ * On confirm, merges a same_as entry into the corrections document and asks the
+ * host to apply it. All persistence and knowledge-graph access crosses the
+ * package seam through `CorrectionHostServices` (see ADR-075); when the host
+ * supplies no correction services the panel still opens, shows no suggestions,
+ * and confirming performs only the in-document replacement.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot, $isTextNode } from 'lexical';
-import { toast } from 'sonner';
-import { useCorrectionStore } from '../../../renderer/stores/correctionStore';
+import { useCorrectionStore } from '../../stores/correctionStore';
+import { useEditorHost } from '../../host/context';
 import {
   parseCorrectionsYaml,
   serializeCorrectionsYaml,
@@ -45,41 +48,11 @@ const panelStyle = (): React.CSSProperties => {
   };
 };
 
-// --- MCP result parsing ---
-
-interface RawEntity {
-  name?: string;
-  uuid?: string;
-}
-
-interface RawPassage {
-  name?: string;
-  content?: string;
-}
-
-function parseMcpNames(result: unknown, key: string): string[] {
-  try {
-    let data: unknown = result;
-    if (typeof result === 'string') data = JSON.parse(result);
-    let arr: unknown[] = [];
-    if (Array.isArray(data)) {
-      arr = data;
-    } else if (data && typeof data === 'object') {
-      const value = (data as Record<string, unknown>)[key];
-      if (Array.isArray(value)) arr = value;
-    }
-    return arr
-      .map((item) => (item as RawEntity | RawPassage).name ?? '')
-      .filter((n) => n.length > 0);
-  } catch {
-    return [];
-  }
-}
-
 // --- Main component ---
 
 export function CorrectionPanelPlugin(): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
+  const { corrections, notifyError } = useEditorHost();
   const { isOpen, position, selectedText } = useCorrectionStore();
 
   const panelRef = useRef<HTMLDivElement>(null);
@@ -135,16 +108,16 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
 
   // Load suggestions when panel opens
   useEffect(() => {
-    if (!isOpen || !selectedText) return;
+    if (!isOpen || !selectedText || !corrections) return;
 
     let cancelled = false;
 
     // Load YAML suggestions synchronously after file read
     const loadYaml = async () => {
       try {
-        const result = await window.api.fs.readFile('.liminis/knowledge-corrections.yaml');
+        const raw = await corrections.readCorrections();
         if (cancelled) return;
-        const entries = parseCorrectionsYaml(result?.content ?? null);
+        const entries = parseCorrectionsYaml(raw);
         yamlEntriesRef.current = entries;
         const matches = entries
           .filter((e) => e.type === 'same_as' && e.aliases.includes(selectedText))
@@ -160,15 +133,9 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
     const loadEntities = async () => {
       setLoadingEntities(true);
       try {
-        const res = await window.api.mcp.callTool('knowledge-reader', 'knowledge_find_entities', {
-          query: selectedText,
-          num_results: 5,
-        });
+        const names = await corrections.suggestEntities(selectedText, 5);
         if (cancelled) return;
-        if (res.success && res.result) {
-          const names = parseMcpNames(res.result, 'nodes');
-          setEntitySuggestions(names);
-        }
+        setEntitySuggestions(names);
       } catch {
         // Knowledge graph unavailable — silent, not required for panel function
       } finally {
@@ -180,20 +147,9 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
     const loadPassages = async () => {
       setLoadingPassages(true);
       try {
-        const res = await window.api.mcp.callTool(
-          'knowledge-reader',
-          'knowledge_search_passages',
-          {
-            query: selectedText,
-            num_results: 5,
-            min_score: 0.3,
-          }
-        );
+        const names = await corrections.suggestPassages(selectedText, 5, 0.3);
         if (cancelled) return;
-        if (res.success && res.result) {
-          const names = parseMcpNames(res.result, 'passages');
-          setPassageSuggestions(names);
-        }
+        setPassageSuggestions(names);
       } catch {
         // Knowledge graph unavailable — silent
       } finally {
@@ -202,7 +158,8 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
     };
 
     // The MCP stdio invoker rejects concurrent calls to the same server (ADR-042).
-    // Serialize the two knowledge-reader calls while keeping YAML loading concurrent.
+    // Serialize the two knowledge suggestion calls while keeping the corrections
+    // read concurrent. The host relies on this ordering — do not parallelise.
     const loadKnowledgeSuggestions = async () => {
       await loadEntities();
       if (cancelled) return;
@@ -215,7 +172,7 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
     return () => {
       cancelled = true;
     };
-  }, [isOpen, selectedText]);
+  }, [isOpen, selectedText, corrections]);
 
   // Deduplicate suggestions across sources (case-insensitive), preserving order
   const allSuggestions = useMemo(() => {
@@ -271,57 +228,54 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
         });
       }
 
-      // (b) Ensure .liminis/ directory exists
-      try {
-        await window.api.fs.mkdir('.liminis');
-      } catch {
-        // May fail if it already exists on some platforms — that's fine
+      // (b) No host persistence available — the in-document replacement above is
+      // all this package can do on its own.
+      if (!corrections) {
+        setIsSubmitting(false);
+        close();
+        return;
       }
 
-      // (c) Re-read, merge, and write YAML atomically — avoids overwriting
-      // corrections added by other sources while the panel was open
+      // (c) Re-read, merge, and write atomically — avoids overwriting corrections
+      // added by other sources while the panel was open. The host owns mkdir and
+      // atomic-write semantics.
       let latestEntries = yamlEntriesRef.current;
       try {
-        const fresh = await window.api.fs.readFile('.liminis/knowledge-corrections.yaml');
-        latestEntries = parseCorrectionsYaml(fresh?.content ?? null);
+        const fresh = await corrections.readCorrections();
+        latestEntries = parseCorrectionsYaml(fresh);
       } catch {
         // File missing or unreadable — start from empty (yamlEntriesRef is still the best fallback)
       }
       const updated = mergeCorrection(latestEntries, selectedText, canonical);
       const yaml = serializeCorrectionsYaml(updated);
-      await window.api.fs.writeFile('.liminis/knowledge-corrections.yaml', yaml, 'atomic');
+      await corrections.writeCorrections(yaml);
       yamlEntriesRef.current = updated;
     } catch (err) {
-      toast.error('Failed to save correction', {
-        description: err instanceof Error ? err.message : String(err),
-      });
+      notifyError('Failed to save correction', err instanceof Error ? err.message : String(err));
       setIsSubmitting(false);
       return;
     }
 
     // (d) Apply corrections — isolated so a KG failure never blocks panel close
     try {
-      const mcpRes = await window.api.mcp.callTool(
-        'knowledge-writer',
-        'knowledge_apply_corrections',
-        {}
-      );
-      if (!mcpRes.success) {
-        toast.error('Knowledge graph sync failed', {
-          description:
-            'The correction was saved. It will be applied on the next ingestion pass.',
-        });
+      const applied = await corrections.applyCorrections();
+      if (!applied) {
+        notifyError(
+          'Knowledge graph sync failed',
+          'The correction was saved. It will be applied on the next ingestion pass.'
+        );
       }
     } catch {
-      toast.error('Knowledge graph sync failed', {
-        description: 'The correction was saved. It will be applied on the next ingestion pass.',
-      });
+      notifyError(
+        'Knowledge graph sync failed',
+        'The correction was saved. It will be applied on the next ingestion pass.'
+      );
     }
 
     // (f) Close panel — reached only after successful YAML write
     setIsSubmitting(false);
     close();
-  }, [canonicalInput, confirmPhase, replaceAll, selectedText, editor, close]);
+  }, [canonicalInput, confirmPhase, replaceAll, selectedText, editor, close, corrections, notifyError]);
 
   if (!isOpen) return null;
 

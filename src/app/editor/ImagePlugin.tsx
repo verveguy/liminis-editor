@@ -3,8 +3,9 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { $getNodeByKey, $getNearestNodeFromDOMNode, $getSelection, $isRangeSelection, COMMAND_PRIORITY_EDITOR, createCommand, LexicalCommand } from 'lexical';
 import { ImageModal, ImageData } from './ImageModal';
 import { $createImageNode } from './nodes';
-import { writeAsset, addMessageHandler } from '../../messaging-electron';
 import type { HostToUIMessage } from '../../types';
+import { useEditorHost } from '../../host/context';
+import { useHostMessages } from '../../host/messages';
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const INSERT_IMAGE_COMMAND: LexicalCommand<void> = createCommand('INSERT_IMAGE_COMMAND');
@@ -16,6 +17,8 @@ type PendingItem = { alt: string; dropTargetKey: string | null };
 
 export function ImagePlugin() {
   const [editor] = useLexicalComposerContext();
+  const { bridge } = useEditorHost();
+  const { writeAsset } = useHostMessages();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const pendingQueueRef = useRef<PendingItem[]>([]);
 
@@ -33,7 +36,7 @@ export function ImagePlugin() {
 
   // Listen for ASSET_WRITTEN messages
   useEffect(() => {
-    const removeHandler = addMessageHandler((message: HostToUIMessage) => {
+    const removeHandler = bridge.addMessageHandler((message: HostToUIMessage) => {
       if (message.type === 'ASSET_WRITTEN' && pendingQueueRef.current.length > 0) {
         const item = pendingQueueRef.current.shift()!;
         const { alt, dropTargetKey } = item;
@@ -57,7 +60,7 @@ export function ImagePlugin() {
     });
 
     return removeHandler;
-  }, [editor]);
+  }, [editor, bridge]);
 
   // Clipboard paste interceptor: captures image/* paste events before Lexical sees them
   useEffect(() => {
@@ -106,7 +109,7 @@ export function ImagePlugin() {
 
     rootElement.addEventListener('paste', handlePaste, { capture: true });
     return () => rootElement.removeEventListener('paste', handlePaste, { capture: true });
-  }, [editor]);
+  }, [editor, writeAsset]);
 
   // Drag-drop interceptor: handles external image file drops
   useEffect(() => {
@@ -179,7 +182,7 @@ export function ImagePlugin() {
       rootElement.removeEventListener('dragover', handleDragOver);
       rootElement.removeEventListener('drop', handleDrop);
     };
-  }, [editor]);
+  }, [editor, writeAsset]);
 
   const handleClose = useCallback(() => {
     setIsModalOpen(false);
@@ -199,7 +202,7 @@ export function ImagePlugin() {
         }
       });
     }
-  }, [editor]);
+  }, [editor, writeAsset]);
 
   return (
     <ImageModal

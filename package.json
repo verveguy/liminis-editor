@@ -1,0 +1,95 @@
+{
+  "name": "@liminis/editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lexical-based markdown WYSIWYG editor with mdast round-trip and a host-injection seam",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./markdown": {
+      "types": "./src/markdown.ts",
+      "default": "./src/markdown.ts"
+    },
+    "./headless": {
+      "types": "./src/headless.ts",
+      "default": "./src/headless.ts"
+    },
+    "./contract": {
+      "types": "./src/contract.ts",
+      "default": "./src/contract.ts"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
+    "@lexical/code": "^0.44.0",
+    "@lexical/code-prism": "^0.44.0",
+    "@lexical/link": "^0.44.0",
+    "@lexical/list": "^0.44.0",
+    "@lexical/markdown": "^0.44.0",
+    "@lexical/react": "^0.44.0",
+    "@lexical/rich-text": "^0.44.0",
+    "@lexical/selection": "^0.44.0",
+    "@lexical/table": "^0.44.0",
+    "@lexical/utils": "^0.44.0",
+    "@mathjax/src": "^4.1.1",
+    "lexical": "^0.44.0",
+    "lucide-react": "^1.11.0",
+    "mdast-util-definition-list": "^2.0.0",
+    "mdast-util-from-markdown": "^2.0.3",
+    "mdast-util-frontmatter": "^2.0.1",
+    "mdast-util-gfm": "^3.1.0",
+    "mdast-util-gfm-footnote": "^2.1.0",
+    "mdast-util-math": "^3.0.0",
+    "mdast-util-to-markdown": "^2.1.2",
+    "mdast-util-wiki-link": "^0.1.2",
+    "mermaid": "^11.14.0",
+    "micromark-extension-definition-list": "^2.0.1",
+    "micromark-extension-frontmatter": "^2.0.0",
+    "micromark-extension-gfm": "^3.0.0",
+    "micromark-extension-gfm-footnote": "^2.1.0",
+    "micromark-extension-math": "^3.1.0",
+    "micromark-extension-wiki-link": "^0.0.4",
+    "prismjs": "^1.30.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "yaml": "^2.8.3",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/mdast": "^4.0.4",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.5",
+    "diff": "^9.0.0",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "happy-dom": "^20.9.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.0",
+    "vitest": "^4.1.5"
+  }
+}

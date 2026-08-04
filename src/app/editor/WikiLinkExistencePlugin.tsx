@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
+import { useEditorHost } from '../../host/context';
 
 /**
  * WikiLinkExistencePlugin - Checks wiki-links and marks broken ones
@@ -8,7 +9,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
  * target files exist anywhere in the workspace. Links to non-existent files
  * get a CSS class applied to render them in red.
  *
- * Uses the navigation layer's resolveWikiLinks API which handles:
+ * Uses the host-supplied `resolveWikiLinks` service, which handles:
  * - Directory links (e.g., "entities/teams/") → resolves to index.md or README.md
  * - File links with extension (e.g., "notes.md") → checks directly
  * - File links without extension (e.g., "notes") → tries .md, .mdc
@@ -19,6 +20,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
  */
 export function WikiLinkExistencePlugin() {
   const [editor] = useLexicalComposerContext();
+  const { resolveWikiLinks } = useEditorHost();
   const checkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastCheckedRef = useRef<Set<string>>(new Set());
 
@@ -49,15 +51,15 @@ export function WikiLinkExistencePlugin() {
         return;
       }
 
-      // Use the navigation layer's resolver which handles directory links, etc.
+      // Use the host-supplied resolver which handles directory links, etc.
       try {
-        if (!window.api?.fs?.resolveWikiLinks) {
-          console.warn('[WikiLinkExistencePlugin] fs.resolveWikiLinks not available');
+        if (!resolveWikiLinks) {
+          console.warn('[WikiLinkExistencePlugin] resolveWikiLinks host service not available');
           return;
         }
 
         // Resolve all wiki-link paths
-        const resolved = await window.api.fs.resolveWikiLinks(targetsArray);
+        const resolved = await resolveWikiLinks(targetsArray);
         lastCheckedRef.current.add(targetKey);
 
         // Update CSS classes on wiki-links
@@ -105,7 +107,7 @@ export function WikiLinkExistencePlugin() {
         clearTimeout(checkTimeoutRef.current);
       }
     };
-  }, [editor]);
+  }, [editor, resolveWikiLinks]);
 
   return null;
 }

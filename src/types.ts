@@ -1,17 +1,4 @@
-// VS Code API type for webview
 import { z } from 'zod';
-
-declare global {
-  interface Window {
-    acquireVsCodeApi: () => VsCodeApi;
-  }
-}
-
-export interface VsCodeApi {
-  postMessage(message: UIToHostMessage): void;
-  getState(): unknown;
-  setState(state: unknown): void;
-}
 
 // =============================================================================
 // ZOD SCHEMAS - Runtime validation
