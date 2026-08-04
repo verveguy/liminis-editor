@@ -127,11 +127,18 @@ export default tseslint.config(
       //  2. Computed: `window['api']`, `window?.['api']`. Here `property` is a
       //     Literal with a `value`, not an Identifier with a `name`, so selector
       //     (1) does not match it.
-      //  3. Cast: `(window as unknown as { api: … }).api`. The object is a
-      //     TSAsExpression rather than an Identifier, so neither of the above
-      //     matches. This is the form a regression would most likely take —
-      //     plain `window.api` already fails typecheck here, since the package
-      //     deliberately carries no declaration for it.
+      //  3. Cast: `(window as unknown as { api: … }).api` and its computed
+      //     spelling. The object is a TSAsExpression rather than an Identifier,
+      //     so neither of the above matches. This is the form a regression would
+      //     most likely take — plain `window.api` already fails typecheck here,
+      //     since the package deliberately carries no declaration for it.
+      //
+      //     The cast selector must be anchored to the *cast operand*, not just
+      //     to the cast: keying only on `object.type='TSAsExpression'` also
+      //     reports innocent code like `(someService as unknown as { api: Client }).api`.
+      //     Hence the `:matches(...)` on `object.expression` (a direct
+      //     `window as X`) and `object.expression.expression` (the doubled
+      //     `window as unknown as X`), which is the idiomatic spelling.
       'no-restricted-syntax': [
         'error',
         {
@@ -148,7 +155,12 @@ export default tseslint.config(
         },
         {
           selector:
-            "MemberExpression[object.type='TSAsExpression'] > Identifier.property[name='api']",
+            "MemberExpression[object.type='TSAsExpression']" +
+            ':matches(' +
+            '[object.expression.name=/^(window|globalThis)$/], ' +
+            '[object.expression.expression.name=/^(window|globalThis)$/]' +
+            ')' +
+            ":matches([property.name='api'], [computed=true][property.value='api'])",
           message:
             '@liminis/editor must not reach into the host by casting window to expose `api`. Add the capability to EditorHostServices (src/host/types.ts), give it a safe default (src/host/defaults.ts), and implement it in the host adapter. See ADR-075.',
         },
