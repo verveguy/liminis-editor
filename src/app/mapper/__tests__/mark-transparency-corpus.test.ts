@@ -55,6 +55,32 @@ function markEveryTextNode(idPrefix: string): number {
   return counter;
 }
 
+/** How many TextNodes the tree contains — what {@link markEveryTextNode} should mark. */
+function countTextNodes(): number {
+  let counter = 0;
+
+  const visit = (element: ElementNode): void => {
+    for (const child of element.getChildren()) {
+      if ($isTextNode(child)) counter++;
+      else if ($isElementNode(child)) visit(child);
+    }
+  };
+
+  visit($getRoot());
+  return counter;
+}
+
+/**
+ * Marks placed across the whole corpus, summed as the per-fixture tests run.
+ * A per-fixture "did we mark anything?" assertion can't be the anti-vacuity
+ * guard on its own: a legitimate fixture may contain no TextNode at all (a lone
+ * thematic break; a document that is only an image, whose alt text lives on a
+ * DecoratorNode). The corpus total is what proves the suite is really
+ * exercising the transparency path rather than comparing two unmarked exports.
+ */
+let totalMarksPlaced = 0;
+let fixturesWithMarks = 0;
+
 describe('SC-003: live marks are transparent across the round-trip fixture corpus', () => {
   it('discovers the corpus (guards against a silently empty suite)', () => {
     expect(fixtures.length).toBeGreaterThan(0);
@@ -73,6 +99,7 @@ describe('SC-003: live marks are transparent across the round-trip fixture corpu
         let baseline = '';
         let marked = '';
         let markCount = 0;
+        let textNodeCount = 0;
 
         editor.update(
           () => {
@@ -83,6 +110,10 @@ describe('SC-003: live marks are transparent across the round-trip fixture corpu
 
         baseline = stringifyMarkdown(exportLexicalToMdast(editor));
 
+        editor.getEditorState().read(() => {
+          textNodeCount = countTextNodes();
+        });
+
         editor.update(
           () => {
             markCount = markEveryTextNode(fixture.name);
@@ -92,12 +123,13 @@ describe('SC-003: live marks are transparent across the round-trip fixture corpu
 
         marked = stringifyMarkdown(exportLexicalToMdast(editor));
 
-        // A fixture with no text nodes at all (e.g. a lone thematic break)
-        // would pass vacuously; assert we actually exercised the path when
-        // there was text to mark.
-        if (fixture.input.trim().length > 0) {
-          expect(markCount).toBeGreaterThanOrEqual(0);
-        }
+        // Every TextNode this fixture contains must actually have been wrapped
+        // — a walker that silently skipped a construct would otherwise leave
+        // this comparing two effectively-unmarked exports.
+        expect(markCount).toBe(textNodeCount);
+
+        totalMarksPlaced += markCount;
+        if (markCount > 0) fixturesWithMarks++;
 
         expect(marked).toBe(baseline);
       } finally {
@@ -105,4 +137,10 @@ describe('SC-003: live marks are transparent across the round-trip fixture corpu
       }
     });
   }
+
+  // Registered last, so it runs after every per-fixture test above.
+  it('actually exercised the transparency path across the corpus', () => {
+    expect(fixturesWithMarks).toBeGreaterThan(fixtures.length / 2);
+    expect(totalMarksPlaced).toBeGreaterThan(100);
+  });
 });
