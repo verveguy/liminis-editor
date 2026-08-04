@@ -1,4 +1,13 @@
 /**
+ * PROVENANCE — ported from Zusammen (`verveguy/zusammen`) for Liminis #939
+ * (SC-002/SC-003 evidence: these assertions carry over case-for-case).
+ *
+ * Doc comments below are the original author's, kept verbatim so the suite
+ * stays diffable against its source. Their `FR-NNN`/`SC-NNN` identifiers and
+ * `#NN` issue references name **Zusammen's** spec and issues, not this
+ * repository's. "Comment" should be read as "annotation".
+ */
+/**
  * comment-anchor-marks.ts (#43): the live MarkNode-based anchor mechanism
  * that replaces comment-anchor-mapping.ts's ordinal-block-index glue.
  *

@@ -1,4 +1,18 @@
 /**
+ * PROVENANCE — ported from Zusammen (`verveguy/zusammen`) for Liminis #939.
+ *
+ * The doc comments below are the original author's and are kept verbatim so
+ * this module stays diffable against its source. Their `FR-NNN`/`SC-NNN`
+ * identifiers, `#NN` issue references and `adrs/` paths therefore name
+ * **Zusammen's** spec, issues and ADRs — not this repository's, where the same
+ * identifiers mean something else entirely. For the Liminis-side design see
+ * `docs/project_notes/decisions/adr-076.md` and
+ * `docs/project_notes/zusammen-editor-capability-map.md`.
+ *
+ * "Comment"/"thread" in these comments should be read as "annotation": this
+ * module now serves both annotation kinds, not comments alone.
+ */
+/**
  * Minimal Markdown Block Structure
  *
  * A lightweight, dependency-free-beyond-mdast reading of a markdown document's

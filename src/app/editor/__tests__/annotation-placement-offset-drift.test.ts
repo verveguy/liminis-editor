@@ -1,4 +1,13 @@
 /**
+ * PROVENANCE — ported from Zusammen (`verveguy/zusammen`) for Liminis #939
+ * (SC-002/SC-003 evidence: these assertions carry over case-for-case).
+ *
+ * Doc comments below are the original author's, kept verbatim so the suite
+ * stays diffable against its source. Their `FR-NNN`/`SC-NNN` identifiers and
+ * `#NN` issue references name **Zusammen's** spec and issues, not this
+ * repository's. "Comment" should be read as "annotation".
+ */
+/**
  * Regression for the placement-wiring bug fixed in Editor.tsx (#47 follow-up).
  *
  * `placeMarkForAnchor` finds the anchor's target in `markdownText` and maps the
