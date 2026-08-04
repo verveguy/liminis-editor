@@ -121,4 +121,33 @@ describe('OffsetSpan recovery (#43 read pathway)', () => {
     expect(span).toBeDefined();
     expect(verify(span!)).toBe(markdown.slice(span!.start, span!.end));
   });
+
+  /**
+   * Review finding (CodeRabbit). mdast `position` describes the *source* range
+   * while `node.value` is the *decoded* text, so a backslash escape or a
+   * character reference makes the two widths disagree and every derived offset
+   * past it skew. Such a span is dropped rather than recorded, so placement
+   * declines instead of wrapping the wrong characters.
+   */
+  describe('spans whose raw width disagrees with the decoded text are dropped', () => {
+    it('drops the span for a backslash escape', async () => {
+      const { spans } = await importWithOffsets('a \\* b\n');
+      expect(spans).toEqual([]);
+    });
+
+    it('drops the span for a character reference', async () => {
+      const { spans } = await importWithOffsets('a &amp; b\n');
+      expect(spans).toEqual([]);
+    });
+
+    it('every recorded span has raw width equal to its node text length', async () => {
+      const { spans, markdown, verify } = await importWithOffsets(
+        'plain text, **bold**, `code`, a \\* escape and an &amp; entity, [link](https://x)\n',
+      );
+      expect(spans.length).toBeGreaterThan(0);
+      for (const span of spans) {
+        expect(verify(span)).toBe(markdown.slice(span.start, span.end));
+      }
+    });
+  });
 });
