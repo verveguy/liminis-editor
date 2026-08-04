@@ -65,8 +65,14 @@ export { importMarkdownToLexical, exportLexicalToMdast } from './app/mapper'
 export * from './types'
 
 // --- Editor-owned stores ---------------------------------------------------
+// `useEditorStore` is public: `EditorColumn` drives the frontmatter tray from
+// the app toolbar.
+//
+// `useCorrectionStore` is deliberately NOT exported. ADR-075 justifies keeping
+// it package-side on the grounds that it has no consumer outside the two
+// editor plugins; publishing it would invite exactly the app-side consumer that
+// invalidates that reasoning, with nothing at the boundary to catch it.
 export { useEditorStore } from './stores/editorStore'
-export { useCorrectionStore } from './stores/correctionStore'
 
 // --- Utilities the host also needs ----------------------------------------
 export { findSvgElement } from './app/editor/nodes/diagram-utils'

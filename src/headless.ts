@@ -8,6 +8,18 @@
  * DOM-free; the MathJax *lite* adaptor is typed over `LiteElement`, not
  * `HTMLElement`, which is why only the lite factory appears here.
  *
+ * **Known exception, carried over unchanged: `./mathjax-config`.** Its
+ * `createLiteAdaptorDocument` export is DOM-free, but the module statically
+ * imports `browserAdaptor` alongside `liteAdaptor` at top level, so anything
+ * that loads this entry evaluates a DOM-adaptor module. That is *not* a
+ * regression introduced by the extraction — before it, `main/remote-session/
+ * routes.ts` imported `shared/mathjax-config` directly and pulled in the very
+ * same graph; main's runtime imports are byte-for-byte what they were. It is
+ * called out here because this entry's contract would otherwise read as
+ * stronger than it is. Splitting the module into lite and browser halves is the
+ * real fix and belongs with #940's build work, where the entry graphs get
+ * enforced rather than documented.
+ *
  * **This contract is by convention, not by compiler enforcement.** Main's
  * `lib: ["ES2024"]` does *not* currently make `Document`/`HTMLElement` unresolvable
  * — some dependency already in `src/main`'s own graph pulls the DOM lib in (this
