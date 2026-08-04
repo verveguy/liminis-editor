@@ -1,0 +1,8 @@
+#902's double-hard-break marker serializes as a line containing only the
+two-space hard-break notation (see the "A note on byte-identity" section of
+README.md). CommonMark treats a whitespace-only line as blank regardless of
+trailing spaces, so re-parsing this fixture's first-pass output splits the
+paragraph instead of preserving the marker on a second pass. This is the
+pre-existing hard-break trailing-backslash-to-trailing-spaces normalization
+that #943's Out of Scope section explicitly excludes from the idempotence
+guarantee.
