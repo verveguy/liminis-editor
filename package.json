@@ -4,15 +4,16 @@
   "private": true,
   "description": "Lexical-based markdown WYSIWYG editor with mdast round-trip and a host-injection seam",
   "type": "module",
-  "sideEffects": [
-    "**/*.css"
-  ],
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./markdown": {
+      "types": "./src/markdown.ts",
+      "default": "./src/markdown.ts"
     },
     "./headless": {
       "types": "./src/headless.ts",
