@@ -1,5 +1,5 @@
 /**
- * `@liminis/editor/annotations` — the headless annotation surface (ADR-076).
+ * `@liminis/editor/annotations` — the headless annotation surface (ADR-077).
  *
  * The sixth declared export subpath, added as a *considered* export under
  * ADR-075's five-subpath rule. It exists because this surface has a profile no

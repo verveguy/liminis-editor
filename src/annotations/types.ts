@@ -1,5 +1,5 @@
 /**
- * Unified annotation types (ADR-076).
+ * Unified annotation types (ADR-077).
  *
  * An annotation is a range-anchored marker over document text. Comments and
  * corrections are not separate features here — they are two *kinds*, differing

@@ -1,5 +1,5 @@
 /**
- * Tests for the unified annotation types (ADR-076).
+ * Tests for the unified annotation types (ADR-077).
  *
  * The `shouldPlaceLiveMark` block is carried over from Zusammen's
  * `comment-thread.test.ts` verbatim in substance — the rest of that suite tests

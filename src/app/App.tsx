@@ -68,7 +68,7 @@ interface AppProps {
   /** Ref populated with a sweep function by AmbientCorrectionPlugin when active. */
   sweepRef?: MutableRefObject<SweepFn | null>;
   /**
-   * Annotation kind configuration (ADR-076), forwarded to <Editor>. Absent
+   * Annotation kind configuration (ADR-077), forwarded to <Editor>. Absent
    * means the annotation mechanism stays off entirely.
    */
   annotationKinds?: AnnotationKindConfigs;

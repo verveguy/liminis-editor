@@ -21,7 +21,7 @@ export interface SelectionContextMenuEvent {
 
 interface SelectionContextMenuPluginProps {
   onSelectionContextMenu?: (event: SelectionContextMenuEvent) => void;
-  /** True when the host configured a `correction` annotation kind (ADR-076). */
+  /** True when the host configured a `correction` annotation kind (ADR-077). */
   correctionKindEnabled?: boolean;
 }
 
@@ -106,7 +106,7 @@ function SelectionContextMenu({
   };
 
   const handleCorrection = () => {
-    // Corrections are a kind of the unified annotation mechanism (ADR-076):
+    // Corrections are a kind of the unified annotation mechanism (ADR-077):
     // authoring one enters the same capture path comments use. The `correction`
     // kind discards its transient mark, so nothing paints and the visible
     // behaviour below is unchanged. A host that supplies no `onCreateAnnotation`

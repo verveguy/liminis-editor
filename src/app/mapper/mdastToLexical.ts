@@ -78,7 +78,7 @@ type LexicalBlockNode =
 
 /**
  * A raw-markdown character range, produced during import, mapped onto the
- * Lexical `TextNode` it became (ADR-076's read pathway). Threaded from each
+ * Lexical `TextNode` it became (ADR-077's read pathway). Threaded from each
  * leaf inline mdast node's own `position.offset` — real on-disk offsets, valid
  * only for content that came from this exact parse — so an annotation anchor's
  * `targetText` offset (found via a plain string search of the raw markdown)

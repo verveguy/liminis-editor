@@ -6,7 +6,7 @@
  * identifiers, `#NN` issue references and `adrs/` paths therefore name
  * **Zusammen's** spec, issues and ADRs — not this repository's, where the same
  * identifiers mean something else entirely. For the Liminis-side design see
- * `docs/project_notes/decisions/adr-076.md` and
+ * `docs/project_notes/decisions/adr-077.md` and
  * `docs/project_notes/zusammen-editor-capability-map.md`.
  *
  * "Comment"/"thread" in these comments should be read as "annotation": this
