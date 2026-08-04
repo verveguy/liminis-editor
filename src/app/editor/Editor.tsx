@@ -130,7 +130,7 @@ interface EditorProps {
   /** Ref populated with a sweep function by AmbientCorrectionPlugin when active. */
   sweepRef?: MutableRefObject<SweepFn | null>;
 
-  // --- Annotations (ADR-076). Entirely opt-in: with no `annotationKinds`, no
+  // --- Annotations (ADR-077). Entirely opt-in: with no `annotationKinds`, no
   // annotation module is loaded, no command is registered and nothing renders.
   /**
    * Per-kind configuration. Supplying this is what turns the annotation
@@ -253,7 +253,7 @@ const editorNodes = [
   DefinitionDescriptionNode,
   HtmlNode,
   ListItemParagraphBreakNode,
-  MarkNode,  // Annotation live marks (see ADR-076); inert unless an annotation kind is configured
+  MarkNode,  // Annotation live marks (see ADR-077); inert unless an annotation kind is configured
 ];
 
 // Mirror of $exitCodeNodeOnEnter in @lexical/code-core@0.44 (CodeExtension.register).

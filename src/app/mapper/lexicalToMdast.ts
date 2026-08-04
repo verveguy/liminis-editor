@@ -127,7 +127,7 @@ export function exportLexicalToMdastInEditorState(): Root {
  * `node.getChildren()`, with any `MarkNode` child (an annotation's live anchor)
  * replaced in place by its own effective children, recursively. A `MarkNode` is
  * a live in-editor wrapper with no markdown representation of its own
- * (ADR-076) — every call site that gathers a block's inline content must see
+ * (ADR-077) — every call site that gathers a block's inline content must see
  * straight through it, so serialization is unaffected by whether any text
  * currently carries an annotation.
  */

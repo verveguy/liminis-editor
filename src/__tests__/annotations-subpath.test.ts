@@ -1,5 +1,5 @@
 /**
- * The `./annotations` subpath must stay headless (ADR-076, FR-002).
+ * The `./annotations` subpath must stay headless (ADR-077, FR-002).
  *
  * The whole reason this is a sixth subpath rather than a re-export from
  * `./headless` or `./markdown` is that it has to be callable outside a rendered

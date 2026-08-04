@@ -36,7 +36,7 @@ export { Editor } from './app/editor'
 export type { SweepFn } from './app/editor/AmbientCorrectionPlugin'
 export type { SelectionContextMenuEvent } from './app/editor/SelectionContextMenuPlugin'
 
-// --- Annotations, React surface (ADR-076) ---------------------------------
+// --- Annotations, React surface (ADR-077) ---------------------------------
 // The kind-configuration types a host needs to turn the mechanism on, plus the
 // create-event shape. The DOM-free anchor model, resolver and marker-target
 // helpers live on the `./annotations` subpath instead, so they stay callable

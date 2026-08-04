@@ -2157,7 +2157,7 @@ body {
 }
 
 /* ============================================================
-   Annotation markers (ADR-076)
+   Annotation markers (ADR-077)
    ============================================================
    Default styling for the live `MarkNode` elements `AnnotationMarkerPlugin`
    decorates. The class names are derived from a kind's `markerStyle`
