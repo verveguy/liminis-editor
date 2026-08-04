@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState, useRef, type MutableRefObjec
 import { Editor } from './editor';
 import type { SelectionContextMenuEvent } from './editor/SelectionContextMenuPlugin';
 import type { SweepFn } from './editor/AmbientCorrectionPlugin';
+import type { AnnotationCreateEvent } from './editor/AnnotationPlugin';
+import type { Annotation, AnnotationEditorHandle, AnnotationKindConfigs } from '../annotations/types';
 import type { HostToUIMessage, SlashMDSettings, TextEdit, ThemeOverrides } from '../types';
 import { useEditorHost } from '../host/context';
 import { useHostMessages } from '../host/messages';
@@ -65,11 +67,23 @@ interface AppProps {
   onSubstitutionDetected?: (oldTerm: string, newTerm: string) => void;
   /** Ref populated with a sweep function by AmbientCorrectionPlugin when active. */
   sweepRef?: MutableRefObject<SweepFn | null>;
+  /**
+   * Annotation kind configuration (ADR-076), forwarded to <Editor>. Absent
+   * means the annotation mechanism stays off entirely.
+   */
+  annotationKinds?: AnnotationKindConfigs;
+  annotations?: Annotation[];
+  activeAnnotationId?: string | null;
+  scrollToAnnotation?: { id: string; nonce: number } | null;
+  onCreateAnnotation?: (event: AnnotationCreateEvent) => void;
+  onActivateAnnotation?: (id: string) => void;
+  annotationEditorHandleRef?: MutableRefObject<AnnotationEditorHandle | null>;
+  annotationLogger?: { warn: (message: string, ...args: unknown[]) => void };
   /** Override className on the root div (default: "min-h-screen p-0"). */
   className?: string;
 }
 
-export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, onSelectionContextMenu, onSubstitutionDetected, sweepRef, className = 'min-h-screen p-0' }: AppProps) {
+export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, onSelectionContextMenu, onSubstitutionDetected, sweepRef, annotationKinds, annotations, activeAnnotationId, scrollToAnnotation, onCreateAnnotation, onActivateAnnotation, annotationEditorHandleRef, annotationLogger, className = 'min-h-screen p-0' }: AppProps) {
   const { bridge, logger } = useEditorHost();
   const log = useMemo(() => logger('slashmd/App'), [logger]);
   const { requestInit, applyTextEdits } = useHostMessages();
@@ -263,6 +277,14 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
         onSelectionContextMenu={onSelectionContextMenu}
         onSubstitutionDetected={onSubstitutionDetected}
         sweepRef={sweepRef}
+        annotationKinds={annotationKinds}
+        annotations={annotations}
+        activeAnnotationId={activeAnnotationId}
+        scrollToAnnotation={scrollToAnnotation}
+        onCreateAnnotation={onCreateAnnotation}
+        onActivateAnnotation={onActivateAnnotation}
+        annotationEditorHandleRef={annotationEditorHandleRef}
+        annotationLogger={annotationLogger}
       />
     </div>
   );

@@ -826,7 +826,10 @@ export function Editor({
             <WikiLinkExistencePlugin />
             <WikiLinkFormatPlugin />
             <AnchorScrollPlugin />
-            <SelectionContextMenuPlugin onSelectionContextMenu={onSelectionContextMenu} />
+            <SelectionContextMenuPlugin
+              onSelectionContextMenu={onSelectionContextMenu}
+              correctionKindEnabled={!!annotationKinds?.correction}
+            />
             <CorrectionPanelPlugin />
             {onSubstitutionDetected && (
               <AmbientCorrectionPlugin
