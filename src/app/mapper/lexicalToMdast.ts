@@ -1,6 +1,7 @@
 import {
   $getRoot,
   $isTextNode,
+  $isElementNode,
   $isParagraphNode,
   $isLineBreakNode,
   LexicalEditor,
@@ -13,6 +14,7 @@ import { $isHeadingNode, $isQuoteNode } from '@lexical/rich-text';
 import { $isListNode, $isListItemNode, ListNode, ListItemNode } from '@lexical/list';
 import { $isCodeNode } from '@lexical/code';
 import { $isLinkNode } from '@lexical/link';
+import { $isMarkNode, type MarkNode } from '@lexical/mark';
 import { $isTableNode, $isTableRowNode, $isTableCellNode, TableNode, TableRowNode, TableCellNode } from '@lexical/table';
 import {
   $isHorizontalRuleNode,
@@ -68,30 +70,190 @@ export function exportLexicalToMdast(editor: LexicalEditor): Root {
   let root: Root = { type: 'root', children: [] };
 
   editor.getEditorState().read(() => {
-    const lexicalRoot = $getRoot();
-    const allChildren = lexicalRoot.getChildren();
-
-    // Detect the footnote definitions section appended at the end by mdastToLexical.
-    // Pattern: [HR, indented paragraph with FootnoteNode label, ...]
-    // These need to be exported as footnoteDefinition MDAST nodes, not plain paragraphs.
-    const { bodyChildren, footnoteChildren } = splitFootnoteSection(allChildren);
-
-    const children: Content[] = [];
-
-    for (const child of bodyChildren) {
-      const nodes = convertLexicalNode(child);
-      children.push(...nodes);
-    }
-
-    // Group footnote paragraphs into definitions and convert to MDAST nodes
-    for (const fnDef of groupFootnoteChildren(footnoteChildren)) {
-      children.push(fnDef);
-    }
-
-    root = { type: 'root', children };
+    root = exportLexicalToMdastInEditorState();
   });
 
   return root;
+}
+
+/**
+ * Same conversion as {@link exportLexicalToMdast}, but callable from within an
+ * already-active `editor.update()`/`editor.getEditorState().read()` — mirrors
+ * `mdastToLexical.ts`'s `importMarkdownToLexicalInEditorState` convention.
+ * Used by the annotated-serialize harvest ({@link setAnnotateTarget}) so it can
+ * run inside the same read as the plain export it's paired with, with no
+ * nested `.read()` call.
+ */
+export function exportLexicalToMdastInEditorState(): Root {
+  // Refresh the sentinel-boundary maps for this export pass — populated only
+  // when annotate mode is on (see setAnnotateTarget); left null otherwise, so
+  // the disk-write path (never sets a target) takes on zero overhead and zero
+  // behavioral change.
+  if (annotateTargetId) {
+    collectSentinelLeaves(annotateTargetId);
+  } else {
+    sentinelBefore = null;
+    sentinelAfter = null;
+  }
+
+  const lexicalRoot = $getRoot();
+  const allChildren = lexicalRoot.getChildren();
+
+  // Detect the footnote definitions section appended at the end by mdastToLexical.
+  // Pattern: [HR, indented paragraph with FootnoteNode label, ...]
+  // These need to be exported as footnoteDefinition MDAST nodes, not plain paragraphs.
+  const { bodyChildren, footnoteChildren } = splitFootnoteSection(allChildren);
+
+  const children: Content[] = [];
+
+  for (const child of bodyChildren) {
+    const nodes = convertLexicalNode(child);
+    children.push(...nodes);
+  }
+
+  // Group footnote paragraphs into definitions and convert to MDAST nodes
+  for (const fnDef of groupFootnoteChildren(footnoteChildren)) {
+    children.push(fnDef);
+  }
+
+  return { type: 'root', children };
+}
+
+// ============================================================================
+// Mark transparency
+// ============================================================================
+
+/**
+ * `node.getChildren()`, with any `MarkNode` child (an annotation's live anchor)
+ * replaced in place by its own effective children, recursively. A `MarkNode` is
+ * a live in-editor wrapper with no markdown representation of its own
+ * (ADR-076) — every call site that gathers a block's inline content must see
+ * straight through it, so serialization is unaffected by whether any text
+ * currently carries an annotation.
+ */
+function effectiveChildren(node: ElementNode): LexicalNode[] {
+  const result: LexicalNode[] = [];
+  for (const child of node.getChildren()) {
+    if ($isMarkNode(child)) {
+      result.push(...effectiveChildren(child));
+    } else {
+      result.push(child);
+    }
+  }
+  return result;
+}
+
+// ============================================================================
+// Annotated-serialize mode
+//
+// A throwaway variant of the export used only by the annotation capture
+// primitive (`annotation-marks.ts`'s `captureLiveMarkdownSlice`): while a
+// target annotation id is set via `setAnnotateTarget`, that id's live
+// MarkNode(s) — already transparent to markdown — additionally get their
+// content bracketed with a pair of Unicode Private-Use-Area sentinel tokens
+// carrying the id. Serializing with this mode on is byte-for-byte identical to
+// a normal export *except* for those inserted tokens (no other line of this
+// file's conversion logic branches on `annotateTargetId`), so a caller can find
+// the id's sentinel tokens in the resulting string and know that: the first
+// open token's own position is this mark's real start offset in the *plain*
+// export of the same state, and the (sentinel-stripped) text between the
+// outermost tokens is the exact raw markdown slice the mark covers — including
+// whatever markdown syntax the mark's boundary happens to fall on, which is
+// exactly what a search for the mark's *rendered* text could not reliably
+// locate. Never enabled on the disk-write path.
+// ============================================================================
+
+const SENTINEL_OPEN_START = '';
+const SENTINEL_OPEN_END = '';
+const SENTINEL_CLOSE_START = '';
+const SENTINEL_CLOSE_END = '';
+
+let annotateTargetId: string | null = null;
+let sentinelBefore: Map<LexicalNode, string> | null = null;
+let sentinelAfter: Map<LexicalNode, string> | null = null;
+
+/** Enables (or, passed `null`, disables) annotated-serialize mode for `id`. See module doc above. */
+export function setAnnotateTarget(id: string | null): void {
+  annotateTargetId = id;
+}
+
+export function markOpenToken(id: string): string {
+  return `${SENTINEL_OPEN_START}${id}${SENTINEL_OPEN_END}`;
+}
+
+export function markCloseToken(id: string): string {
+  return `${SENTINEL_CLOSE_START}${id}${SENTINEL_CLOSE_END}`;
+}
+
+/** Every live `MarkNode` in the tree carrying `id`, document order. */
+function collectMarksWithId(id: string): MarkNode[] {
+  const result: MarkNode[] = [];
+  const visit = (node: LexicalNode): void => {
+    if ($isMarkNode(node) && node.hasID(id)) {
+      result.push(node);
+    }
+    if ($isElementNode(node)) {
+      for (const child of node.getChildren()) visit(child);
+    }
+  };
+  visit($getRoot());
+  return result;
+}
+
+/** First/last text-bearing leaf among `nodes`, recursing into element children (e.g. a link's own text) — never into another mark (handled by the caller's own flattening). */
+function firstTextLeaf(nodes: readonly LexicalNode[]): TextNode | null {
+  for (const node of nodes) {
+    if ($isTextNode(node)) return node;
+    if ($isElementNode(node)) {
+      const leaf = firstTextLeaf(effectiveChildren(node));
+      if (leaf) return leaf;
+    }
+  }
+  return null;
+}
+
+function lastTextLeaf(nodes: readonly LexicalNode[]): TextNode | null {
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const node = nodes[i];
+    if ($isTextNode(node)) return node;
+    if ($isElementNode(node)) {
+      const leaf = lastTextLeaf(effectiveChildren(node));
+      if (leaf) return leaf;
+    }
+  }
+  return null;
+}
+
+/**
+ * Populates `sentinelBefore`/`sentinelAfter` for every live mark carrying
+ * `id`: its own first rendered-text leaf gets an open-token prefix, its own
+ * last gets a close-token suffix. A multi-block/multi-mark annotation (several
+ * sibling MarkNodes sharing `id`) gets one such pair per mark instance —
+ * deliberately, so the caller can recover a per-mark boundary even when the
+ * marks aren't textually adjacent.
+ */
+function collectSentinelLeaves(id: string): void {
+  const before = new Map<LexicalNode, string>();
+  const after = new Map<LexicalNode, string>();
+  for (const mark of collectMarksWithId(id)) {
+    const kids = effectiveChildren(mark);
+    const first = firstTextLeaf(kids);
+    const last = lastTextLeaf(kids);
+    if (first) before.set(first, id);
+    if (last) after.set(last, id);
+  }
+  sentinelBefore = before;
+  sentinelAfter = after;
+}
+
+/** `node`'s own rendered text content, with an annotate-mode sentinel spliced in if this exact node instance is a live mark's boundary leaf. A no-op (returns `node.getTextContent()` verbatim) whenever annotate mode is off. */
+function sentinelAugmentedText(node: TextNode): string {
+  let text = node.getTextContent();
+  const beforeId = sentinelBefore?.get(node);
+  if (beforeId) text = markOpenToken(beforeId) + text;
+  const afterId = sentinelAfter?.get(node);
+  if (afterId) text = text + markCloseToken(afterId);
+  return text;
 }
 
 // Detect the trailing footnote definitions section:
@@ -110,7 +272,9 @@ function splitFootnoteSection(allChildren: LexicalNode[]): {
   for (let i = allChildren.length - 1; i >= 0; i--) {
     const child = allChildren[i];
     if ($isParagraphNode(child) && child.getIndent() === 1) {
-      const firstChild = child.getFirstChild();
+      // Through the mark-transparent view, so an annotation wrapping the label
+      // itself doesn't hide this paragraph from footnote-section detection.
+      const firstChild = effectiveChildren(child)[0];
       if (firstChild && $isFootnoteNode(firstChild)) {
         hasLabeledParagraph = true;
       }
@@ -164,7 +328,9 @@ function groupFootnoteChildren(footnoteChildren: LexicalNode[]): Content[] {
   for (const node of footnoteChildren) {
     if (!$isParagraphNode(node)) continue;
 
-    const firstChild = node.getFirstChild();
+    // Through the mark-transparent view, so an annotation wrapping the label
+    // itself doesn't hide this paragraph's own definition identity.
+    const firstChild = effectiveChildren(node)[0];
     if (firstChild && $isFootnoteNode(firstChild)) {
       // New definition — flush any previous one
       flushDefinition();
@@ -194,12 +360,27 @@ function groupFootnoteChildren(footnoteChildren: LexicalNode[]): Content[] {
 // skipping the leading FootnoteNode label and its trailing space separator.
 function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[] {
   const contentChildren: PhrasingContent[] = [];
-  let child = labelNode.getNextSibling();
+
+  // An annotation wrapping the label itself puts a MarkNode between it and its
+  // real block parent — step past any such wrapper(s) so the mark-transparent
+  // sibling walk below sees the label's true siblings, not just its mark-mates.
+  let parent = labelNode.getParent();
+  while (parent && $isMarkNode(parent)) parent = parent.getParent();
+  if (!parent) return contentChildren;
+
+  // Walk the label's siblings through the mark-transparent view so an
+  // annotation over part of the footnote's own content doesn't hide it.
+  const siblings = effectiveChildren(parent);
+  const labelIndex = siblings.findIndex((n) => n.is(labelNode));
+  let rest: LexicalNode[] = labelIndex === -1 ? [] : siblings.slice(labelIndex + 1);
 
   // Skip the space TextNode that follows the label
-  if (child && $isTextNode(child) && child.getTextContent() === ' ') {
-    child = child.getNextSibling();
+  if (rest[0] && $isTextNode(rest[0]) && rest[0].getTextContent() === ' ') {
+    rest = rest.slice(1);
   }
+
+  let restIndex = 0;
+  let child: LexicalNode | null = rest[restIndex] ?? null;
 
   // Use the same inline conversion logic as convertInlineChildren
   while (child) {
@@ -226,7 +407,8 @@ function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[
         label: child.getFootnoteId(),
       } as unknown as PhrasingContent);
     }
-    child = child.getNextSibling();
+    restIndex++;
+    child = rest[restIndex] ?? null;
   }
 
   return contentChildren;
@@ -367,20 +549,34 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean, spread: bool
   // items instead of silently dropping it.
   const children: Content[] = [];
   let inlineChildren: PhrasingContentLike[] = [];
+  // Buffers raw TextNodes rather than converting each as it's seen, so a run
+  // an annotation mark split is merged on flush by the same logic
+  // convertInlineChildren uses — needed here for the same reason.
+  let textRun: LexicalNode[] = [];
+
+  const { nodes: listItemChildren, marked } = effectiveChildrenWithMarkMembership(node);
+
+  const flushTextRun = (): void => {
+    if (textRun.length > 0) {
+      inlineChildren.push(...convertInlinePhrasingList(textRun, marked));
+      textRun = [];
+    }
+  };
 
   const flushInline = (): void => {
+    flushTextRun();
     if (inlineChildren.length > 0) {
       children.push({ type: 'paragraph', children: [...inlineChildren] as PhrasingContent[] });
       inlineChildren = [];
     }
   };
 
-  for (const child of node.getChildren()) {
+  for (const child of listItemChildren) {
     if ($isListNode(child)) {
       flushInline();
       children.push(convertListNode(child));
     } else if ($isTextNode(child)) {
-      inlineChildren.push(...convertTextNode(child));
+      textRun.push(child);
     } else if ($isListItemParagraphBreakNode(child)) {
       // Marks a paragraph boundary inserted by convertListItem for consecutive
       // mdast paragraphs (see its comment) — flush the current paragraph and
@@ -389,8 +585,10 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean, spread: bool
       // see #902.
       flushInline();
     } else if ($isLineBreakNode(child)) {
+      flushTextRun();
       inlineChildren.push({ type: 'break' });
     } else if ($isLinkNode(child)) {
+      flushTextRun();
       inlineChildren.push(convertLinkNode(child));
     } else {
       // Any other block-type child (ParagraphNode, CodeNode, TableNode,
@@ -436,9 +634,21 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean, spread: bool
   };
 }
 
+// Mark-transparent and annotate-mode-aware equivalent of
+// `node.getTextContent()`: a fenced code block's own text (concatenating
+// CodeHighlightNode/TabNode/LineBreakNode children) plus, for the
+// annotate-mode target's boundary leaf, the same sentinel splice every other
+// block type gets via `sentinelAugmentedText`. Without this, an annotation
+// wrapping part of a code block's content would never be locatable via
+// `locateLiveMarkdownRange` — capture would always come back null exactly as
+// if there were no live mark at all.
 function convertCodeNode(node: ElementNode): Code {
-  // Use getTextContent() which handles both TextNode and CodeHighlightNode children
-  const value = node.getTextContent();
+  // Mark-transparent equivalent of getTextContent(), which handles both
+  // TextNode and CodeHighlightNode children.
+  let value = '';
+  for (const child of effectiveChildren(node)) {
+    value += $isTextNode(child) ? sentinelAugmentedText(child) : child.getTextContent();
+  }
   const rawLang = (node as unknown as { getLanguage?: () => string }).getLanguage?.();
   const lang = rawLang && rawLang !== 'plain' ? rawLang : undefined;
 
@@ -820,7 +1030,7 @@ function convertFormattedRun(runChildren: LexicalNode[], format: number): Phrasi
 
   for (const child of runChildren) {
     if ($isTextNode(child)) {
-      const text = child.getTextContent();
+      const text = sentinelAugmentedText(child);
       if (text === '') {
         continue;
       }
@@ -882,30 +1092,101 @@ function wrapWithFormat(
   return result[0];
 }
 
+/**
+ * `effectiveChildren`, additionally reporting which of the returned nodes came
+ * out from inside a `MarkNode`.
+ *
+ * Flattening a mark away can split what was a single same-format `TextNode`
+ * into several adjacent same-format siblings. Serialized per-node, that run
+ * would emit one marker pair each (`**a****b**` instead of `**ab**`), so merely
+ * annotating text would change the markdown — exactly what mark transparency
+ * forbids. Merging the run fixes it, but merging unconditionally would also
+ * change output for documents with no marks at all, which must stay
+ * byte-identical. Knowing which nodes were mark members lets the merge fire
+ * only on runs a mark actually touched.
+ */
+function effectiveChildrenWithMarkMembership(node: ElementNode): {
+  nodes: LexicalNode[];
+  marked: Set<LexicalNode>;
+} {
+  const nodes: LexicalNode[] = [];
+  const marked = new Set<LexicalNode>();
+
+  const walk = (parent: ElementNode, insideMark: boolean): void => {
+    for (const child of parent.getChildren()) {
+      if ($isMarkNode(child)) {
+        walk(child, true);
+      } else {
+        nodes.push(child);
+        if (insideMark) marked.add(child);
+      }
+    }
+  };
+  walk(node, false);
+
+  return { nodes, marked };
+}
+
 function convertInlineChildren(node: ElementNode): PhrasingContentLike[] {
+  const { nodes, marked } = effectiveChildrenWithMarkMembership(node);
+  return convertInlinePhrasingList(nodes, marked);
+}
+
+/**
+ * Converts a flat list of already-mark-flattened inline Lexical nodes into
+ * mdast phrasing content, merging maximal runs of same-format siblings that a
+ * mark split apart. Shared by every call site that gathers a run of inline
+ * content — paragraphs/headings/etc. (`convertInlineChildren`) and list-item
+ * inline runs (`convertListItemNode`) — so both stay mark-transparent.
+ */
+function convertInlinePhrasingList(
+  kids: readonly LexicalNode[],
+  marked: ReadonlySet<LexicalNode>,
+): PhrasingContentLike[] {
   const children: PhrasingContentLike[] = [];
-  const kids = node.getChildren();
 
   let i = 0;
   while (i < kids.length) {
     const child = kids[i];
+
+    // A mark splitting an inline-code span leaves adjacent code-format text
+    // siblings, and mdast-util-to-markdown never merges adjacent inlineCode
+    // nodes back together (each gets its own backtick pair) — so the run has to
+    // be concatenated before conversion.
+    if ($isTextNode(child) && child.hasFormat('code')) {
+      let j = i + 1;
+      let runTouchesMark = marked.has(child);
+      while (j < kids.length && $isTextNode(kids[j]) && (kids[j] as TextNode).hasFormat('code')) {
+        if (marked.has(kids[j])) runTouchesMark = true;
+        j++;
+      }
+      if (runTouchesMark && j > i + 1) {
+        children.push(...convertCodeRun(kids.slice(i, j) as TextNode[]));
+        i = j;
+        continue;
+      }
+    }
+
     const format = getMergeableFormat(child);
 
     if (format) {
       // Find the maximal run of consecutive siblings sharing this exact
       // format, tracking whether it contains a non-text (math/footnote) node —
       // only those runs need the merged wrapper; all-text runs keep the
-      // existing per-node path below (untouched, per FR-006).
+      // existing per-node path below (untouched, per FR-006) unless a mark
+      // split them, in which case merging is what preserves transparency.
       let j = i + 1;
       let hasNonTextMember = !$isTextNode(child);
+      let runTouchesMark = marked.has(child);
       while (j < kids.length && getMergeableFormat(kids[j]) === format) {
         if (!$isTextNode(kids[j])) {
           hasNonTextMember = true;
         }
+        if (marked.has(kids[j])) runTouchesMark = true;
         j++;
       }
 
-      if (hasNonTextMember) {
+      if (hasNonTextMember || (runTouchesMark && j > i + 1)) {
         children.push(convertFormattedRun(kids.slice(i, j), format));
         i = j;
         continue;
@@ -919,8 +1200,18 @@ function convertInlineChildren(node: ElementNode): PhrasingContentLike[] {
   return children;
 }
 
+/** Concatenates a run of inline-code TextNodes into a single mdast inlineCode node. */
+function convertCodeRun(runChildren: TextNode[]): PhrasingContent[] {
+  let text = '';
+  for (const child of runChildren) {
+    text += sentinelAugmentedText(child);
+  }
+  if (text === '') return [];
+  return [{ type: 'inlineCode', value: text }];
+}
+
 function convertTextNode(node: TextNode): PhrasingContent[] {
-  const text = node.getTextContent();
+  const text = sentinelAugmentedText(node);
   const format = node.getFormat();
   const style = node.getStyle() || '';
   const emphasisMarker = getMarkdownMarker(style, '--md-emphasis-marker');
@@ -1040,7 +1331,10 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
   const url = linkNode.getURL();
   const children: PhrasingContent[] = [];
 
-  for (const child of node.getChildren()) {
+  // Mark-transparent: this loop silently drops any child it doesn't recognize,
+  // so an unflattened MarkNode over the link's text would delete that text from
+  // the export entirely (`[note](...)` becoming `[](...)`).
+  for (const child of effectiveChildren(node)) {
     if ($isTextNode(child)) {
       children.push(...convertTextNode(child));
     } else if ($isImageNode(child)) {
@@ -1093,7 +1387,9 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
     let textFormat = 0;
 
     // Use the format of the first TextNode child as the representative format
-    const linkChildren = node.getChildren();
+    // Mark-transparent, so an annotation over the link's text doesn't hide the
+    // representative TextNode behind a MarkNode wrapper.
+    const linkChildren = effectiveChildren(node);
     if (linkChildren.length > 0 && $isTextNode(linkChildren[0])) {
       textFormat = linkChildren[0].getFormat();
     }
