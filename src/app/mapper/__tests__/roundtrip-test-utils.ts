@@ -12,6 +12,7 @@ import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { registerList } from '@lexical/list';
 import { CodeNode, CodeHighlightNode } from '@lexical/code';
 import { AutoLinkNode } from '@lexical/link';
+import { MarkNode } from '@lexical/mark';
 import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
 import {
   CalloutNode,
@@ -69,6 +70,7 @@ export const editorNodes = [
   DefinitionDescriptionNode,
   HtmlNode,
   ListItemParagraphBreakNode,
+  MarkNode,
 ];
 
 export function createTestEditor(

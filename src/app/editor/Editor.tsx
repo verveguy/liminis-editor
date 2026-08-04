@@ -15,6 +15,7 @@ import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { CodeNode, CodeHighlightNode, $isCodeNode } from '@lexical/code';
 import { registerCodeHighlighting } from '@lexical/code-prism';
 import { AutoLinkNode } from '@lexical/link';
+import { MarkNode } from '@lexical/mark';
 import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
 import {
   $createParagraphNode,
@@ -205,6 +206,7 @@ const editorNodes = [
   DefinitionDescriptionNode,
   HtmlNode,
   ListItemParagraphBreakNode,
+  MarkNode,  // Annotation live marks (see ADR-076); inert unless an annotation kind is configured
 ];
 
 // Mirror of $exitCodeNodeOnEnter in @lexical/code-core@0.44 (CodeExtension.register).
