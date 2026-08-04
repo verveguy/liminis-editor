@@ -331,9 +331,9 @@ block-scalar values). Removed outright rather than made verbatim-span-aware.
 
 ## The `943-*` fixtures
 
-Two fixtures added by [#943](https://github.com/verveguy/liminis/issues/943) beyond the
-ported `50-*` set, pinning the half of the `join` override that deliberately did *not*
-change — the corpus had no regression guard for it on either side:
+Four fixtures added by [#943](https://github.com/verveguy/liminis/issues/943) beyond the
+ported `50-*` set. The first two pin the half of the `join` override that deliberately did
+*not* change — the corpus had no regression guard for it on either side:
 
 - **`943-colon-paragraph-blank-line-before-table.md`** + `.expected.md`
 - **`943-colon-paragraph-blank-line-before-math.md`** + `.expected.md`
@@ -341,6 +341,25 @@ change — the corpus had no regression guard for it on either side:
 Each is a colon-ending paragraph, a blank line, and a table or block-math node. Both
 still canonicalize the blank line away, confirming the "label:" convention survives for
 `table`/`code`/`math` while `list` no longer participates in it.
+
+The other two pin the **`lastChild?.type === 'text'` boundary** of the colon detection,
+raised in review. The override only recognizes a colon when the paragraph's final inline
+node is a plain `text` node, so a paragraph ending in `**Steps:**`, `` `config.yaml:` ``
+or `_Notes:_` — visually colon-ending, but ending in a `strong`/`inlineCode`/`emphasis`
+node — is not detected and falls through to the default join. Both fixtures are
+byte-identical (no `.expected.md`):
+
+- **`943-non-text-colon-paragraph-before-list.md`**: those three non-text-final shapes
+  before bulleted and numbered lists. All get exactly one blank line — **the same as a
+  plain-text colon does after this fix**. So for lists the text/non-text distinction is
+  now unobservable: FR-001 did not introduce an edge-case divergence here, it *removed*
+  the one that existed. This fixture is what stops it coming back.
+- **`943-non-text-colon-paragraph-before-verbatim.md`**: the same non-text-final shapes
+  before a fenced code block and a table, where the distinction *is* still observable —
+  `**Fenced code:**` keeps its blank line while a plain `Fenced code:` loses it. That
+  asymmetry is pre-existing, unchanged by this issue, and deliberately left alone (FR-001
+  retains `table`/`code`/`math` behaviour); it is pinned here so the convention's actual
+  scope is documented rather than assumed.
 
 ## Diagnosing a failure
 
