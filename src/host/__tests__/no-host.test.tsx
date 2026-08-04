@@ -8,6 +8,7 @@
  * the SC-004 grep stayed green (the grep only sees the literal text).
  */
 
+import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { render, act, cleanup } from '@testing-library/react'
 import { Editor } from '../../app/editor'
@@ -16,7 +17,7 @@ import { EditorHostProvider } from '../context'
 
 const MARKDOWN = ['# Heading', '', 'Some *text* with a [[wiki-link]].', '', '- item'].join('\n')
 
-async function renderQuiet(ui: React.ReactElement): Promise<{ html: string; errors: unknown[][] }> {
+async function renderQuiet(ui: ReactElement): Promise<{ html: string; errors: unknown[][] }> {
   const errors: unknown[][] = []
   const spy = vi.spyOn(console, 'error').mockImplementation((...args) => {
     errors.push(args)
