@@ -377,7 +377,7 @@ describe('stringifyMarkdown', () => {
     // actually emits — each parsed from source containing a 3-blank-line run, which
     // mdast discards at parse time (blank-line count between flow siblings has no mdast
     // representation) and which the library therefore never reproduces.
-    const siblingPairs: Array<{ name: string; markdown: string }> = [
+    const siblingPairs: { name: string; markdown: string }[] = [
       { name: 'paragraph then heading', markdown: 'A\n\n\n\n# H\n' },
       { name: 'heading then paragraph', markdown: '# H\n\n\n\nA\n' },
       { name: 'paragraph then fenced code', markdown: 'A\n\n\n\n```js\nconst a = 1;\n```\n' },

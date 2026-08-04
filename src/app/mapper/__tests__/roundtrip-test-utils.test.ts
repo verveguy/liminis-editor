@@ -75,7 +75,7 @@ describe('discoverFixtures', () => {
 
       const byName = Object.fromEntries(discoverFixtures(dir).map((f) => [f.name, f]));
 
-      expect(byName['exempted'].idempotenceExempt).toBe('Reason.');
+      expect(byName.exempted.idempotenceExempt).toBe('Reason.');
       expect(byName['not-exempted'].idempotenceExempt).toBeNull();
     });
 
