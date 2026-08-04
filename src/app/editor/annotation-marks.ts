@@ -44,7 +44,7 @@ import {
   type LexicalEditor,
   type LexicalNode,
 } from 'lexical';
-import { $createMarkNode, $isMarkNode, $unwrapMarkNode, $wrapSelectionInMarkNode, MarkNode } from '@lexical/mark';
+import { $isMarkNode, $unwrapMarkNode, $wrapSelectionInMarkNode, MarkNode } from '@lexical/mark';
 import { captureAnchor, type Anchor, type AnchorFields, type AnchorRange } from '../../annotations/anchor-model';
 import { locateInSpan } from '../../annotations/anchor-align';
 import type { OffsetSpan } from '../mapper/mdastToLexical';
@@ -484,4 +484,42 @@ export function removeMarksForAnnotation(editor: LexicalEditor, id: string): voi
     },
     { discrete: true },
   );
+}
+
+/**
+ * The shared selection→anchor capture primitive both annotation kinds use
+ * (SC-001: the kind config is the *only* difference between them).
+ *
+ * Composes the three steps above into one: wrap the native range in a
+ * transient `MarkNode`, read the anchor fields back out of it (which is what
+ * makes the capture markdown-domain-correct rather than a fuzzy search of the
+ * mark's rendered text), then either keep the mark or discard it.
+ *
+ * `retainMark` is the whole of the difference:
+ *
+ * - Comments pass `true` — the mark stays, giving the composer its live
+ *   highlight and becoming the annotation's durable live anchor.
+ * - Corrections pass `false` — the mark is removed again before this function
+ *   returns, so nothing ever paints. Corrections get the anchor model and this
+ *   primitive without gaining an in-document marker they never had, which is
+ *   what keeps FR-006 parity while still routing them through the mechanism.
+ *
+ * Returns null when the range doesn't resolve to real content or the mark's
+ * raw-markdown range can't be located.
+ */
+export function captureAnchorFieldsFromSelection(
+  editor: LexicalEditor,
+  range: Range,
+  id: string,
+  options: { retainMark: boolean },
+): AnchorFields | null {
+  wrapNativeRangeInMark(editor, range, id);
+
+  const fields = readAnchorFields(editor, id);
+
+  if (!options.retainMark) {
+    removeMarksForAnnotation(editor, id);
+  }
+
+  return fields;
 }
