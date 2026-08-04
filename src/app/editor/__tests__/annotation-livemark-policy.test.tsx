@@ -111,3 +111,59 @@ describe('livemarkPolicy is the sole live-mark authority', () => {
     expect(container.querySelectorAll('mark').length).toBe(0);
   });
 });
+
+describe('placed marks are retracted when an annotation stops being eligible', () => {
+  const KINDS: AnnotationKindConfigs = { note: { markerStyle: 'highlight' } };
+
+  it('removes the mark when the annotation disappears from `annotations`', () => {
+    const { container, rerender } = renderSurface(KINDS, annotation('unchanged'));
+    expect(container.querySelectorAll('mark').length).toBe(1);
+
+    rerender(
+      <Composer
+        initialConfig={{
+          namespace: 'livemark-policy-test',
+          nodes: editorNodes,
+          onError: (e: Error) => {
+            throw e;
+          },
+        }}
+      >
+        <RichTextPlugin
+          contentEditable={<ContentEditable />}
+          placeholder={null}
+          ErrorBoundary={LexicalErrorBoundary}
+        />
+        <Surface kinds={KINDS} annotations={[]} />
+      </Composer>,
+    );
+
+    expect(container.querySelectorAll('mark').length).toBe(0);
+  });
+
+  it("removes the mark when the annotation's outcome stops earning one", () => {
+    const { container, rerender } = renderSurface(KINDS, annotation('unchanged'));
+    expect(container.querySelectorAll('mark').length).toBe(1);
+
+    rerender(
+      <Composer
+        initialConfig={{
+          namespace: 'livemark-policy-test',
+          nodes: editorNodes,
+          onError: (e: Error) => {
+            throw e;
+          },
+        }}
+      >
+        <RichTextPlugin
+          contentEditable={<ContentEditable />}
+          placeholder={null}
+          ErrorBoundary={LexicalErrorBoundary}
+        />
+        <Surface kinds={KINDS} annotations={annotation('orphaned')} />
+      </Composer>,
+    );
+
+    expect(container.querySelectorAll('mark').length).toBe(0);
+  });
+});
