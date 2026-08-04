@@ -36,6 +36,7 @@
 import {
   $createRangeSelection,
   $getNearestNodeFromDOMNode,
+  $getNodeByKey,
   $getRoot,
   $isElementNode,
   $isTextNode,
@@ -336,6 +337,14 @@ export function placeMarkForAnchor(editor: LexicalEditor, offsetSpans: readonly 
       const startPoint = pointAtMarkdownOffset(offsetSpans, located.start, 'start');
       const endPoint = pointAtMarkdownOffset(offsetSpans, located.end, 'end');
       if (!startPoint || !endPoint) return;
+      // An `OffsetSpan[]` is only valid for the parse that produced it: a
+      // re-import (`$getRoot().clear()` + rebuild) destroys every node key in
+      // it. Callers are expected to refresh the table with each parse — but a
+      // point built from a dead key would make `$wrapSelectionInMarkNode`
+      // throw on `Point.getNode()`, turning a caller's bookkeeping slip into a
+      // crash inside the editor. Decline instead, same as any other
+      // unmappable anchor.
+      if (!$isTextNode($getNodeByKey(startPoint.key)) || !$isTextNode($getNodeByKey(endPoint.key))) return;
       // A start/end offset that both fall inside the same untracked gap (e.g.
       // a fenced code block, which today has no OffsetSpan coverage at all —
       // unrelated to and much wider than a formatting delimiter) would
