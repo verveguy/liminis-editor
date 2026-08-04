@@ -114,6 +114,12 @@ export interface MarkerTarget {
   kind: AnnotationKind
   anchor: Anchor
   outcome: AnchorOutcome
+  /**
+   * Carried through from the source annotation. The marker renderer sees only
+   * targets, so without this the per-annotation className/label overrides
+   * {@link AnnotationPresentation} promises would be silently unreachable.
+   */
+  presentation?: AnnotationPresentation
 }
 
 /**
@@ -148,7 +154,13 @@ export function deriveMarkerTargets(
       : shouldPlaceLiveMark(outcome)
     if (!placeLive) continue
 
-    targets.push({ annotationId: annotation.id, kind: annotation.kind, anchor: annotation.anchor, outcome })
+    targets.push({
+      annotationId: annotation.id,
+      kind: annotation.kind,
+      anchor: annotation.anchor,
+      outcome,
+      presentation: annotation.presentation,
+    })
   }
 
   return targets

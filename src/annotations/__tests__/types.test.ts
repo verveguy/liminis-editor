@@ -96,4 +96,21 @@ describe('deriveMarkerTargets', () => {
   it('derives nothing when no kinds are configured at all (FR-004)', () => {
     expect(deriveMarkerTargets([annotation()], {})).toEqual([])
   })
+
+  // Review finding (CodeRabbit): the marker renderer only ever sees targets, so
+  // dropping `presentation` here made AnnotationPresentation's className/label
+  // overrides unreachable in practice.
+  it("carries the annotation's presentation through to its marker target", () => {
+    const presentation = { className: 'my-marker', label: 'Reviewer note' }
+    const targets = deriveMarkerTargets([annotation({ presentation })], COMMENT_KIND)
+
+    expect(targets).toHaveLength(1)
+    expect(targets[0].presentation).toEqual(presentation)
+  })
+
+  it('leaves presentation undefined when the annotation supplies none', () => {
+    const targets = deriveMarkerTargets([annotation()], COMMENT_KIND)
+
+    expect(targets[0].presentation).toBeUndefined()
+  })
 })

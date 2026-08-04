@@ -51,15 +51,21 @@ export function AnnotationMarkerPlugin({
       const config = kinds[target.kind];
       if (!config || config.markerStyle === 'none') continue;
 
+      // A host-supplied `presentation.label` wins over the kind default; the
+      // flagged suffix still applies so the uncertainty isn't hidden by an
+      // override.
+      const baseLabel = target.presentation?.label ?? target.kind;
       const label =
         target.outcome === 'flagged'
-          ? `${target.kind} — location uncertain since this text changed`
-          : target.kind;
+          ? `${baseLabel} — location uncertain since this text changed`
+          : baseLabel;
+      const extraClass = target.presentation?.className;
       const isActive = target.annotationId === activeAnnotationId;
 
       for (const element of markElementsForId(editor, target.annotationId)) {
         element.classList.toggle(ACTIVE_CLASS, isActive);
         element.classList.add(`annotation-mark-${config.markerStyle}`);
+        if (extraClass) element.classList.add(extraClass);
         element.dataset.annotationKind = target.kind;
         element.title = label;
         element.tabIndex = 0;
@@ -77,6 +83,7 @@ export function AnnotationMarkerPlugin({
 
         cleanups.push(() => {
           element.classList.remove(ACTIVE_CLASS, `annotation-mark-${config.markerStyle}`);
+          if (extraClass) element.classList.remove(extraClass);
           delete element.dataset.annotationKind;
           element.removeAttribute('title');
           element.removeAttribute('aria-label');

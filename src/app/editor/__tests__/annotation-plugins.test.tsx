@@ -164,7 +164,24 @@ describe('AnnotationPlugin — create on selection', () => {
     );
   });
 
+  // The plugin guards three distinct conditions — no selection object, zero
+  // ranges, and a collapsed range. `removeAllRanges()` only reaches the second,
+  // so the collapsed branch needs its own case (review finding, CodeRabbit).
   it('does nothing when the selection is collapsed', async () => {
+    const onCreate = vi.fn();
+    const dispatchRef: { current: ((kind: string) => void) | null } = { current: null };
+    renderEditor(COMMENT_KINDS, onCreate, dispatchRef);
+
+    await act(async () => {
+      selectText('quick brown fox');
+      window.getSelection()!.getRangeAt(0).collapse(true);
+      dispatchRef.current!('comment');
+    });
+
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when there is no selection range at all', async () => {
     const onCreate = vi.fn();
     const dispatchRef: { current: ((kind: string) => void) | null } = { current: null };
     renderEditor(COMMENT_KINDS, onCreate, dispatchRef);

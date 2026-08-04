@@ -111,4 +111,16 @@ describe('sentenceChunks', () => {
     const text = 'just one sentence with no terminal punctuation'
     expect(sentenceChunks(text)).toEqual([{ text, start: 0, end: text.length }])
   })
+
+  // Liminis-side addition (review finding, CodeRabbit): a bare `\n+` split left
+  // the `\r` on the preceding chunk, so a fuzzy re-attach onto it would capture
+  // a carriage return into the durable target text.
+  it('splits on CRLF without leaving the carriage return on the preceding chunk', () => {
+    const text = 'Line one\r\nLine two'
+    const chunks = sentenceChunks(text)
+    expect(chunks.map((c) => c.text)).toEqual(['Line one', 'Line two'])
+    for (const chunk of chunks) {
+      expect(text.slice(chunk.start, chunk.end)).toBe(chunk.text)
+    }
+  })
 })

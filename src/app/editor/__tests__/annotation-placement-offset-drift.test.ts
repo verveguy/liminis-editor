@@ -95,6 +95,11 @@ describe('comment anchor placement: offset-table source must match the search st
     placeMarkForAnchor(editor, spans, drifted, ANCHOR, 'c1');
     const covered = coveredText(editor, 'c1');
     expect(covered).not.toBe(EXPECTED_RENDERED);
+    // Non-empty: '' is a prefix of everything and shorter than everything, so
+    // without this the two assertions below would still hold if placement were
+    // declined outright — and this test would keep passing while no longer
+    // documenting the truncation it exists to pin.
+    expect(covered.length).toBeGreaterThan(0);
     expect(EXPECTED_RENDERED.startsWith(covered)).toBe(true); // a truncated prefix, not unrelated text
     expect(covered.length).toBeLessThan(EXPECTED_RENDERED.length);
   });
