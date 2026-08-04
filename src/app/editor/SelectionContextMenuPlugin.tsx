@@ -107,9 +107,11 @@ function SelectionContextMenu({
 
   const handleCorrection = () => {
     // Corrections are a kind of the unified annotation mechanism (ADR-076):
-    // authoring one captures an anchor through the same primitive comments
-    // use. The `correction` kind discards its transient mark, so nothing
-    // paints and the visible behaviour below is unchanged.
+    // authoring one enters the same capture path comments use. The `correction`
+    // kind discards its transient mark, so nothing paints and the visible
+    // behaviour below is unchanged. A host that supplies no `onCreateAnnotation`
+    // (as liminis-app does not) has no handler registered for the command, so
+    // this is simply a no-op there.
     onCaptureCorrectionAnchor?.();
     useCorrectionStore.getState().open({ x, y }, selectedText);
     onClose();
