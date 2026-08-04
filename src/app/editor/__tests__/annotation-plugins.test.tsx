@@ -7,7 +7,8 @@
  * cases the spec calls out as edge cases.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { render, cleanup, act } from '@testing-library/react';
 import { LexicalComposer as Composer } from '@lexical/react/LexicalComposer';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
@@ -301,12 +302,11 @@ describe('AnnotationPlugin — create on selection', () => {
 
     // The review named a second trigger — the effect re-running because a
     // dependency's identity changed (`onCreateAnnotation`, `kinds`, `logger`).
-    // Probed rather than assumed, and it turns out not to strand anything:
-    // React flushes a re-render's effect cleanup *after* the pending
-    // microtask, so the original create completes normally and the host is
-    // told the id. Pinned here so the distinction is on the record — the
+    // Probed rather than assumed, and it turns out not to strand anything: the
     // retraction is for teardown, and a prop-identity change must not cancel a
-    // create in flight.
+    // create in flight. The next two tests pin that from both directions — the
+    // default async render path, and a synchronous flush, where the cleanup
+    // runs *before* the pending microtask.
     it('does not cancel an in-flight create when only the effect re-runs', async () => {
       const onCreate = vi.fn();
       const dispatchRef: { current: ((kind: string) => void) | null } = { current: null };
@@ -321,6 +321,34 @@ describe('AnnotationPlugin — create on selection', () => {
 
       // The original callback still fires, so the host owns the mark and it is
       // correctly left in place for a retaining kind.
+      expect(onCreate).toHaveBeenCalledOnce();
+      expect(countMarkNodes(editorRef.current!)).toBe(1);
+    });
+
+    // The version above passes on the default async render path regardless of
+    // how cancellation is scoped, because React happens to flush the cleanup
+    // after the microtask. `flushSync` removes that luck: the re-render's
+    // cleanup runs synchronously, before the microtask. With cancellation
+    // scoped per-effect-run this drops the create silently — the host is never
+    // told and the mark is retracted out from under it (review finding,
+    // CodeRabbit). Tying the flag to the plugin's lifetime makes the ordering
+    // irrelevant, and this is the test that says so.
+    it('does not cancel an in-flight create when a synchronous re-render flushes first', async () => {
+      const onCreate = vi.fn();
+      const dispatchRef: { current: ((kind: string) => void) | null } = { current: null };
+      const editorRef: { current: LexicalEditor | null } = { current: null };
+      const { renderWith } = renderCancellable(onCreate, dispatchRef, editorRef);
+
+      await act(async () => {
+        selectText('quick brown fox');
+        dispatchRef.current!('comment');
+        // Forces the re-render — and therefore the old effect's cleanup — to
+        // complete before control returns here, so before the microtask runs.
+        flushSync(() => {
+          renderWith(vi.fn());
+        });
+      });
+
       expect(onCreate).toHaveBeenCalledOnce();
       expect(countMarkNodes(editorRef.current!)).toBe(1);
     });
@@ -476,11 +504,13 @@ describe('AnnotationMarkerPlugin — overlapping annotations on one element', ()
     activeId: string | null;
   }) {
     const [editor] = useLexicalComposerContext();
-    const seeded = useRef(false);
-    editorRef.current = editor;
 
-    if (!seeded.current) {
-      seeded.current = true;
+    // Seeded in an effect, not during render: React 19 requires the render
+    // phase to be side-effect free, and this matches how `MarkerHarness` above
+    // seeds. A render-phase guard ref happens to survive a double render, but
+    // it depends on the flush order rather than on the rule.
+    useEffect(() => {
+      editorRef.current = editor;
       editor.update(
         () => {
           importMarkdownToLexicalInEditorState(parseMarkdown(MARKDOWN).root);
@@ -500,7 +530,7 @@ describe('AnnotationMarkerPlugin — overlapping annotations on one element', ()
         },
         { discrete: true },
       );
-    }
+    }, [editor]);
 
     const targets: MarkerTarget[] = [
       { annotationId: 'a1', kind: 'comment', anchor: OVERLAP_ANCHOR, outcome: 'unchanged' },

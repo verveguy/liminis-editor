@@ -163,10 +163,10 @@ function effectiveChildren(node: ElementNode): LexicalNode[] {
 // locate. Never enabled on the disk-write path.
 // ============================================================================
 
-const SENTINEL_OPEN_START = '';
-const SENTINEL_OPEN_END = '';
-const SENTINEL_CLOSE_START = '';
-const SENTINEL_CLOSE_END = '';
+const SENTINEL_OPEN_START = '\u{E000}';
+const SENTINEL_OPEN_END = '\u{E001}';
+const SENTINEL_CLOSE_START = '\u{E002}';
+const SENTINEL_CLOSE_END = '\u{E003}';
 
 let annotateTargetId: string | null = null;
 let sentinelBefore: Map<LexicalNode, string> | null = null;

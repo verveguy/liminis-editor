@@ -24,8 +24,8 @@ import { importMarkdownToLexicalInEditorState } from '../../mapper/mdastToLexica
 import { editorNodes } from '../../mapper/__tests__/roundtrip-test-utils';
 import { readAnchorFields, wrapNativeRangeInMark, hasLiveMark } from '../annotation-marks';
 
-const OPEN_START = '';
-const OPEN_END = '';
+const OPEN_START = '\u{E000}';
+const OPEN_END = '\u{E001}';
 
 let mountedElement: HTMLElement | null = null;
 afterEach(() => {

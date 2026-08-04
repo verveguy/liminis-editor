@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { COMMAND_PRIORITY_CRITICAL } from 'lexical';
 import type { AnchorFields } from '../../annotations/anchor-model';
@@ -67,21 +67,53 @@ export function AnnotationPlugin({ kinds, onCreateAnnotation, logger }: Annotati
     return `anno-${stamp}-${random}-${globalThis.isSecureContext ? 's' : 'u'}`;
   }, []);
 
+  // Marks placed by a create whose anchor read hasn't run yet. The wrap is
+  // synchronous but the read-back is deferred, so between the two the mark
+  // exists in the document while its id exists nowhere else — the host has not
+  // been told, and `AnnotationMarkerPlugin` walks only host-supplied
+  // annotations. Dropping one there would strand a bare `<mark>` the user
+  // cannot dismiss until the document is reparsed (review finding,
+  // @handarbeit-pruefer). The teardown effect below retracts whatever is left.
+  //
+  // Held in a ref, not an effect-local, so it survives a re-run of the
+  // command-registration effect: a create in flight belongs to the plugin, not
+  // to the effect run that happened to register the handler.
+  const pendingIdsRef = useRef<Set<string>>(new Set());
+
+  // Cancellation is a property of the plugin's *lifetime*, not of one effect
+  // run. Scoping it per-run would make correctness depend on React flushing the
+  // cleanup after the pending microtask: that holds on the default async render
+  // path (verified by test), but a synchronous re-render — `flushSync`, or a
+  // discrete input forcing one — runs the cleanup first, and a create in flight
+  // would be silently dropped with the host never told (review finding,
+  // CodeRabbit). Tying the flag to unmount makes the ordering irrelevant.
+  const unmountedRef = useRef(false);
+
   useEffect(() => {
-    // The deferred anchor read below outlives the command handler, so it can
-    // still be pending when this plugin unmounts — the document is swapped, or
-    // the panel owning it closes, in the same tick the command fired. Left
-    // unguarded it would then touch a torn-down editor and call the host back
-    // with a stale rect and a stale closure. Cleared in the cleanup below.
-    let cancelled = false;
-    // Marks placed by a create whose anchor read hasn't run yet. The wrap is
-    // synchronous but the read-back is deferred, so between the two the mark
-    // exists in the document while its id exists nowhere else — the host has
-    // not been told, and `AnnotationMarkerPlugin` walks only host-supplied
-    // annotations. Dropping one there would strand a bare `<mark>` the user
-    // cannot dismiss until the document is reparsed (review finding,
-    // @handarbeit-pruefer). The cleanup retracts whatever is still in here.
-    const pendingIds = new Set<string>();
+    unmountedRef.current = false;
+    const pendingIds = pendingIdsRef.current;
+    return () => {
+      // Runs only on unmount (`editor` is stable for the composer's lifetime),
+      // which is exactly the case where a deferred read must not proceed: it
+      // would touch a torn-down editor and call the host back with a stale rect
+      // and a stale closure.
+      unmountedRef.current = true;
+      // Retract regardless of the kind's `retainMarkOnCreate`: a retained mark
+      // is only safe to leave behind because the host owns it from the moment
+      // `onCreateAnnotation` fires, and that never happened for these.
+      //
+      // Safe to touch the editor here: this cleanup runs as ordinary React
+      // work, not inside the Lexical update the command handler ran in, so the
+      // queued wrap has already been applied by the time we get here.
+      if (pendingIds.size > 0) {
+        removeMarksForAnnotations(editor, [...pendingIds]);
+        pendingIds.clear();
+      }
+    };
+  }, [editor]);
+
+  useEffect(() => {
+    const pendingIds = pendingIdsRef.current;
 
     const unregister = editor.registerCommand(
       OPEN_ANNOTATION_COMPOSER_COMMAND,
@@ -125,7 +157,7 @@ export function AnnotationPlugin({ kinds, onCreateAnnotation, logger }: Annotati
         pendingIds.add(id);
 
         queueMicrotask(() => {
-          if (cancelled) return;
+          if (unmountedRef.current) return;
           pendingIds.delete(id);
           const anchor = readAnchorFields(editor, id);
           // Comments keep the mark (it is their live anchor and the composer's
@@ -139,21 +171,9 @@ export function AnnotationPlugin({ kinds, onCreateAnnotation, logger }: Annotati
       COMMAND_PRIORITY_CRITICAL,
     );
 
-    return () => {
-      cancelled = true;
-      unregister();
-      // Retract regardless of the kind's `retainMarkOnCreate`: a retained mark
-      // is only safe to leave behind because the host owns it from the moment
-      // `onCreateAnnotation` fires, and that never happened for these.
-      //
-      // Safe to touch the editor here: this cleanup runs as ordinary React
-      // work, not inside the Lexical update the command handler ran in, so the
-      // queued wrap has already been applied by the time we get here.
-      if (pendingIds.size > 0) {
-        removeMarksForAnnotations(editor, [...pendingIds]);
-        pendingIds.clear();
-      }
-    };
+    // Only the registration is scoped to this effect run; cancellation and the
+    // pending-mark retraction live in the teardown effect above.
+    return unregister;
   }, [editor, kinds, onCreateAnnotation, logger, mintId]);
 
   return null;
