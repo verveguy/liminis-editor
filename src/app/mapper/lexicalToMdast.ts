@@ -172,8 +172,31 @@ let annotateTargetId: string | null = null;
 let sentinelBefore: Map<LexicalNode, string> | null = null;
 let sentinelAfter: Map<LexicalNode, string> | null = null;
 
-/** Enables (or, passed `null`, disables) annotated-serialize mode for `id`. See module doc above. */
+/**
+ * Enables (or, passed `null`, disables) annotated-serialize mode for `id`. See module doc above.
+ *
+ * These three are module-level globals shared by every `Editor` instance in the
+ * process, not per-editor state. That is safe only because the one caller
+ * (`annotation-marks.ts`'s `exportAnnotatedMarkdown`) does set → export →
+ * `finally`-reset entirely synchronously, so two captures can never interleave
+ * in a single-threaded runtime — but nothing about the signature enforces it,
+ * and multiple `<Editor>`s can legitimately coexist (multi-pane). If a future
+ * change ever made any part of the annotate-mode export path async, or reused
+ * this from a second call site, two captures would silently corrupt each
+ * other's sentinel state and produce a wrong anchor range with no signal that
+ * anything went wrong (review finding, @handarbeit-pruefer).
+ *
+ * So the invariant is asserted rather than assumed: enabling while already
+ * enabled throws. A crash naming the problem beats a silently wrong anchor.
+ */
 export function setAnnotateTarget(id: string | null): void {
+  if (id !== null && annotateTargetId !== null) {
+    throw new Error(
+      `setAnnotateTarget("${id}") while annotate mode is already active for "${annotateTargetId}" — ` +
+        'annotated serialization uses module-level sentinel state and is not re-entrant. ' +
+        'The export path must stay synchronous, with exactly one caller at a time.',
+    );
+  }
   annotateTargetId = id;
 }
 
@@ -1424,10 +1447,11 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
     const displayText = node.getTextContent();
     let textFormat = 0;
 
-    // Use the format of the first TextNode child as the representative format
-    // Mark-transparent, so an annotation over the link's text doesn't hide the
-    // representative TextNode behind a MarkNode wrapper.
-    const linkChildren = effectiveChildren(node);
+    // Use the format of the first TextNode child as the representative format.
+    // Reuses the mark-flattened `linkChildren` from the top of this function
+    // (`effectiveChildrenWithMarkMembership`'s `nodes` is exactly
+    // `effectiveChildren`), so an annotation over the link's text doesn't hide
+    // the representative TextNode behind a MarkNode wrapper.
     if (linkChildren.length > 0 && $isTextNode(linkChildren[0])) {
       textFormat = linkChildren[0].getFormat();
     }

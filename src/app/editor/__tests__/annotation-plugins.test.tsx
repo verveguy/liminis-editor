@@ -449,22 +449,25 @@ describe('AnnotationMarkerPlugin — overlapping annotations on one element', ()
       return realAdd(...args);
     }) as typeof mark.addEventListener;
 
-    const moveCaret = () =>
+    // Distinct offsets per call: two identical selections could be collapsed
+    // into a no-op by Lexical, which would make the second call prove nothing
+    // (review finding, CodeRabbit).
+    const moveCaret = (offset: number) =>
       act(() => {
         editorRef.current!.update(
           () => {
             const textNode = $getRoot().getAllTextNodes()[0];
             const selection = $createRangeSelection();
-            selection.anchor.set(textNode.getKey(), 0, 'text');
-            selection.focus.set(textNode.getKey(), 0, 'text');
+            selection.anchor.set(textNode.getKey(), offset, 'text');
+            selection.focus.set(textNode.getKey(), offset, 'text');
             $setSelection(selection);
           },
           { discrete: true },
         );
       });
 
-    moveCaret();
-    moveCaret();
+    moveCaret(0);
+    moveCaret(1);
 
     expect(listenerAdds).toBe(0);
     // ...and the element is still decorated, i.e. skipping did not drop it.
@@ -489,7 +492,6 @@ describe('markElementsByAnnotationId', () => {
     editor.update(
       () => {
         importMarkdownToLexicalInEditorState(parseMarkdown(MARKDOWN).root);
-        const textNode = $getRoot().getAllTextNodes()[0];
         const wrap = (needle: string, id: string) => {
           const node = $getRoot().getAllTextNodes().find((n) => n.getTextContent().includes(needle))!;
           const idx = node.getTextContent().indexOf(needle);
@@ -499,7 +501,6 @@ describe('markElementsByAnnotationId', () => {
           $setSelection(selection);
           $wrapSelectionInMarkNode(selection, false, id);
         };
-        void textNode;
         // Back to front, so each wrap leaves the earlier text intact.
         wrap('fox', 'b');
         wrap('quick', 'a');
