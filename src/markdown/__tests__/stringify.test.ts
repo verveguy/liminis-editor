@@ -345,7 +345,14 @@ describe('stringifyMarkdown', () => {
   })
 
   describe('post-processing', () => {
-    it('should collapse excessive blank lines', () => {
+    // #943 FR-002 removed the `/\n{3,}/g` collapse post-process on the grounds that
+    // mdast-util-to-markdown's own join logic already never emits 3+ newlines between
+    // sibling blocks. This test is the direct in-repo evidence for that claim: it
+    // passes unchanged with the post-process gone. It no longer covers any Liminis
+    // code — it pins the library guarantee that FR-002's removal rests on, so that
+    // if a future upgrade breaks the guarantee, this fails rather than silently
+    // letting blank-line runs through.
+    it('never emits 3+ consecutive newlines between sibling blocks (library guarantee)', () => {
       const root: Root = {
         type: 'root',
         children: [
@@ -360,7 +367,8 @@ describe('stringifyMarkdown', () => {
         ],
       }
       const result = stringifyMarkdown(root)
-      // Should not have more than 2 consecutive newlines
+      // Two plain sibling paragraphs: the library emits exactly one blank line between
+      // them, with no post-process help from us.
       expect(result).not.toMatch(/\n{3,}/)
     })
 
