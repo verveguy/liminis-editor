@@ -3,7 +3,6 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import type { MutableRefObject } from 'react';
 import {
   deriveMarkerTargets,
-  shouldPlaceLiveMark,
   type Annotation,
   type AnnotationEditorHandle,
   type AnnotationKindConfigs,
@@ -33,7 +32,8 @@ export interface AnnotationSurfaceProps {
 }
 
 /**
- * Places a live `MarkNode` for every target whose outcome earns one.
+ * Places a live `MarkNode` for every marker target — the set `deriveMarkerTargets`
+ * already narrowed by each kind's live-mark policy.
  *
  * This is also where the spec's "document edited mid-resolution" edge case is
  * handled, and it needs no dedicated guard: `placeMarkForAnchor` re-verifies
@@ -57,8 +57,14 @@ function AnnotationMarkPlacementPlugin({
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
+    // No outcome filter here: `deriveMarkerTargets` has already applied each
+    // kind's `livemarkPolicy` (defaulting to `shouldPlaceLiveMark` over the
+    // outcome). Re-testing the outcome would let the policy only ever subtract
+    // — a host that deliberately opts a `flagged` annotation into a live mark
+    // would get a marker target the marker plugin then decorates but nothing
+    // ever places, which is the one inconsistency the single policy exists to
+    // prevent.
     for (const target of targets) {
-      if (!shouldPlaceLiveMark(target.outcome)) continue;
       placeMarkForAnchor(
         editor,
         offsetSpansRef.current,
