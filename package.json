@@ -15,6 +15,10 @@
       "types": "./src/markdown.ts",
       "default": "./src/markdown.ts"
     },
+    "./annotations": {
+      "types": "./src/annotations.ts",
+      "default": "./src/annotations.ts"
+    },
     "./headless": {
       "types": "./src/headless.ts",
       "default": "./src/headless.ts"
