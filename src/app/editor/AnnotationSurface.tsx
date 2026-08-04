@@ -13,6 +13,7 @@ import {
   collectLiveAnchorSnapshots,
   placeMarksForAnchors,
   removeMarksForAnnotation,
+  removeMarksForAnnotations,
 } from './annotation-marks';
 import { AnnotationPlugin, type AnnotationCreateEvent } from './AnnotationPlugin';
 import { AnnotationMarkerPlugin } from './AnnotationMarkerPlugin';
@@ -78,10 +79,13 @@ function AnnotationMarkPlacementPlugin({
     // document, still rendering as a bare <mark>, and no longer decorated by
     // the marker plugin (which only walks current targets), so it becomes an
     // undismissable highlight with nothing behind it.
-    for (const id of placedRef.current) {
-      if (eligible.has(id)) continue;
-      removeMarksForAnnotation(editor, id);
-      placedRef.current.delete(id);
+    // Batched for the same reason placement is: a host dropping a set of live
+    // annotations at once would otherwise pay one synchronous Lexical
+    // reconciliation per id (review finding, @handarbeit-pruefer).
+    const retract = [...placedRef.current].filter((id) => !eligible.has(id));
+    if (retract.length > 0) {
+      removeMarksForAnnotations(editor, retract);
+      for (const id of retract) placedRef.current.delete(id);
     }
 
     // One batched update for the whole set, not one per annotation: an

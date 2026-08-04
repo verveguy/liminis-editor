@@ -692,10 +692,33 @@ export function Editor({
   const markdownTextRef = useRef<string>(initialContent);
   const [offsetsVersion, setOffsetsVersion] = useState(0);
 
+  // Read inside `handleOffsets` rather than closed over, so the callback's
+  // identity stays stable — it is an effect dependency in `InitializePlugin`
+  // and `ExternalUpdatePlugin`, and a new identity there would re-run them.
+  const annotationsEnabledRef = useRef(annotationsEnabled);
+  annotationsEnabledRef.current = annotationsEnabled;
+
+  /**
+   * Records the offset table each (re)parse produces.
+   *
+   * The two ref writes are unconditional on purpose. `InitializePlugin` runs
+   * its import exactly once, so gating span collection on `annotationsEnabled`
+   * left a host that loads its kinds asynchronously with a permanently empty
+   * table and silently placed nothing (an earlier review finding). The cost is
+   * one small record per text node on a walk that already visits every node.
+   *
+   * The `offsetsVersion` bump, on the other hand, is a state update that
+   * re-renders `Editor` — so it is gated. With annotations off nothing
+   * consumes the version, and a host that never passes `annotationKinds`
+   * should not re-render on every parse and external reload to maintain a
+   * counter nobody reads (review finding, @handarbeit-pruefer). When kinds
+   * arrive later, `AnnotationSurface` mounts and its placement effect runs
+   * against the refs, which are already current.
+   */
   const handleOffsets = useCallback((spans: OffsetSpan[], markdownText: string) => {
     offsetSpansRef.current = spans;
     markdownTextRef.current = markdownText;
-    setOffsetsVersion((v) => v + 1);
+    if (annotationsEnabledRef.current) setOffsetsVersion((v) => v + 1);
   }, []);
 
   const lastExternalLoadRef = useRef<number>(0);
