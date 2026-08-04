@@ -80,6 +80,7 @@ import {
 import {
   importMarkdownToLexical,
   importMarkdownToLexicalInEditorState,
+  importMarkdownToLexicalInEditorStateWithOffsets,
   importMarkdownToLexicalWithOffsets,
   type OffsetSpan,
 } from '../mapper/mdastToLexical';
@@ -517,11 +518,20 @@ function ExternalUpdatePlugin({
   lastExternalLoadRef,
   currentContentRef,
   lastEditorChangeRef,
+  onOffsets,
 }: {
   content: string;
   lastExternalLoadRef: React.MutableRefObject<number>;
   currentContentRef: React.MutableRefObject<string>;
   lastEditorChangeRef: React.MutableRefObject<number>;
+  /**
+   * Same contract as `InitializePlugin`'s: an external reload re-parses the
+   * document from scratch, so the annotation surface's offset->node table must
+   * be rebuilt with it. Without this the table would keep pointing at node keys
+   * this reload destroyed, and mark placement would throw on a key Lexical no
+   * longer knows. Only supplied when annotations are enabled.
+   */
+  onOffsets?: (spans: OffsetSpan[], markdownText: string) => void;
 }) {
   const [editor] = useLexicalComposerContext();
 
@@ -559,14 +569,20 @@ function ExternalUpdatePlugin({
       }
       
       const { root } = parseMarkdown(content);
+      let spans: OffsetSpan[] | null = null;
       editor.update(
         () => {
-          importMarkdownToLexicalInEditorState(root);
+          if (onOffsets) {
+            spans = importMarkdownToLexicalInEditorStateWithOffsets(root);
+          } else {
+            importMarkdownToLexicalInEditorState(root);
+          }
         },
         { discrete: true }
       );
+      if (onOffsets && spans) onOffsets(spans, content);
     });
-  }, [editor, content, lastExternalLoadRef, currentContentRef, lastEditorChangeRef]);
+  }, [editor, content, lastExternalLoadRef, currentContentRef, lastEditorChangeRef, onOffsets]);
 
   return null;
 }
@@ -810,6 +826,7 @@ export function Editor({
               lastExternalLoadRef={lastExternalLoadRef}
               currentContentRef={currentContentRef}
               lastEditorChangeRef={lastEditorChangeRef}
+              onOffsets={annotationsEnabled ? handleOffsets : undefined}
             />
             <SlashMenuPlugin />
             <DragHandlePlugin />

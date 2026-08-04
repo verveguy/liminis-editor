@@ -95,6 +95,26 @@ describe('stale anchor placement', () => {
     expect(hasLiveMark(fresh.editor, 'a1')).toBe(true);
   });
 
+  it('declines rather than throwing when the offset table predates a re-import', () => {
+    // An external content reload re-imports from scratch, which destroys every
+    // node key the previous parse's spans referenced. `Editor` refreshes the
+    // table on that path, but a point built from a dead key must not be able to
+    // crash the editor if a caller ever gets that bookkeeping wrong.
+    const { editor, spans } = mount(ORIGINAL);
+    const anchor = captureAnchor(ORIGINAL, { start: 4, end: 19 }, 'v1'); // "quick brown fox"
+
+    editor.update(
+      () => {
+        importMarkdownToLexicalInEditorStateWithOffsets(parseMarkdown(ORIGINAL).root);
+      },
+      { discrete: true },
+    );
+
+    // Same text, so the anchor still locates — only the node keys are dead.
+    expect(() => placeMarkForAnchor(editor, spans, ORIGINAL, anchor, 'a1')).not.toThrow();
+    expect(hasLiveMark(editor, 'a1')).toBe(false);
+  });
+
   it('is idempotent — re-running placement for an id that already has a mark is a no-op', () => {
     const { editor, spans } = mount(ORIGINAL);
     const anchor = captureAnchor(ORIGINAL, { start: 4, end: 19 }, 'v1');
