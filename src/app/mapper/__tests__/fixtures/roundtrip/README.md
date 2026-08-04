@@ -20,9 +20,11 @@ automatically the next time the suite runs.
 - **`<name>.error.txt`**: if `roundTrip()` is expected to throw for a fixture, add a
   sibling `.error.txt` containing a substring of the expected error message. The suite
   asserts the promise rejects with a matching error instead of comparing output text.
-- **`<name>.idempotence-exempt.txt`**: every fixture's round-tripped output (input-or-
-  `.expected.md`, whichever applies) is itself round-tripped a second time with no edits,
-  and that second pass must be byte-identical to the first (see "Idempotence" below). If a
+- **`<name>.idempotence-exempt.txt`**: every fixture that round-trips *successfully* has
+  its output (input-or-`.expected.md`, whichever applies) round-tripped a second time with
+  no edits, and that second pass must be byte-identical to the first (see "Idempotence"
+  below). Fixtures with an `.error.txt` sidecar are excluded by construction — they have
+  no first-pass output to feed back, so the assertion does not apply to them. If a
   fixture's *first-pass* output is legitimately, pre-existingly non-idempotent for reasons
   unrelated to what the fixture is testing, add a sibling `.idempotence-exempt.txt`
   containing the reason; the suite skips the second-pass assertion for that fixture only.
@@ -236,14 +238,25 @@ unaffected (no whitespace-only line results) and needs no exemption.
 
 ## Idempotence
 
-Beyond matching its expected first-pass output, every fixture's output is round-tripped a
-*second* time with no edits, and that second pass must be byte-identical to the first —
-added by [#943](https://github.com/verveguy/liminis/issues/943) (FR-003/SC-002) to catch
-drift that only shows up once a document is already in its round-tripped, canonical form.
-This matters most for `.expected.md` fixtures: matching the sidecar on the first pass says
-nothing about whether that sidecar's own content is itself a stable fixed point. See the
+Beyond matching its expected first-pass output, every fixture that round-trips
+*successfully* has its output round-tripped a *second* time with no edits, and that second
+pass must be byte-identical to the first — added by
+[#943](https://github.com/verveguy/liminis/issues/943) (FR-003/SC-002) to catch drift that
+only shows up once a document is already in its round-tripped, canonical form. This matters
+most for `.expected.md` fixtures: matching the sidecar on the first pass says nothing about
+whether that sidecar's own content is itself a stable fixed point. See the
 `.idempotence-exempt.txt` sidecar convention above for the documented, out-of-scope
 exceptions.
+
+Two categories are outside the assertion rather than exempt from it. `.error.txt` fixtures
+are excluded **by construction**: `roundTrip()` rejects on the first pass, so there is no
+output to feed back — the test returns before reaching the second-pass block. (The corpus
+has none today, but the harness supports them.) And note what the assertion does *not*
+buy you: a fixed point is a guarantee about **stability**, not **fidelity**. A round trip
+that silently drops content reaches a fixed point immediately and passes — see
+`known-defects/other-blockquote-list-content-lost`, where a list inside a blockquote is
+lost entirely yet the lossy output is perfectly stable. The first-pass `.expected.md`
+comparison is what catches fidelity loss; the second pass only catches drift.
 
 **Every exemption in this corpus**, in full (there are five, all one pre-existing cause):
 
