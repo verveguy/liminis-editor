@@ -684,12 +684,33 @@ export function markElementsByAnnotationId(
  * left with none is unwrapped back to plain content.
  */
 export function removeMarksForAnnotation(editor: LexicalEditor, id: string): void {
+  removeMarksForAnnotations(editor, [id]);
+}
+
+/**
+ * Removes many annotations' marks inside a *single* `editor.update()`.
+ *
+ * The batched counterpart to {@link removeMarksForAnnotation}, for the same
+ * reason {@link placeMarksForAnchors} exists: a host that drops a set of live
+ * annotations at once — "resolve all comments", or an `offsetsVersion` bump
+ * that takes a batch of ids out of the marker targets — would otherwise force
+ * one synchronous Lexical reconciliation per id (review finding,
+ * @handarbeit-pruefer). One tree walk covers the whole set.
+ */
+export function removeMarksForAnnotations(editor: LexicalEditor, ids: readonly string[]): void {
+  if (ids.length === 0) return;
+  const targetIds = new Set(ids);
   editor.update(
     () => {
       for (const markNode of collectMarkNodesInOrder($getRoot())) {
-        if (!markNode.hasID(id)) continue;
-        const updated = markNode.deleteID(id);
-        if (updated.getIDs().length === 0) $unwrapMarkNode(updated);
+        let current = markNode;
+        let changed = false;
+        for (const id of markNode.getIDs()) {
+          if (!targetIds.has(id)) continue;
+          current = current.deleteID(id);
+          changed = true;
+        }
+        if (changed && current.getIDs().length === 0) $unwrapMarkNode(current);
       }
     },
     { discrete: true },

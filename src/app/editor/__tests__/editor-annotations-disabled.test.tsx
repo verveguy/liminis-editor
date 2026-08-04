@@ -129,6 +129,46 @@ describe('Editor with the comment kind enabled', () => {
     expect(document.querySelectorAll('mark').length).toBe(0);
   });
 
+  /**
+   * The offset table is collected on every parse regardless of whether
+   * annotations are on, because `InitializePlugin` imports exactly once — a
+   * host that resolves its kinds asynchronously would otherwise be left with a
+   * permanently empty table and silently place nothing (an earlier review
+   * finding). Only the `offsetsVersion` state bump is gated on
+   * `annotationsEnabled`, so this pins the behaviour that gate must not break.
+   */
+  it('places a mark when the kinds arrive after the initial parse', async () => {
+    const props = {
+      annotationKinds: {
+        comment: {
+          markerStyle: 'highlight' as const,
+          createAffordance: { surface: 'toolbar' as const },
+          retainMarkOnCreate: true,
+        },
+      },
+      annotations: [{ id: 'a1', kind: 'comment', anchor: ANCHOR, outcome: 'unchanged' as const }],
+    };
+
+    let rerender!: (ui: React.ReactElement) => void;
+    await act(async () => {
+      // First render with no kinds at all: the import runs here, and this is
+      // the only time it runs.
+      ({ rerender } = renderEditor());
+    });
+    expect(document.querySelectorAll('mark').length).toBe(0);
+
+    await act(async () => {
+      rerender(
+        <EditorHostProvider>
+          <Editor initialContent={MARKDOWN} onChange={() => undefined} {...props} />
+        </EditorHostProvider>,
+      );
+    });
+    await flushLazy();
+
+    expect(document.querySelectorAll('mark').length).toBeGreaterThan(0);
+  });
+
   it('warns via the injected logger for an annotation whose kind is unconfigured', async () => {
     const logger = { warn: vi.fn() };
     await act(async () => {

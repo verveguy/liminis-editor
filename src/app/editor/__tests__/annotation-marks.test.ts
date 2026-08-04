@@ -32,6 +32,7 @@ import {
   placeMarkForAnchor,
   readAnchorFields,
   removeMarksForAnnotation,
+  removeMarksForAnnotations,
   wrapNativeRangeInMark,
 } from '../annotation-marks';
 
@@ -255,6 +256,58 @@ describe('removeMarksForAnnotation', () => {
 
     removeMarksForAnnotation(editor, 'c1');
     expect(hasLiveMark(editor, 'c1')).toBe(false);
+    expect(await exportMarkdown(editor)).toBe(md);
+  });
+
+  // Retraction is batched for the same reason placement is: a host dropping a
+  // set of live annotations at once ("resolve all comments", or an
+  // offsetsVersion bump that takes a batch out of the marker targets) would
+  // otherwise force one synchronous Lexical reconciliation per id (review
+  // finding, @handarbeit-pruefer).
+  it('removes many ids in a single editor.update()', async () => {
+    const md = 'one two three four five\n';
+    const { editor, element } = await mountEditor(md);
+    for (const [text, id] of [['two', 'c1'], ['three', 'c2'], ['four', 'c3']] as const) {
+      wrapNativeRangeInMark(editor, domRangeForText(element, text), id);
+    }
+    expect(['c1', 'c2', 'c3'].every((id) => hasLiveMark(editor, id))).toBe(true);
+
+    let updates = 0;
+    const unregister = editor.registerUpdateListener(() => {
+      updates++;
+    });
+    removeMarksForAnnotations(editor, ['c1', 'c2', 'c3']);
+    unregister();
+
+    expect(updates).toBe(1);
+    expect(['c1', 'c2', 'c3'].some((id) => hasLiveMark(editor, id))).toBe(false);
+    // ...and the document is byte-identical again, i.e. the marks really were
+    // unwrapped rather than merely stripped of their ids.
+    expect(await exportMarkdown(editor)).toBe(md);
+  });
+
+  it('leaves ids outside the batch alone', async () => {
+    const md = 'alpha beta gamma\n';
+    const { editor, element } = await mountEditor(md);
+    wrapNativeRangeInMark(editor, domRangeForText(element, 'alpha'), 'keep');
+    wrapNativeRangeInMark(editor, domRangeForText(element, 'gamma'), 'drop');
+
+    removeMarksForAnnotations(editor, ['drop']);
+
+    expect(hasLiveMark(editor, 'drop')).toBe(false);
+    expect(hasLiveMark(editor, 'keep')).toBe(true);
+  });
+
+  it('unwraps a mark only once both of its overlapping ids are in one batch', async () => {
+    const md = 'shared text between two comments\n';
+    const { editor, element } = await mountEditor(md);
+    wrapNativeRangeInMark(editor, domRangeForText(element, 'shared text'), 'c1');
+    wrapNativeRangeInMark(editor, domRangeForText(element, 'shared text'), 'c2');
+
+    removeMarksForAnnotations(editor, ['c1', 'c2']);
+
+    expect(hasLiveMark(editor, 'c1')).toBe(false);
+    expect(hasLiveMark(editor, 'c2')).toBe(false);
     expect(await exportMarkdown(editor)).toBe(md);
   });
 
