@@ -261,6 +261,10 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
     join: [
       // Don't add blank line between paragraph and block when paragraph ends with ':'
       // This preserves the "label + block" pattern (e.g., "Fenced code:", "Block math:").
+      // Excludes 'list': unlike table/code/math, a list following a colon-ending
+      // paragraph must still get the standard one-blank-line separation every other
+      // preceding-block type already gets before a list (see #943) — the zero-blank
+      // convention here is specific to the "label:" + verbatim/tabular block pattern.
       // Doesn't apply inside a list item: a table/code fence there needs blank-line
       // separation from the preceding paragraph to parse back correctly, regardless
       // of how that paragraph ends.
@@ -268,7 +272,7 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
         if (left.type === 'paragraph' && parent?.type !== 'listItem') {
           const lastChild = left.children?.[left.children.length - 1];
           const endsWithColon = lastChild?.type === 'text' && lastChild.value?.trimEnd().endsWith(':');
-          if (endsWithColon && ['list', 'table', 'code', 'math'].includes(right.type)) {
+          if (endsWithColon && ['table', 'code', 'math'].includes(right.type)) {
             return 0; // No blank line
           }
         }
@@ -373,10 +377,6 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
     /!\[(?:\\.|[^\\\]\n])*\]\(|\\\[([^\]\n]+)\](?!\])/g,
     (match, plainPhrasingContent) => (plainPhrasingContent === undefined ? match : `[${plainPhrasingContent}]`)
   );
-
-  // Post-process: collapse excessive blank lines introduced during stringify
-  // Keep at most one blank line between blocks.
-  result = result.replace(/\n{3,}/g, '\n\n');
 
   // Post-process: unescape intraword underscores, outside of code and math.
   // mdast-util-to-markdown escapes every `_` in text conservatively, but CommonMark
