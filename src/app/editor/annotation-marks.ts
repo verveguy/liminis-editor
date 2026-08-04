@@ -52,7 +52,9 @@ import {
   $getNearestNodeFromDOMNode,
   $getNodeByKey,
   $getRoot,
+  $getSelection,
   $isElementNode,
+  $isRangeSelection,
   $isTextNode,
   $setSelection,
   type ElementNode,
@@ -336,11 +338,93 @@ export function placeMarkForAnchor(editor: LexicalEditor, offsetSpans: readonly 
   let placed = false;
   editor.update(
     () => {
-      placed = $placeMarkForAnchor(offsetSpans, markdownText, anchor, id);
+      placed = $withPreservedSelection(() => $placeMarkForAnchor(offsetSpans, markdownText, anchor, id));
     },
     { discrete: true },
   );
   return placed;
+}
+
+/**
+ * Runs `fn` and puts the user's caret/selection back where it was.
+ *
+ * Placement moves the selection twice over: `$placeMarkForAnchor` sets the
+ * range it is about to wrap, and `$wrapSelectionInMarkNode` then collapses the
+ * selection into the mark it created (`selectStart`/`selectEnd`, at the end of
+ * its own implementation). Placement is a *background* operation — it runs
+ * whenever a re-parse invalidates the offset table, not in response to
+ * anything the user did — so without this the caret jumps into the last-placed
+ * mark while they are typing (review finding, CodeRabbit). Note that dropping
+ * our own `$setSelection` would not be enough on its own: the collapse inside
+ * `$wrapSelectionInMarkNode` is not ours to remove.
+ *
+ * The saved points are recorded as *absolute* character offsets across the
+ * document's text nodes, not as `(key, offset)` pairs. Wrapping splits text
+ * nodes — Lexical's `splitText` keeps the original key on the first segment —
+ * so a caret sitting after a placement would find its own key now holding far
+ * fewer characters, and a naive key-based restore would have to decline in
+ * exactly the ordinary case. Marking changes no text, so absolute offsets
+ * survive it unchanged and re-resolve cleanly against the post-placement tree.
+ *
+ * Non-text (element) points and a selection that can't be re-resolved are left
+ * alone: a stale caret would be worse than the jump this avoids.
+ */
+function $withPreservedSelection<T>(fn: () => T): T {
+  const previous = $getSelection();
+  const saved = $isRangeSelection(previous)
+    ? {
+        anchor: $absoluteTextOffset(previous.anchor.key, previous.anchor.offset, previous.anchor.type),
+        focus: $absoluteTextOffset(previous.focus.key, previous.focus.offset, previous.focus.type),
+        format: previous.format,
+        style: previous.style,
+      }
+    : null;
+
+  const result = fn();
+
+  if (saved?.anchor != null && saved.focus != null) {
+    const anchorPoint = $pointAtAbsoluteTextOffset(saved.anchor);
+    const focusPoint = $pointAtAbsoluteTextOffset(saved.focus);
+    if (anchorPoint && focusPoint) {
+      const restored = $createRangeSelection();
+      restored.anchor.set(anchorPoint.key, anchorPoint.offset, 'text');
+      restored.focus.set(focusPoint.key, focusPoint.offset, 'text');
+      restored.format = saved.format;
+      restored.style = saved.style;
+      $setSelection(restored);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Position of a selection point as a character offset across every text node in
+ * the document, or null for a non-text point or a key no longer in the tree.
+ */
+function $absoluteTextOffset(key: string, offset: number, type: 'text' | 'element'): number | null {
+  if (type !== 'text') return null;
+  let seen = 0;
+  for (const node of $getRoot().getAllTextNodes()) {
+    if (node.getKey() === key) return seen + Math.min(offset, node.getTextContentSize());
+    seen += node.getTextContentSize();
+  }
+  return null;
+}
+
+/** Inverse of {@link $absoluteTextOffset} against the current tree. */
+function $pointAtAbsoluteTextOffset(absolute: number): { key: string; offset: number } | null {
+  let seen = 0;
+  let last: { key: string; offset: number } | null = null;
+  for (const node of $getRoot().getAllTextNodes()) {
+    const size = node.getTextContentSize();
+    if (absolute <= seen + size) return { key: node.getKey(), offset: absolute - seen };
+    seen += size;
+    last = { key: node.getKey(), offset: size };
+  }
+  // Past the end of the document's text (it shrank): clamp to the last node
+  // rather than dropping the caret entirely.
+  return last;
 }
 
 /**
@@ -384,11 +468,13 @@ export function placeMarksForAnchors(
 
   editor.update(
     () => {
-      for (const entry of ordered) {
-        if ($placeMarkForAnchor(offsetSpans, markdownText, entry.anchor, entry.id)) {
-          placedIds.add(entry.id);
+      $withPreservedSelection(() => {
+        for (const entry of ordered) {
+          if ($placeMarkForAnchor(offsetSpans, markdownText, entry.anchor, entry.id)) {
+            placedIds.add(entry.id);
+          }
         }
-      }
+      });
     },
     { discrete: true },
   );
