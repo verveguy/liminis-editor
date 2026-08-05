@@ -10,7 +10,7 @@ import { defListFromMarkdown } from 'mdast-util-definition-list';
 import { gfmFootnote } from 'micromark-extension-gfm-footnote';
 import { gfmFootnoteFromMarkdown } from 'mdast-util-gfm-footnote';
 import { syntax as wikiLinkSyntax } from 'micromark-extension-wiki-link';
-import * as wikiLinkMdast from 'mdast-util-wiki-link';
+import * as wikiLinkMdast from './vendor/mdast-util-wiki-link';
 import type { Root, Content, PhrasingContent } from 'mdast';
 
 export interface ParseOptions {
@@ -36,7 +36,7 @@ interface Replacement {
 /**
  * Escape pipes inside wiki-links: [[target|alias]] → [[target\|alias]]
  * This prevents GFM table parsing from splitting wiki-links at the pipe.
- * The mdast-util-wiki-link patch will strip the backslash during conversion.
+ * The vendored mdast-util-wiki-link strips the backslash during conversion.
  *
  * NOTE: Only escapes the FIRST pipe inside each wiki-link (the alias divider).
  * Additional pipes in the alias text are valid and should remain unescaped.
@@ -253,10 +253,11 @@ function markEmptyAliasWikiLinks(root: Root): Root {
  * Strip trailing backslash from wiki-link values when they have an alias.
  * This handles the escaped pipe (\|) that was added by escapeWikiLinkPipes().
  *
- * NOTE: The mdast-util-wiki-link patch already strips this backslash during
- * fromMarkdown() processing. This function serves as defense-in-depth in case
- * the patch is ever removed or updated. In normal operation the condition
- * `node.value?.endsWith('\\')` will be false (already stripped by the patch).
+ * NOTE: The vendored `mdast-util-wiki-link` (src/markdown/vendor/) already
+ * strips this backslash during fromMarkdown() processing. This function serves
+ * as defense-in-depth in case that strip is ever removed or a caller supplies a
+ * different wiki-link mdast extension. In normal operation the condition
+ * `node.value?.endsWith('\\')` will be false (already stripped upstream of here).
  */
 function stripEscapedPipeFromWikiLinks(root: Root): Root {
   function walk(node: any): any {
@@ -369,7 +370,7 @@ export function parseMarkdown(text: string, _options: ParseOptions = {}): ParseR
       defListFromMarkdown,
       gfmFootnoteFromMarkdown(),
       frontmatterFromMarkdown(['yaml']),
-      wikiLinkMdast.fromMarkdown(wikiLinkOptions as any),
+      wikiLinkMdast.fromMarkdown(wikiLinkOptions),
     ],
   } as any);
 
