@@ -15,7 +15,7 @@
  * Usage: `pnpm verify:package` (or `node scripts/verify-package.mjs`).
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -160,10 +160,19 @@ check(
 // tarball — the thing under test — is never resolved at all.
 
 step('Installing the tarball into examples/external-consumer')
-rmSync(join(CONSUMER_DIR, 'node_modules'), { recursive: true, force: true })
-rmSync(join(CONSUMER_DIR, 'pnpm-lock.yaml'), { force: true })
-run('pnpm', ['install', '--ignore-workspace', '--no-frozen-lockfile'], CONSUMER_DIR)
-run('pnpm', ['add', '--ignore-workspace', '--no-frozen-lockfile', tarball], CONSUMER_DIR)
+const consumerManifestPath = join(CONSUMER_DIR, 'package.json')
+// `pnpm add` writes the tarball's absolute temp path into the manifest. The
+// install is what we want; the edit is not — it would be a machine-specific
+// path committed to the repo. Snapshot and restore.
+const consumerManifest = readFileSync(consumerManifestPath, 'utf8')
+try {
+  rmSync(join(CONSUMER_DIR, 'node_modules'), { recursive: true, force: true })
+  rmSync(join(CONSUMER_DIR, 'pnpm-lock.yaml'), { force: true })
+  run('pnpm', ['install', '--ignore-workspace', '--no-frozen-lockfile'], CONSUMER_DIR)
+  run('pnpm', ['add', '--ignore-workspace', tarball], CONSUMER_DIR)
+} finally {
+  writeFileSync(consumerManifestPath, consumerManifest)
+}
 
 const installedManifest = join(CONSUMER_DIR, 'node_modules', '@liminis', 'editor', 'package.json')
 check('the consumer resolved a real installed copy, not a workspace symlink', existsSync(installedManifest))

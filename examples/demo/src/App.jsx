@@ -45,6 +45,12 @@ sentence and add a note, then edit the paragraph around it — the marker follow
 `
 
 /**
+ * The document version anchors are stamped with. A real host would use a
+ * content hash or a git SHA; the demo has one document, so a constant will do.
+ */
+const DOC_VERSION = 'demo-v1'
+
+/**
  * One annotation kind. This object — and nothing else — is what turns the
  * annotation mechanism on. A "comment" feature and a "correction" feature
  * differ only in the value supplied here.
@@ -64,12 +70,20 @@ export function App() {
   const [nextId, setNextId] = useState(1)
 
   // The host mints the id and owns storage; the package treats both as opaque.
+  // `event.anchor` arrives without `docVersion` — the package cannot know which
+  // version of the document you are persisting against, so you stamp it.
   const handleCreate = (event) => {
+    if (!event.anchor) return
     const id = `note-${nextId}`
     setNextId((n) => n + 1)
     setAnnotations((current) => [
       ...current,
-      { id, kind: 'note', anchor: event.anchor, payload: { note: `Note ${nextId}` } },
+      {
+        id,
+        kind: 'note',
+        anchor: { ...event.anchor, docVersion: DOC_VERSION },
+        payload: { note: `Note ${nextId}` },
+      },
     ])
     setActiveId(id)
   }
@@ -78,14 +92,20 @@ export function App() {
   // on load and after external edits; here it is a button so the mechanism is
   // visible rather than merely claimed.
   const handleReanchor = async () => {
-    const result = await resolveAnchors(
+    const results = await resolveAnchors(
       annotations.map((a) => ({ id: a.id, anchor: a.anchor })),
       markdown,
+      DOC_VERSION,
     )
     setAnnotations((current) =>
       current.map((a) => {
-        const resolution = result.resolutions?.find((r) => r.id === a.id)
-        return resolution ? { ...a, outcome: resolution.resolution.outcome } : a
+        const result = results.find((r) => r.id === a.id)
+        if (!result) return a
+        return {
+          ...a,
+          outcome: result.outcome,
+          anchor: result.resolvedAnchor ?? a.anchor,
+        }
       }),
     )
   }
@@ -132,7 +152,7 @@ export function App() {
                       onClick={() => setActiveId(a.id)}
                     >
                       <strong>{a.payload?.note ?? a.id}</strong>
-                      <span className="demo-quote">“{a.anchor.quotedText}”</span>
+                      <span className="demo-quote">“{a.anchor.targetText}”</span>
                       <span className="demo-outcome">{a.outcome ?? 'unchanged'}</span>
                     </li>
                   ))}

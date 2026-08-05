@@ -15,6 +15,8 @@ import { captureAnchor, resolveAnchors } from '@liminis/editor/annotations'
 import type { Annotation } from '@liminis/editor/annotations'
 import '@liminis/editor/styles.css'
 
+const DOC_VERSION = 'demo-v1'
+
 const KINDS: AnnotationKindConfigs = {
   note: {
     markerStyle: 'highlight',
@@ -29,8 +31,15 @@ function AnnotatedEditor() {
   const [activeId, setActiveId] = useState<string | null>(null)
 
   const handleCreate = (event: AnnotationCreateEvent) => {
+    // `event.anchor` is `AnchorFields` — the package captures everything except
+    // `docVersion`, which is the host's to stamp because only the host knows
+    // what version of the document it is persisting against.
+    if (!event.anchor) return
     const id = `note-${annotations.length + 1}`
-    setAnnotations((current) => [...current, { id, kind: 'note', anchor: event.anchor }])
+    setAnnotations((current) => [
+      ...current,
+      { id, kind: 'note', anchor: { ...event.anchor!, docVersion: DOC_VERSION } },
+    ])
     setActiveId(id)
   }
 
@@ -52,6 +61,7 @@ export async function reanchor(annotations: Annotation[], text: string) {
   return resolveAnchors(
     annotations.map((a) => ({ id: a.id, anchor: a.anchor })),
     text,
+    DOC_VERSION,
   )
 }
 ;(globalThis as Record<string, unknown>).__captureAnchor = captureAnchor
