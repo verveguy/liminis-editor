@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useMemo, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense, type MutableRefObject } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -15,6 +15,7 @@ import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { CodeNode, CodeHighlightNode, $isCodeNode } from '@lexical/code';
 import { registerCodeHighlighting } from '@lexical/code-prism';
 import { AutoLinkNode } from '@lexical/link';
+import { MarkNode } from '@lexical/mark';
 import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
 import {
   $createParagraphNode,
@@ -76,12 +77,36 @@ import {
   DefinitionDescriptionNode,
   CustomListItemNode,
 } from './nodes';
-import { importMarkdownToLexical, importMarkdownToLexicalInEditorState } from '../mapper/mdastToLexical';
+import {
+  importMarkdownToLexicalInEditorStateWithOffsets,
+  importMarkdownToLexicalWithOffsets,
+  type OffsetSpan,
+} from '../mapper/mdastToLexical';
+// Type-only: erased at compile time, so these do not put the annotation
+// modules in this file's runtime import graph (FR-004/SC-004).
+import type {
+  Annotation,
+  AnnotationEditorHandle,
+  AnnotationKindConfigs,
+} from '../../annotations/types';
+import type { AnnotationCreateEvent } from './AnnotationPlugin';
+
 import { exportLexicalToMdast } from '../mapper/lexicalToMdast';
 import { parseMarkdown } from '../../markdown/parse';
 import { stringifyMarkdown } from '../../markdown/stringify';
 import type { ImagePathResolution } from '../../types';
 import type { CursorState } from '../App';
+
+/**
+ * The annotation feature surface, loaded only when a host configures at least
+ * one kind. A static import here would defeat FR-004: every consumer would
+ * pull the annotation modules into its graph whether or not it uses them.
+ */
+const LazyAnnotationSurface = lazy(() => import('./AnnotationSurface'));
+
+/** Stable identity, so an unconfigured `annotations` prop doesn't re-render the surface. */
+const EMPTY_ANNOTATIONS: Annotation[] = [];
+
 
 interface EditorProps {
   initialContent: string;
@@ -104,6 +129,29 @@ interface EditorProps {
   onSubstitutionDetected?: (oldTerm: string, newTerm: string) => void;
   /** Ref populated with a sweep function by AmbientCorrectionPlugin when active. */
   sweepRef?: MutableRefObject<SweepFn | null>;
+
+  // --- Annotations (ADR-077). Entirely opt-in: with no `annotationKinds`, no
+  // annotation module is loaded, no command is registered and nothing renders.
+  /**
+   * Per-kind configuration. Supplying this is what turns the annotation
+   * mechanism on; the kinds themselves are the only difference between
+   * features built on it (a comment kind vs. a correction kind).
+   */
+  annotationKinds?: AnnotationKindConfigs;
+  /** Host-supplied annotations to render markers for, already resolved by the host. */
+  annotations?: Annotation[];
+  /** Which annotation is currently active, for marker styling. */
+  activeAnnotationId?: string | null;
+  /** Host-driven scroll-to signal; `nonce` forces a re-scroll to the same id. */
+  scrollToAnnotation?: { id: string; nonce: number } | null;
+  /** Fires when a user creates an annotation via a kind's create affordance. */
+  onCreateAnnotation?: (event: AnnotationCreateEvent) => void;
+  /** Fires when a marker is activated; the host opens its own panel or thread. */
+  onActivateAnnotation?: (id: string) => void;
+  /** Populated with the imperative handle for the mounted editor's live marks. */
+  annotationEditorHandleRef?: MutableRefObject<AnnotationEditorHandle | null>;
+  /** Injected logger, so the package never imports a host logger (FR-010). */
+  annotationLogger?: { warn: (message: string, ...args: unknown[]) => void };
 }
 
 const editorTheme = {
@@ -205,6 +253,7 @@ const editorNodes = [
   DefinitionDescriptionNode,
   HtmlNode,
   ListItemParagraphBreakNode,
+  MarkNode,  // Annotation live marks (see ADR-077); inert unless an annotation kind is configured
 ];
 
 // Mirror of $exitCodeNodeOnEnter in @lexical/code-core@0.44 (CodeExtension.register).
@@ -251,7 +300,26 @@ function CodeHighlightPlugin() {
 }
 
 // Plugin to initialize editor with markdown content
-function InitializePlugin({ content }: { content: string }) {
+function InitializePlugin({
+  content,
+  onOffsets,
+}: {
+  content: string;
+  /**
+   * Receives the raw-markdown offset->node table this parse produced, for the
+   * annotation surface's mark placement.
+   *
+   * Deliberately not gated on whether annotations are currently enabled. This
+   * effect body runs exactly once (`hasInitialized`), so a host whose
+   * `annotationKinds` arrive after mount — an async config load, a
+   * feature-flag fetch — would otherwise leave the offset table permanently
+   * empty, and every later placement pass would silently find no containing
+   * span and place no marks at all. Collecting spans unconditionally costs one
+   * small record per text node on a path that is already walking every node,
+   * which is cheaper than the failure it removes.
+   */
+  onOffsets: (spans: OffsetSpan[], markdownText: string) => void;
+}) {
   const [editor] = useLexicalComposerContext();
   const hasInitialized = useRef(false);
 
@@ -261,9 +329,9 @@ function InitializePlugin({ content }: { content: string }) {
 
     if (content) {
       const { root } = parseMarkdown(content);
-      importMarkdownToLexical(editor, root);
+      onOffsets(importMarkdownToLexicalWithOffsets(editor, root), content);
     }
-  }, [editor, content]);
+  }, [editor, content, onOffsets]);
 
   return null;
 }
@@ -452,11 +520,20 @@ function ExternalUpdatePlugin({
   lastExternalLoadRef,
   currentContentRef,
   lastEditorChangeRef,
+  onOffsets,
 }: {
   content: string;
   lastExternalLoadRef: React.MutableRefObject<number>;
   currentContentRef: React.MutableRefObject<string>;
   lastEditorChangeRef: React.MutableRefObject<number>;
+  /**
+   * Same contract as `InitializePlugin`'s, and unconditional for the same
+   * reason: an external reload re-parses the document from scratch, so the
+   * annotation surface's offset->node table must be rebuilt with it. Without
+   * this the table would keep pointing at node keys this reload destroyed, and
+   * mark placement would throw on a key Lexical no longer knows.
+   */
+  onOffsets: (spans: OffsetSpan[], markdownText: string) => void;
 }) {
   const [editor] = useLexicalComposerContext();
 
@@ -494,14 +571,16 @@ function ExternalUpdatePlugin({
       }
       
       const { root } = parseMarkdown(content);
+      let spans: OffsetSpan[] = [];
       editor.update(
         () => {
-          importMarkdownToLexicalInEditorState(root);
+          spans = importMarkdownToLexicalInEditorStateWithOffsets(root);
         },
         { discrete: true }
       );
+      onOffsets(spans, content);
     });
-  }, [editor, content, lastExternalLoadRef, currentContentRef, lastEditorChangeRef]);
+  }, [editor, content, lastExternalLoadRef, currentContentRef, lastEditorChangeRef, onOffsets]);
 
   return null;
 }
@@ -594,7 +673,54 @@ export function Editor({
   filePath,
   onSubstitutionDetected,
   sweepRef,
+  annotationKinds,
+  annotations,
+  activeAnnotationId = null,
+  scrollToAnnotation,
+  onCreateAnnotation,
+  onActivateAnnotation,
+  annotationEditorHandleRef,
+  annotationLogger,
 }: EditorProps) {
+  // Annotations are on only when the host configured at least one kind
+  // (FR-004). Everything annotation-specific hangs off this flag, including
+  // the dynamic import below — with no kinds, none of those modules is ever
+  // loaded and no annotation command is registered.
+  const annotationsEnabled = !!annotationKinds && Object.keys(annotationKinds).length > 0;
+
+  const offsetSpansRef = useRef<OffsetSpan[]>([]);
+  const markdownTextRef = useRef<string>(initialContent);
+  const [offsetsVersion, setOffsetsVersion] = useState(0);
+
+  // Read inside `handleOffsets` rather than closed over, so the callback's
+  // identity stays stable — it is an effect dependency in `InitializePlugin`
+  // and `ExternalUpdatePlugin`, and a new identity there would re-run them.
+  const annotationsEnabledRef = useRef(annotationsEnabled);
+  annotationsEnabledRef.current = annotationsEnabled;
+
+  /**
+   * Records the offset table each (re)parse produces.
+   *
+   * The two ref writes are unconditional on purpose. `InitializePlugin` runs
+   * its import exactly once, so gating span collection on `annotationsEnabled`
+   * left a host that loads its kinds asynchronously with a permanently empty
+   * table and silently placed nothing (an earlier review finding). The cost is
+   * one small record per text node on a walk that already visits every node.
+   *
+   * The `offsetsVersion` bump, on the other hand, is a state update that
+   * re-renders `Editor` — so it is gated. With annotations off nothing
+   * consumes the version, and a host that never passes `annotationKinds`
+   * should not re-render on every parse and external reload to maintain a
+   * counter nobody reads (review finding, @handarbeit-pruefer). When kinds
+   * arrive later, `AnnotationSurface` mounts and its placement effect runs
+   * against the refs, which are already current.
+   */
+  const handleOffsets = useCallback((spans: OffsetSpan[], markdownText: string) => {
+    offsetSpansRef.current = spans;
+    markdownTextRef.current = markdownText;
+    if (annotationsEnabledRef.current) setOffsetsVersion((v) => v + 1);
+  }, []);
+
   const lastExternalLoadRef = useRef<number>(0);
   const currentContentRef = useRef<string>(initialContent);
   const debounceTimerRef = useRef<number | null>(null);
@@ -705,7 +831,10 @@ export function Editor({
             <TablePlugin />
             <CodeHighlightPlugin />
             <OnChangePlugin onChange={handleChange} ignoreSelectionChange />
-            <InitializePlugin content={initialContent} />
+            <InitializePlugin
+              content={initialContent}
+              onOffsets={handleOffsets}
+            />
             <EditablePlugin editable={editable} />
             <AutoFocusPlugin />
             <CursorTrackingPlugin onCursorChange={onCursorChange} />
@@ -718,6 +847,7 @@ export function Editor({
               lastExternalLoadRef={lastExternalLoadRef}
               currentContentRef={currentContentRef}
               lastEditorChangeRef={lastEditorChangeRef}
+              onOffsets={handleOffsets}
             />
             <SlashMenuPlugin />
             <DragHandlePlugin />
@@ -734,13 +864,39 @@ export function Editor({
             <WikiLinkExistencePlugin />
             <WikiLinkFormatPlugin />
             <AnchorScrollPlugin />
-            <SelectionContextMenuPlugin onSelectionContextMenu={onSelectionContextMenu} />
+            <SelectionContextMenuPlugin
+              onSelectionContextMenu={onSelectionContextMenu}
+              // Only when the kind actually asks for a context-menu affordance:
+              // with none configured, or one on another surface, AnnotationPlugin
+              // would decline the command anyway, and dispatching from here would
+              // claim an entry point the kind never opted into.
+              correctionKindEnabled={
+                annotationKinds?.correction?.createAffordance?.surface === 'contextMenu'
+              }
+            />
             <CorrectionPanelPlugin />
             {onSubstitutionDetected && (
               <AmbientCorrectionPlugin
                 onSubstitutionDetected={onSubstitutionDetected}
                 sweepRef={sweepRef}
               />
+            )}
+            {annotationsEnabled && (
+              <Suspense fallback={null}>
+                <LazyAnnotationSurface
+                  kinds={annotationKinds}
+                  annotations={annotations ?? EMPTY_ANNOTATIONS}
+                  activeAnnotationId={activeAnnotationId}
+                  scrollToAnnotation={scrollToAnnotation}
+                  onCreateAnnotation={onCreateAnnotation}
+                  onActivateAnnotation={onActivateAnnotation}
+                  editorHandleRef={annotationEditorHandleRef}
+                  offsetSpansRef={offsetSpansRef}
+                  markdownTextRef={markdownTextRef}
+                  offsetsVersion={offsetsVersion}
+                  logger={annotationLogger}
+                />
+              </Suspense>
             )}
           </div>
         </div>
