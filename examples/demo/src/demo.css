@@ -1,0 +1,67 @@
+/* Chrome for the demo shell only. The editor's own appearance comes entirely
+   from `@liminis/editor/styles.css`, imported in App.jsx. */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #1a1a1a;
+  background: #fafafa;
+}
+
+.demo { display: flex; flex-direction: column; height: 100vh; }
+
+.demo-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid #e4e4e4;
+  background: #fff;
+}
+.demo-header h1 { margin: 0; font-size: 16px; }
+.demo-header p { margin: 4px 0 0; font-size: 13px; color: #666; }
+
+.demo-body { display: flex; flex: 1; min-height: 0; }
+
+.demo-sidebar {
+  width: 280px;
+  flex: none;
+  padding: 16px;
+  overflow-y: auto;
+  border-right: 1px solid #e4e4e4;
+  background: #fff;
+  font-size: 13px;
+}
+.demo-sidebar h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; }
+.demo-sidebar section + section { margin-top: 28px; }
+.demo-hint { color: #888; font-size: 12px; }
+.demo-empty { color: #aaa; }
+
+.demo-outline { list-style: none; padding: 0; margin: 0; }
+.demo-outline li { padding: 2px 0; color: #444; }
+
+.demo-annotations { list-style: none; padding: 0; margin: 0 0 12px; }
+.demo-annotations li {
+  padding: 8px;
+  border: 1px solid #e4e4e4;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.demo-annotations li.is-active { border-color: #f0b429; background: #fffbf0; }
+.demo-quote { color: #666; font-style: italic; }
+.demo-outcome { color: #999; font-size: 11px; }
+
+.demo-editor { flex: 1; min-width: 0; overflow-y: auto; background: #fff; }
+
+button {
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+button:hover { background: #f4f4f4; }
