@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
+import { OPEN_ANNOTATION_COMPOSER_COMMAND } from './annotationCommands';
 import { $getSelection, $isRangeSelection } from 'lexical';
 import { useCorrectionStore } from '../../stores/correctionStore';
 
@@ -20,6 +21,8 @@ export interface SelectionContextMenuEvent {
 
 interface SelectionContextMenuPluginProps {
   onSelectionContextMenu?: (event: SelectionContextMenuEvent) => void;
+  /** True when the host configured a `correction` annotation kind (ADR-077). */
+  correctionKindEnabled?: boolean;
 }
 
 // --- Menu overlay component ---
@@ -50,6 +53,12 @@ interface SelectionContextMenuProps {
   y: number;
   selectedText: string;
   onChatAboutThis: (() => void) | null;
+  /**
+   * Routes the "Correction…" entry through the shared annotation create
+   * command when the host has configured a `correction` kind. Null when it
+   * hasn't, in which case the entry behaves exactly as it always has.
+   */
+  onCaptureCorrectionAnchor: (() => void) | null;
   onClose: () => void;
 }
 
@@ -59,6 +68,7 @@ function SelectionContextMenu({
   y,
   selectedText,
   onChatAboutThis,
+  onCaptureCorrectionAnchor,
   onClose,
 }: SelectionContextMenuProps): JSX.Element | null {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -96,6 +106,13 @@ function SelectionContextMenu({
   };
 
   const handleCorrection = () => {
+    // Corrections are a kind of the unified annotation mechanism (ADR-077):
+    // authoring one enters the same capture path comments use. The `correction`
+    // kind discards its transient mark, so nothing paints and the visible
+    // behaviour below is unchanged. A host that supplies no `onCreateAnnotation`
+    // (as liminis-app does not) has no handler registered for the command, so
+    // this is simply a no-op there.
+    onCaptureCorrectionAnchor?.();
     useCorrectionStore.getState().open({ x, y }, selectedText);
     onClose();
   };
@@ -103,6 +120,21 @@ function SelectionContextMenu({
   return (
     <div
       ref={menuRef}
+      // Keep the document selection alive across a menu click. This overlay is
+      // a fixed-position sibling of the contenteditable, so pressing a button
+      // in it moves focus out of the editor on `mousedown` and collapses
+      // `window.getSelection()` — before any `onClick` handler runs. The
+      // annotation create path reads that native selection
+      // (`AnnotationPlugin`) and bails silently on a collapsed one, so a
+      // contextMenu-surfaced kind would capture no anchor while the correction
+      // panel still opened as if nothing had gone wrong (review finding,
+      // @handarbeit-pruefer). Preventing the default mousedown action stops
+      // the focus shift without affecting the subsequent click.
+      //
+      // Liminis doesn't feel this today only because it supplies no
+      // `onCreateAnnotation`, leaving the command unlistened — i.e. it would
+      // have bitten the first host to wire the callback up.
+      onMouseDown={(e) => e.preventDefault()}
       style={{
         ...menuStyle,
         left: x,
@@ -141,6 +173,7 @@ function SelectionContextMenu({
 
 export function SelectionContextMenuPlugin({
   onSelectionContextMenu,
+  correctionKindEnabled = false,
 }: SelectionContextMenuPluginProps) {
   const [editor] = useLexicalComposerContext();
   const [menuState, setMenuState] = useState<{
@@ -181,6 +214,16 @@ export function SelectionContextMenuPlugin({
     }
   }, [editor]);
 
+  // Dispatching the command rather than calling the capture primitive
+  // directly is deliberate: `annotationCommands` declares the command and
+  // nothing else, so this statically-imported plugin can enter the annotation
+  // mechanism without pulling any annotation machinery into the default
+  // (annotations-disabled) import graph. The listener lives in the lazily
+  // loaded surface, and is simply absent when annotations are off.
+  const captureCorrectionAnchor = useCallback(() => {
+    editor.dispatchCommand(OPEN_ANNOTATION_COMPOSER_COMMAND, { kind: 'correction' });
+  }, [editor]);
+
   const handleChatAboutThis = useCallback(() => {
     if (onSelectionContextMenu && menuState.selectedText) {
       onSelectionContextMenu({
@@ -197,6 +240,7 @@ export function SelectionContextMenuPlugin({
       y={menuState.y}
       selectedText={menuState.selectedText}
       onChatAboutThis={onSelectionContextMenu ? handleChatAboutThis : null}
+      onCaptureCorrectionAnchor={correctionKindEnabled ? captureCorrectionAnchor : null}
       onClose={close}
     />
   );

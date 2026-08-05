@@ -76,6 +76,60 @@ type LexicalBlockNode =
   | DefinitionListNode
   | HtmlNode;
 
+/**
+ * A raw-markdown character range, produced during import, mapped onto the
+ * Lexical `TextNode` it became (ADR-077's read pathway). Threaded from each
+ * leaf inline mdast node's own `position.offset` — real on-disk offsets, valid
+ * only for content that came from this exact parse — so an annotation anchor's
+ * `targetText` offset (found via a plain string search of the raw markdown)
+ * can be mapped onto the Lexical node to wrap in a live `MarkNode`, with no
+ * fuzzy matching needed for content that hasn't changed since it was parsed.
+ */
+export interface OffsetSpan {
+  /** Inclusive start offset into the raw markdown text this document was parsed from. */
+  start: number;
+  /** Exclusive end offset into the raw markdown text this document was parsed from. */
+  end: number;
+  /** The Lexical TextNode key whose text content spans this raw-markdown range. */
+  nodeKey: string;
+}
+
+// Set only while a *WithOffsets import is running, so convertText/convertInlineCode
+// can record spans without threading a collector parameter through every one of
+// this file's many recursive conversion functions. Lexical updates run their
+// updater function synchronously and non-reentrantly, so this is safe: it's
+// cleared before the exported functions below return.
+let offsetSpanCollector: OffsetSpan[] | null = null;
+
+function recordOffsetSpan(
+  position: { start?: { offset?: number }; end?: { offset?: number } } | undefined,
+  textNode: TextNode
+): void {
+  if (!offsetSpanCollector) return;
+  const start = position?.start?.offset;
+  const end = position?.end?.offset;
+  if (start == null || end == null) return;
+
+  // An OffsetSpan is only usable if raw-markdown offsets inside it map to the
+  // TextNode's own character offsets one-for-one — the consumer subtracts
+  // `span.start` from a raw offset and uses the result as a Lexical text
+  // offset directly. mdast's `position` covers the *source* range while
+  // `node.value` is the *decoded* text, so any backslash escape or character
+  // reference in the span breaks that correspondence:
+  //
+  //   `a \* b`    → span width 6, node text "a * b" (5)
+  //   `a &amp; b` → span width 9, node text "a & b" (5)
+  //
+  // Past the escape every derived offset is skewed, and an offset near the end
+  // lands beyond the node's size. Dropping the span makes placement decline for
+  // that text (the anchor stays panel-only) rather than wrap the wrong
+  // characters or build a point Lexical rejects — the same "reject rather than
+  // mis-place" trade the rest of this pathway makes.
+  if (end - start !== textNode.getTextContentSize()) return;
+
+  offsetSpanCollector.push({ start, end, nodeKey: textNode.getKey() });
+}
+
 // Convert mdast tree to Lexical editor state
 export function importMarkdownToLexical(
   editor: LexicalEditor,
@@ -84,6 +138,35 @@ export function importMarkdownToLexical(
   editor.update(() => {
     importMarkdownToLexicalInEditorState(root);
   });
+}
+
+/**
+ * Same conversion as {@link importMarkdownToLexicalInEditorState}, but also
+ * returns the {@link OffsetSpan}s recovered from the mdast tree's own
+ * `position.offset` data — the annotation read pathway's offset decoration.
+ * Must run inside an already-active `editor.update()` (mirrors
+ * `importMarkdownToLexicalInEditorState`'s own calling convention).
+ */
+export function importMarkdownToLexicalInEditorStateWithOffsets(root: Root): OffsetSpan[] {
+  const spans: OffsetSpan[] = [];
+  const previousCollector = offsetSpanCollector;
+  offsetSpanCollector = spans;
+  try {
+    importMarkdownToLexicalInEditorState(root);
+  } finally {
+    offsetSpanCollector = previousCollector;
+  }
+  spans.sort((a, b) => a.start - b.start);
+  return spans;
+}
+
+/** Same as {@link importMarkdownToLexical}, but also returns the recovered {@link OffsetSpan}s. */
+export function importMarkdownToLexicalWithOffsets(editor: LexicalEditor, root: Root): OffsetSpan[] {
+  let spans: OffsetSpan[] = [];
+  editor.update(() => {
+    spans = importMarkdownToLexicalInEditorStateWithOffsets(root);
+  });
+  return spans;
 }
 
 export function importMarkdownToLexicalInEditorState(root: Root): void {
@@ -1008,7 +1091,9 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageN
 }
 
 function convertText(node: Text): TextNode {
-  return $createTextNode(node.value);
+  const textNode = $createTextNode(node.value);
+  recordOffsetSpan(node.position, textNode);
+  return textNode;
 }
 
 /**
@@ -1119,7 +1204,29 @@ function setMarkdownMarker(node: TextNode, kind: 'emphasis' | 'strong', marker: 
 function convertInlineCode(node: InlineCode): TextNode {
   const textNode = $createTextNode(node.value);
   textNode.setFormat('code');
+  recordOffsetSpan(inlineCodeContentPosition(node), textNode);
   return textNode;
+}
+
+/**
+ * mdast's own `position` for an `inlineCode` node spans the whole code span
+ * *including* its backtick fence (e.g. `` `doThing()` ``), but `node.value`
+ * (and the `TextNode` built from it) never includes the backticks — so the
+ * raw offsets need to be narrowed inward by the fence length before they're
+ * usable as an offset->node span. Fences are symmetric (same backtick count
+ * on both sides, CommonMark's own rule), so the fence length is recovered
+ * from the gap between the position's full width and the content's length.
+ */
+function inlineCodeContentPosition(node: InlineCode): InlineCode['position'] {
+  const start = node.position?.start?.offset;
+  const end = node.position?.end?.offset;
+  if (start == null || end == null) return node.position;
+  const fenceLength = Math.floor((end - start - node.value.length) / 2);
+  if (fenceLength <= 0) return node.position;
+  return {
+    start: { ...node.position!.start, offset: start + fenceLength },
+    end: { ...node.position!.end, offset: end - fenceLength },
+  };
 }
 
 function convertLink(node: Link): LinkNode {
