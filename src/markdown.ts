@@ -43,3 +43,18 @@ export {
 
 export { getFileType } from './utils/file-types'
 export type { FileType } from './utils/file-types'
+
+// The vendored wiki-link mdast extension (MIT, landakram/mdast-util-wiki-link),
+// carrying the Liminis trailing-backslash fix for aliased wiki-links inside
+// tables (#347). Exported here so a host building its own mdast pipeline — the
+// Electron main process's canonical chunker is the in-repo one — gets exactly
+// the parse and serialize behaviour the editor has, without a pnpm patch.
+// Pure mdast: this entry's isolation contract is preserved.
+export {
+  fromMarkdown as wikiLinkFromMarkdown,
+  toMarkdown as wikiLinkToMarkdown,
+} from './markdown/vendor/mdast-util-wiki-link'
+export type {
+  WikiLinkFromMarkdownOptions,
+  WikiLinkToMarkdownOptions,
+} from './markdown/vendor/mdast-util-wiki-link'

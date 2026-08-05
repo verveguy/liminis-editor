@@ -2,6 +2,7 @@
   "name": "@liminis/editor",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Lexical-based markdown WYSIWYG editor with mdast round-trip and a host-injection seam",
   "type": "module",
   "main": "./src/index.ts",
@@ -29,10 +30,43 @@
     },
     "./styles.css": "./src/styles.css"
   },
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./markdown": {
+        "types": "./dist/markdown.d.ts",
+        "default": "./dist/markdown.js"
+      },
+      "./annotations": {
+        "types": "./dist/annotations.d.ts",
+        "default": "./dist/annotations.js"
+      },
+      "./headless": {
+        "types": "./dist/headless.d.ts",
+        "default": "./dist/headless.js"
+      },
+      "./contract": {
+        "types": "./dist/contract.d.ts",
+        "default": "./dist/contract.js"
+      },
+      "./styles.css": "./dist/styles.css"
+    }
+  },
   "files": [
-    "src"
+    "dist",
+    "README.md",
+    "LICENSE",
+    "docs"
   ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json --resolve-full-paths && node ./scripts/copy-assets.mjs",
+    "clean": "rm -rf dist",
+    "prepack": "pnpm run build",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "typecheck": "tsc --noEmit",
@@ -40,8 +74,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
-  "dependencies": {
-    "@dagrejs/dagre": "^3.0.0",
+  "peerDependencies": {
     "@lexical/code": "^0.44.0",
     "@lexical/code-prism": "^0.44.0",
     "@lexical/link": "^0.44.0",
@@ -53,8 +86,13 @@
     "@lexical/selection": "^0.44.0",
     "@lexical/table": "^0.44.0",
     "@lexical/utils": "^0.44.0",
-    "@mathjax/src": "^4.1.1",
     "lexical": "^0.44.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
+    "@mathjax/src": "^4.1.1",
     "lucide-react": "^1.11.0",
     "mdast-util-definition-list": "^2.0.0",
     "mdast-util-from-markdown": "^2.0.3",
@@ -63,7 +101,6 @@
     "mdast-util-gfm-footnote": "^2.1.0",
     "mdast-util-math": "^3.0.0",
     "mdast-util-to-markdown": "^2.1.2",
-    "mdast-util-wiki-link": "^0.1.2",
     "mermaid": "^11.14.0",
     "micromark-extension-definition-list": "^2.0.1",
     "micromark-extension-frontmatter": "^2.0.0",
@@ -72,14 +109,23 @@
     "micromark-extension-math": "^3.1.0",
     "micromark-extension-wiki-link": "^0.0.4",
     "prismjs": "^1.30.0",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
     "yaml": "^2.8.3",
     "zod": "^4.3.6",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@lexical/code": "^0.44.0",
+    "@lexical/code-prism": "^0.44.0",
+    "@lexical/link": "^0.44.0",
+    "@lexical/list": "^0.44.0",
+    "@lexical/mark": "^0.44.0",
+    "@lexical/markdown": "^0.44.0",
+    "@lexical/react": "^0.44.0",
+    "@lexical/rich-text": "^0.44.0",
+    "@lexical/selection": "^0.44.0",
+    "@lexical/table": "^0.44.0",
+    "@lexical/utils": "^0.44.0",
     "@testing-library/react": "^16.3.2",
     "@types/mdast": "^4.0.4",
     "@types/node": "^25.6.0",
@@ -93,6 +139,10 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
     "happy-dom": "^20.9.0",
+    "lexical": "^0.44.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "tsc-alias": "^1.9.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.0",
     "vitest": "^4.1.5"
