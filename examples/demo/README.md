@@ -54,6 +54,13 @@ For the same reason, every import in `src/App.jsx` is one of the package's
 public entries (`@liminis/editor`, `@liminis/editor/markdown`,
 `@liminis/editor/annotations`, `@liminis/editor/styles.css`). No deep paths.
 
+This directory's `package.json` also declares only `react` and `react-dom` —
+never `lexical` or `@lexical/*`, which pnpm's `auto-install-peers` default
+supplies. That matches what a default adopter gets. If you run the by-hand
+steps above under `auto-install-peers=false` (a corporate `.npmrc`, or yarn),
+`pnpm dev` fails to resolve `lexical`; install the fourteen peers the package
+`README.md` lists, or re-enable the default.
+
 ## Note on styling
 
 `import '@liminis/editor/styles.css'` is required. Without it the editor renders

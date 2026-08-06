@@ -15,7 +15,16 @@
  * Usage: `pnpm verify:package` (or `node scripts/verify-package.mjs`).
  */
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -245,6 +254,20 @@ check(
 // `--ignore-workspace` is what makes this external rather than theatre: without
 // it pnpm links `@liminis/editor` by symlink to `packages/editor` and the
 // tarball — the thing under test — is never resolved at all.
+//
+// The fixture deliberately declares only `react`/`react-dom`, never `lexical`
+// or `@lexical/*`. That is not an oversight: peers arriving without being asked
+// for is exactly the default adopter experience this fixture exists to model
+// (pnpm v8+ and npm v7+ both auto-install peers). Declaring them here would
+// make the fixture pass for a reason a real adopter does not enjoy.
+//
+// The cost is a dependency on `auto-install-peers`, which a corporate `.npmrc`,
+// a future pnpm default flip, or a yarn user can switch off. Verified with
+// `auto-install-peers=false`: the install still succeeds and both type-checks
+// still pass (`skipLibCheck` hides the unresolved types), and the failure only
+// surfaces at arm-build time as `Rolldown failed to resolve import "lexical"`
+// — which names neither the peer nor the setting. The check below turns that
+// into a named failure at the point the cause is still visible.
 
 step('Installing the tarball into examples/external-consumer')
 const consumerManifestPath = join(CONSUMER_DIR, 'package.json')
@@ -266,6 +289,35 @@ check('the consumer resolved a real installed copy, not a workspace symlink', ex
 if (existsSync(installedManifest)) {
   const installed = JSON.parse(readFileSync(installedManifest, 'utf8'))
   check('the installed copy resolves through dist/', installed.main === './dist/index.js', `got ${installed.main}`)
+
+  // Look for each declared peer the way a bundler does: walk `node_modules` up
+  // from the installed copy's *real* path inside pnpm's virtual store, not from
+  // the symlink in the fixture's `node_modules`. Walking from the symlink goes
+  // up into the fixture, which only ever declares react/react-dom, so every
+  // peer would read as missing on a perfectly good install. Rolldown reports
+  // this same real path in its own resolution errors.
+  //
+  // Presence of the package directory, not `require.resolve` of the bare
+  // specifier: `@lexical/react` is subpath-only (no "." in its `exports`), so
+  // resolving its bare name throws even when it is correctly installed.
+  const peerLookupDir = dirname(realpathSync(installedManifest))
+  const unresolved = Object.keys(installed.peerDependencies ?? {}).filter((name) => {
+    for (let dir = peerLookupDir; ; ) {
+      if (existsSync(join(dir, 'node_modules', name, 'package.json'))) return false
+      const parent = dirname(dir)
+      if (parent === dir) return true
+      dir = parent
+    }
+  })
+  check(
+    'every declared peer resolves from the installed copy',
+    unresolved.length === 0,
+    unresolved.length === 0
+      ? undefined
+      : `unresolved: ${unresolved.join(', ')} — the fixture declares only react/react-dom and relies on ` +
+        "pnpm's auto-install-peers default. If that is off (corporate .npmrc, a pnpm default change, or " +
+        'yarn), either re-enable it or add these to the fixture manifest.',
+  )
 }
 
 // ---------------------------------------------------------------------------
