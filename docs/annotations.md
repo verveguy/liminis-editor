@@ -95,7 +95,7 @@ schemas for persisting them.
 When the document changes, re-resolve:
 
 ```ts
-const result = await resolveAnchors(anchors, newDocumentText)
+const result = await resolveAnchors(anchors, newDocumentText, newDocumentVersion)
 ```
 
 Each anchor lands in one of four outcomes:

@@ -137,3 +137,34 @@ const tree = fromMarkdown(text, {
 
 `wikiLinkToMarkdown` is the matching serializer extension, built on
 `mdast-util-to-markdown` v2.
+
+> **The extensions alone are not equivalent to `parseMarkdown`.** If you enable
+> GFM tables alongside them, prefer `parseMarkdown` — see below.
+
+### What the extensions do *not* give you
+
+`parseMarkdown` is more than these two extensions, and the difference is not
+cosmetic. Two pre/post-passes live in `parseMarkdown` and have no equivalent
+inside the extension:
+
+- **Alias-pipe escaping (the #347 fix above).** The trailing-backslash strip in
+  `wikiLinkFromMarkdown` only helps once the divider is *already* escaped.
+  `parseMarkdown` does that escaping before parsing. Without it, GFM's table
+  parser reaches the `|` first. Measured on `| [[target\|alias]] | x |` in a
+  two-column table: the extensions alone yield **5 table cells and 0 wiki-link
+  nodes** — the row is corrupted and the link is gone — where `parseMarkdown`
+  yields 4 cells and 1 wiki-link.
+- **Empty-alias preservation.** `[[target|]]` is distinguishable from
+  `[[target]]` only because `parseMarkdown` substitutes a sentinel before parsing
+  and sets `data._emptyAlias` after. The extensions alone produce no wiki-link
+  node at all for that input.
+
+So: **if your pipeline enables GFM tables, or you care about `[[target|]]`, call
+`parseMarkdown` rather than assembling the extensions yourself.** Reach for the
+raw extensions only when you control the input and neither case applies.
+
+Note also that `<Editor>`'s own *serialization* does not go through
+`wikiLinkToMarkdown`: `stringifyMarkdown` carries a hand-rolled wiki-link handler
+that additionally understands `data._emptyAlias`. `wikiLinkToMarkdown` is the
+faithful vendored upstream serializer, not a byte-for-byte match for what the
+editor emits.

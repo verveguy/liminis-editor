@@ -135,4 +135,33 @@ describe('vendored mdast-util-wiki-link — toMarkdown', () => {
     const tree = { type: 'paragraph', children: [link] }
     expect(stringify(tree)).toBe('[[some page|Display]]')
   })
+
+  // Upstream passed the alias through `safe()` unconditionally, and
+  // `safe(undefined)` yields `''` — unequal to a non-empty target, so a node
+  // with no alias serialized as the malformed `[[page|]]`, which parses back as
+  // an *empty* alias rather than none. A host hand-building nodes (the reason
+  // this extension is exported at all) is the only way to reach it.
+  it.each([
+    ['undefined data', { type: 'wikiLink', value: 'page' }],
+    ['empty data', { type: 'wikiLink', value: 'page', data: {} }],
+    ['null alias', { type: 'wikiLink', value: 'page', data: { alias: null } }],
+    ['empty-string alias', { type: 'wikiLink', value: 'page', data: { alias: '' } }],
+  ])('serializes a node with no alias (%s) as a bare wiki-link', (_label, node) => {
+    expect(stringify({ type: 'paragraph', children: [node] })).toBe('[[page]]')
+  })
+
+  // The guard above must not change anything the parser can actually produce.
+  // `fromMarkdown` always populates `data.alias` (falling back to the target),
+  // so the guard is unreachable from parsed input and these outputs are exactly
+  // what upstream produced. Note `[[page|page]]` collapsing to `[[page]]` is the
+  // pre-existing `alias === value` rule, not an effect of the guard.
+  it.each([
+    ['[[page]]', '[[page]]'],
+    ['[[some page|Display]]', '[[some page|Display]]'],
+    ['[[page|page]]', '[[page]]'],
+  ])('leaves parser-produced node %s unaffected by the no-alias guard', (source, expected) => {
+    const [link] = parse(source)
+    expect(link.data.alias, `${source} should carry an alias`).toBeTruthy()
+    expect(stringify({ type: 'paragraph', children: [link] })).toBe(expected)
+  })
 })
