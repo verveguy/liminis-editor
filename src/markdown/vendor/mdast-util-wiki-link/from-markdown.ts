@@ -8,10 +8,12 @@
  * package would silently get different — and wrong — wiki-link behaviour inside
  * markdown tables (#347). Vendoring makes the package self-contained.
  *
- * Two deliberate divergences from upstream:
+ * Three deliberate divergences from upstream:
  *   1. The trailing-backslash strip (see `exitWikiLink`), previously carried as
  *      `liminis-app/patches/mdast-util-wiki-link@0.1.2.patch`.
  *   2. Real types instead of `any` on the public option and node shapes.
+ *   3. `exitWikiLink` reads the node off `this.stack` rather than off a
+ *      closure variable shared by every handler in one `fromMarkdown()` call.
  *
  * Nothing else about the parse behaviour changes: `value`, `data.alias`,
  * `data.permalink`, `data.exists`, `data.hName`, `data.hProperties` and
@@ -66,10 +68,8 @@ export function fromMarkdown(opts: WikiLinkFromMarkdownOptions = {}) {
   const defaultHrefTemplate = (permalink: string) => `#/page/${permalink}`
   const hrefTemplate = opts.hrefTemplate || defaultHrefTemplate
 
-  let node: WikiLinkNode
-
   function enterWikiLink(this: WikiLinkCompileContext, token: unknown): void {
-    node = {
+    const node: WikiLinkNode = {
       type: 'wikiLink',
       value: null as unknown as string,
       data: {
@@ -90,8 +90,15 @@ export function fromMarkdown(opts: WikiLinkFromMarkdownOptions = {}) {
   }
 
   function exitWikiLink(this: WikiLinkCompileContext, token: unknown): void {
+    // Read the node off the stack *before* exiting — `this.exit()` pops it, so
+    // afterwards `top(this.stack)` is the parent. Upstream reads a closure
+    // variable here instead, which every handler produced by one
+    // `fromMarkdown()` call shares: `exitWikiLink` would then operate on
+    // whichever token last entered, not the one actually exiting. Wiki links
+    // cannot nest today, so the two are equivalent in practice — this just
+    // declines to inherit the assumption.
+    const wikiLink = top(this.stack)
     this.exit(token)
-    const wikiLink = node
 
     // --- Liminis divergence from upstream (#347) ------------------------------
     // Strip a trailing backslash from the target only when an alias is present.
