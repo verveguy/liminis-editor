@@ -1,0 +1,83 @@
+/* Chrome for the demo shell only. The editor's own appearance comes entirely
+   from `@liminis/editor/styles.css`, imported in App.jsx. */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #1a1a1a;
+  background: #fafafa;
+}
+
+.demo { display: flex; flex-direction: column; height: 100vh; }
+
+.demo-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid #e4e4e4;
+  background: #fff;
+}
+.demo-header h1 { margin: 0; font-size: 16px; }
+.demo-header p { margin: 4px 0 0; font-size: 13px; color: #666; }
+
+.demo-body { display: flex; flex: 1; min-height: 0; }
+
+.demo-sidebar {
+  width: 280px;
+  flex: none;
+  padding: 16px;
+  overflow-y: auto;
+  border-right: 1px solid #e4e4e4;
+  background: #fff;
+  font-size: 13px;
+}
+.demo-sidebar h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; }
+.demo-sidebar section + section { margin-top: 28px; }
+.demo-hint { color: #888; font-size: 12px; }
+.demo-empty { color: #aaa; }
+
+.demo-outline { list-style: none; padding: 0; margin: 0; }
+.demo-outline li { padding: 2px 0; color: #444; }
+
+.demo-annotations { list-style: none; padding: 0; margin: 0 0 12px; }
+.demo-annotations li {
+  border: 1px solid #e4e4e4;
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+.demo-annotations li.is-active { border-color: #f0b429; background: #fffbf0; }
+.demo-quote { color: #666; font-style: italic; }
+.demo-outcome { color: #999; font-size: 11px; }
+
+.demo-editor { flex: 1; min-width: 0; overflow-y: auto; background: #fff; }
+
+/* Scoped to the demo shell's own controls — the direct-child chain matches the
+   sidebar's standalone buttons and nothing else. A bare `button` selector would
+   restyle the editor's own toolbar, defeating the point of a demo that is
+   supposed to show what `@liminis/editor/styles.css` actually looks like; a
+   plain `.demo-sidebar button` would also catch the annotation rows below, and
+   `:hover` (which adds specificity) would then beat their `all: unset` and paint
+   a grey background over the active-row highlight. */
+.demo-sidebar > section > button {
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+.demo-sidebar > section > button:hover { background: #f4f4f4; }
+
+/* The annotation list rows are buttons so they are keyboard-reachable. They sit
+   under `ul > li`, so the shell rules above do not reach them. */
+.demo-annotations button {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px;
+  cursor: pointer;
+}
+.demo-annotations button:focus-visible { outline: 2px solid #f0b429; outline-offset: 2px; }
