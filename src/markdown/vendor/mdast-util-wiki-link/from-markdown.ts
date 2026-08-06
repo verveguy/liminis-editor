@@ -8,12 +8,14 @@
  * package would silently get different — and wrong — wiki-link behaviour inside
  * markdown tables (#347). Vendoring makes the package self-contained.
  *
- * Three deliberate divergences from upstream:
+ * Four deliberate divergences from upstream:
  *   1. The trailing-backslash strip (see `exitWikiLink`), previously carried as
  *      `liminis-app/patches/mdast-util-wiki-link@0.1.2.patch`.
  *   2. Real types instead of `any` on the public option and node shapes.
  *   3. `exitWikiLink` reads the node off `this.stack` rather than off a
  *      closure variable shared by every handler in one `fromMarkdown()` call.
+ *   4. `top()` asserts the stack frame is actually a wiki-link, so the
+ *      cannot-nest assumption fails loudly rather than corrupting a sibling node.
  *
  * Nothing else about the parse behaviour changes: `value`, `data.alias`,
  * `data.permalink`, `data.exists`, `data.hName`, `data.hProperties` and
@@ -55,8 +57,29 @@ interface WikiLinkCompileContext {
   sliceSerialize: (token: unknown) => string
 }
 
+/**
+ * The node currently being built, read off the compile stack.
+ *
+ * The type check is not ceremony. Every handler here assumes the top of the
+ * stack is the wiki-link it entered, which holds because wiki-links cannot
+ * nest — but nothing in this file *enforces* that, and there is no upstream
+ * left to diff against. If a future micromark extension change, or a consumer
+ * combining extensions, ever let a second wiki-link token open while one is
+ * still on the stack, the handlers would quietly write `value`, `alias`,
+ * `permalink` and `hChildren` onto the wrong node and the corruption would
+ * surface as mis-rendered links, not as an error. Failing loudly here converts
+ * that into a stack trace naming this file.
+ */
 function top(stack: unknown[]): WikiLinkNode {
-  return stack[stack.length - 1] as WikiLinkNode
+  const node = stack[stack.length - 1] as WikiLinkNode | undefined
+  if (node?.type !== 'wikiLink') {
+    throw new Error(
+      `wiki-link handler expected a wikiLink on top of the mdast stack, found ${
+        node === undefined ? 'an empty stack' : `a ${String(node.type)}`
+      }. Wiki-links are assumed not to nest; if that changed, these handlers need per-node state.`
+    )
+  }
+  return node
 }
 
 export function fromMarkdown(opts: WikiLinkFromMarkdownOptions = {}) {
