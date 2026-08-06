@@ -114,10 +114,30 @@ for (const subpath of EXPECTED_SUBPATHS) {
   }
 }
 
+// FR-003. Asserted here on the *packed* manifest, not just in
+// `editor-package-wiring.test.ts`, which reads the checked-in one — `publishConfig`
+// can override `dependencies`/`peerDependencies` too, so the source manifest being
+// right does not by itself mean the shipped artifact is. The named four are the
+// floor; the sweep below is what actually covers the set, so adding a twelfth
+// `@lexical/*` cannot quietly arrive as a hard dependency.
 for (const peer of ['react', 'react-dom', 'lexical', '@lexical/react']) {
   check(`${peer} is a peerDependency`, Boolean(packed.peerDependencies?.[peer]))
-  check(`${peer} is not a hard dependency`, !packed.dependencies?.[peer])
 }
+
+const SINGLE_INSTANCE = /^(react|react-dom|lexical|@lexical\/.+)$/
+const hardSingletons = Object.keys(packed.dependencies ?? {}).filter((name) => SINGLE_INSTANCE.test(name))
+check(
+  'no React or Lexical package is a hard dependency of the packed artifact',
+  hardSingletons.length === 0,
+  hardSingletons.join(', '),
+)
+
+const declaredPeers = Object.keys(packed.peerDependencies ?? {}).filter((name) => SINGLE_INSTANCE.test(name))
+check(
+  `every React/Lexical package is peered (${declaredPeers.length} found)`,
+  declaredPeers.length >= 14,
+  `expected react, react-dom, lexical and the @lexical/* set; got ${declaredPeers.join(', ')}`,
+)
 
 // ADR-075 §4: declaring `sideEffects` re-separated prismjs's core from
 // `prism-clike.js` in liminis-app's rolldown graph and crashed the renderer with
