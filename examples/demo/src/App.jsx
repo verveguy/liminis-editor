@@ -10,7 +10,7 @@
  * 2. **It is a plain external consumer.** It installs the packed tarball, the
  *    same way an adopter would, and does nothing the README does not describe.
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 // The editor itself, plus the annotation-configuration types, come from the
 // root entry. `captureAnchor`/`resolveAnchors` live on `./annotations` because
@@ -45,10 +45,24 @@ sentence and add a note, then edit the paragraph around it — the marker follow
 `
 
 /**
- * The document version anchors are stamped with. A real host would use a
- * content hash or a git SHA; the demo has one document, so a constant will do.
+ * The document version anchors are stamped with.
+ *
+ * This has to *track the document*, not be a constant. An anchor records the
+ * version it was captured against, and a resolution records the version it was
+ * resolved against — so if the version never changes, every anchor claims to
+ * have been captured against the same revision no matter when it was made, and
+ * the metadata stops meaning anything. A real host would use a content hash or
+ * a git SHA; this is the former, kept deliberately tiny (FNV-1a) so the demo
+ * stays dependency-free.
  */
-const DOC_VERSION = 'demo-v1'
+function documentVersion(text) {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  return `demo-${hash.toString(16).padStart(8, '0')}`
+}
 
 /**
  * One annotation kind. This object — and nothing else — is what turns the
@@ -69,9 +83,16 @@ export function App() {
   const [activeId, setActiveId] = useState(null)
   const [nextId, setNextId] = useState(1)
 
+  // Recomputed whenever the text changes, so an anchor captured before an edit
+  // and one captured after carry genuinely different revisions. Editing back to
+  // the original text yields the original version again, which is the point of
+  // hashing content rather than counting edits.
+  const docVersion = useMemo(() => documentVersion(markdown), [markdown])
+
   // The host mints the id and owns storage; the package treats both as opaque.
   // `event.anchor` arrives without `docVersion` — the package cannot know which
-  // version of the document you are persisting against, so you stamp it.
+  // version of the document you are persisting against, so you stamp it with
+  // the version current at capture time.
   const handleCreate = (event) => {
     if (!event.anchor) return
     const id = `note-${nextId}`
@@ -81,7 +102,7 @@ export function App() {
       {
         id,
         kind: 'note',
-        anchor: { ...event.anchor, docVersion: DOC_VERSION },
+        anchor: { ...event.anchor, docVersion },
         payload: { note: `Note ${nextId}` },
       },
     ])
@@ -95,7 +116,7 @@ export function App() {
     const results = await resolveAnchors(
       annotations.map((a) => ({ id: a.id, anchor: a.anchor })),
       markdown,
-      DOC_VERSION,
+      docVersion,
     )
     setAnnotations((current) =>
       current.map((a) => {
