@@ -2,7 +2,7 @@
 
 Markdown ↔ mdast ↔ Lexical, usable with or without an editor mounted.
 
-```
+```text
 markdown text  ──parseMarkdown──▶  mdast Root  ──importMarkdownToLexical──▶  Lexical
 markdown text  ◀─stringifyMarkdown──  mdast Root  ◀──exportLexicalToMdast──  Lexical
 ```

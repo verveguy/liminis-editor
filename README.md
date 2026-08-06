@@ -111,11 +111,11 @@ import '@liminis/editor/styles.css'
 The sheet is plain CSS — OKLCH design tokens plus the editor's own rules. It has
 no build-step requirement and works with any bundler.
 
-#### TypeScript needs to be told CSS imports exist
+### TypeScript needs to be told CSS imports exist
 
 If you type-check your app, that import is an error out of the box:
 
-```
+```text
 error TS2882: Cannot find module or type declarations for side-effect import
   of '@liminis/editor/styles.css'.
 ```
