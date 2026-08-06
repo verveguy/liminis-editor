@@ -42,6 +42,22 @@ function check(name, ok, detail) {
   }
 }
 
+// Temp directories are registered here rather than removed inline at the end of
+// the happy path. Any `run()` below can throw — a failing install, a failing
+// arm build — and an un-caught throw would otherwise leak a `mkdtemp` directory
+// per failed run, which is exactly the state CI is in when you most want to run
+// this repeatedly.
+const tempDirs = []
+process.on('exit', () => {
+  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true })
+})
+
+function tempDir(prefix) {
+  const dir = mkdtempSync(join(tmpdir(), prefix))
+  tempDirs.push(dir)
+  return dir
+}
+
 function run(command, args, cwd, env = {}) {
   return execFileSync(command, args, {
     cwd,
@@ -59,7 +75,7 @@ step('Building @liminis/editor')
 run('pnpm', ['--filter', '@liminis/editor', 'run', 'build'], REPO_ROOT)
 
 step('Packing the tarball')
-const packDir = mkdtempSync(join(tmpdir(), 'liminis-editor-pack-'))
+const packDir = tempDir('liminis-editor-pack-')
 const packOutput = run('pnpm', ['pack', '--pack-destination', packDir], PACKAGE_DIR)
 const tarball = packOutput.trim().split('\n').pop().trim()
 if (!existsSync(tarball)) {
@@ -73,7 +89,7 @@ console.log(`  ${relative(REPO_ROOT, tarball) || tarball}`)
 // `@source` directive and the `externalizeDepsPlugin` exclusion stay valid —
 // `publishConfig` is what swaps them at pack time.
 step('Checking the packed manifest')
-const extractDir = mkdtempSync(join(tmpdir(), 'liminis-editor-extract-'))
+const extractDir = tempDir('liminis-editor-extract-')
 run('tar', ['xzf', tarball, '-C', extractDir], REPO_ROOT)
 const packed = JSON.parse(readFileSync(join(extractDir, 'package', 'package.json'), 'utf8'))
 
@@ -314,8 +330,8 @@ check(
 
 // ---------------------------------------------------------------------------
 
-rmSync(packDir, { recursive: true, force: true })
-rmSync(extractDir, { recursive: true, force: true })
+// `packDir`/`extractDir` are removed by the `exit` handler registered at the
+// top, so a failing arm above cleans up as reliably as a passing one.
 
 console.log('')
 if (failures > 0) {

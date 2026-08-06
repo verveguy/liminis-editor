@@ -29,6 +29,10 @@ run('pnpm', ['--filter', '@liminis/editor', 'run', 'build'], REPO_ROOT)
 
 console.log('▶ Packing the tarball')
 const packDir = mkdtempSync(join(tmpdir(), 'liminis-editor-demo-'))
+// Registered on `exit` rather than removed after the dev server returns: the
+// install steps below can throw, and execution would then never reach the
+// bottom of the script, leaking one temp directory per failed run.
+process.on('exit', () => rmSync(packDir, { recursive: true, force: true }))
 const tarball = run('pnpm', ['pack', '--pack-destination', packDir], PACKAGE_DIR).trim().split('\n').pop().trim()
 if (!existsSync(tarball)) {
   console.error(`could not find the packed tarball (parsed: ${tarball})`)
@@ -67,5 +71,4 @@ try {
 
 console.log('▶ Starting the demo — http://localhost:5178\n')
 const dev = spawnSync('pnpm', ['run', 'dev'], { cwd: DEMO_DIR, stdio: 'inherit' })
-rmSync(packDir, { recursive: true, force: true })
 process.exit(dev.status ?? 0)
