@@ -124,6 +124,27 @@ check(
   !existsSync(join(extractDir, 'package', 'src')),
 )
 
+// The pair to the assertion above. `tsc` emits `.js.map`/`.d.ts.map` whose
+// `sources` point at `../src/*.ts`, which `files` guarantees is absent. A
+// dangling declaration map is worse than no map: the IDE follows it to a
+// missing source and "Go to Definition" fails, where with no map it would land
+// on the `.d.ts`. Enabling `declarationMap`/`sourceMap` without also shipping
+// `src` is the mistake this catches.
+const mapFiles = []
+const walkMaps = (dir) => {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name)
+    if (statSync(full).isDirectory()) walkMaps(full)
+    else if (full.endsWith('.map')) mapFiles.push(relative(join(extractDir, 'package'), full))
+  }
+}
+walkMaps(join(extractDir, 'package', 'dist'))
+check(
+  'no sourcemap ships without the sources it points at',
+  mapFiles.length === 0,
+  `${mapFiles.length} map(s), e.g. ${mapFiles.slice(0, 3).join(', ')}`,
+)
+
 // ---------------------------------------------------------------------------
 // 2. Emitted declarations must not leak globals
 // ---------------------------------------------------------------------------

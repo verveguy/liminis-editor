@@ -16,8 +16,16 @@
   "compilerOptions": {
     "noEmit": false,
     "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
+    // No `declarationMap`/`sourceMap`. `files` deliberately ships `dist` without
+    // `src` — `verify-package.mjs` asserts no TypeScript source reaches the
+    // tarball — so every emitted map would reference a `../src/*.ts` that can
+    // never be there. Dangling maps are worse than none: an IDE follows the
+    // declaration map to the missing source and "Go to Definition" fails
+    // outright, where with no map it lands on the `.d.ts`; bundlers that read
+    // dependency sourcemaps warn once per missing source. Turn these back on
+    // only together with shipping `src`.
+    "declarationMap": false,
+    "sourceMap": false,
     // Incompatible with emit, and inert anyway — no source file imports with a
     // `.ts`/`.tsx` extension.
     "allowImportingTsExtensions": false,
