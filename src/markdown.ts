@@ -43,3 +43,31 @@ export {
 
 export { getFileType } from './utils/file-types'
 export type { FileType } from './utils/file-types'
+
+// The vendored wiki-link mdast extension (MIT, landakram/mdast-util-wiki-link),
+// carrying the Liminis trailing-backslash fix for aliased wiki-links inside
+// tables (#347). Exported here so a host building its own mdast pipeline — the
+// Electron main process's canonical chunker is the in-repo one — gets the same
+// *extension* the editor uses, without needing a pnpm patch.
+//
+// These are NOT equivalent to `parseMarkdown`/`stringifyMarkdown`, and the gap
+// is not cosmetic:
+//   - `parseMarkdown` escapes the alias divider before parsing. The strip inside
+//     `fromMarkdown` only helps once that has happened, so with GFM tables
+//     enabled the extension alone lets the table parser reach the `|` first and
+//     the row is corrupted (measured: 5 cells and 0 wiki-links where
+//     `parseMarkdown` gives 4 and 1).
+//   - `parseMarkdown`/`stringifyMarkdown` carry the `_emptyAlias` sentinel that
+//     distinguishes `[[target|]]` from `[[target]]`; the extensions do not.
+//   - the editor serializes wiki-links through `stringify.ts`'s own handler,
+//     not through `toMarkdown` here.
+// See `docs/markdown-pipeline.md` — "What the extensions do not give you".
+// Pure mdast: this entry's isolation contract is preserved.
+export {
+  fromMarkdown as wikiLinkFromMarkdown,
+  toMarkdown as wikiLinkToMarkdown,
+} from './markdown/vendor/mdast-util-wiki-link'
+export type {
+  WikiLinkFromMarkdownOptions,
+  WikiLinkToMarkdownOptions,
+} from './markdown/vendor/mdast-util-wiki-link'
