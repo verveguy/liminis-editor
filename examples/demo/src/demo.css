@@ -51,10 +51,14 @@ body {
 
 .demo-editor { flex: 1; min-width: 0; overflow-y: auto; background: #fff; }
 
-/* Scoped to the demo shell. A bare `button` selector here would also restyle
-   the editor's own toolbar controls, which defeats the point of a demo that is
-   supposed to show what `@liminis/editor/styles.css` actually looks like. */
-.demo-sidebar button {
+/* Scoped to the demo shell's own controls — the direct-child chain matches the
+   sidebar's standalone buttons and nothing else. A bare `button` selector would
+   restyle the editor's own toolbar, defeating the point of a demo that is
+   supposed to show what `@liminis/editor/styles.css` actually looks like; a
+   plain `.demo-sidebar button` would also catch the annotation rows below, and
+   `:hover` (which adds specificity) would then beat their `all: unset` and paint
+   a grey background over the active-row highlight. */
+.demo-sidebar > section > button {
   font: inherit;
   padding: 6px 10px;
   border: 1px solid #ccc;
@@ -62,10 +66,10 @@ body {
   background: #fff;
   cursor: pointer;
 }
-.demo-sidebar button:hover { background: #f4f4f4; }
+.demo-sidebar > section > button:hover { background: #f4f4f4; }
 
-/* The annotation list rows are buttons so they are keyboard-reachable; strip the
-   shell button chrome back off them and let the row styling below apply. */
+/* The annotation list rows are buttons so they are keyboard-reachable. They sit
+   under `ul > li`, so the shell rules above do not reach them. */
 .demo-annotations button {
   all: unset;
   box-sizing: border-box;
