@@ -7,8 +7,15 @@
   // recreate that risk surface and would make the six subpaths' isolation
   // depend on chunking config that fails silently. Emitting module-for-module
   // means `./markdown` cannot acquire `./headless`'s MathJax graph, `./contract`
-  // cannot acquire zod at runtime, and the `lazy(() => import('./AnnotationSurface'))`
+  // cannot acquire renderer code, and the `lazy(() => import('./AnnotationSurface'))`
   // boundary survives verbatim as a real dynamic import to a real file.
+  //
+  // `./contract` is NOT zod-free, and this emit does not make it so: `contract.js`
+  // re-exports `./types.js`, which does `import { z } from 'zod'`, so a *value*
+  // import pulls zod in. What keeps zod out of a preload boundary is `import type`
+  // erasure, not the subpath — see ADR-075 §1 and ADR-078 §1. Preserving the
+  // module graph preserves that property exactly as it was; it does not
+  // strengthen it.
   //
   // `tsc-alias --resolve-full-paths` runs afterwards to turn tsc's extensionless
   // relative specifiers into Node-ESM-resolvable `./x.js` ones.
