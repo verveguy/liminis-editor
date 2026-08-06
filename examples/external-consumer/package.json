@@ -7,6 +7,7 @@
   "scripts": {
     "typecheck:bundler": "tsc -p tsconfig.bundler.json --noEmit",
     "typecheck:nodenext": "tsc -p tsconfig.nodenext.json --noEmit",
+    "typecheck:declarations": "tsc -p tsconfig.declarations.json --noEmit",
     "build:arm": "vite build"
   },
   "dependencies": {

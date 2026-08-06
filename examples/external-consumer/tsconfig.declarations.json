@@ -1,0 +1,23 @@
+{
+  // The same consumer program as `tsconfig.bundler.json`, with `skipLibCheck`
+  // turned off so the editor's *own* emitted declarations are actually checked
+  // rather than skipped.
+  //
+  // This is not a mode we expect adopters to run in — third-party dependencies
+  // (@mathjax/src, lexical) do not type-check cleanly under it, which is why
+  // `skipLibCheck: true` is the ecosystem default and what the other two configs
+  // use. `verify-package.mjs` runs this config and then filters the errors down
+  // to those originating inside `@liminis/editor/dist`, asserting that number is
+  // zero: our shipped declarations must be self-contained, whatever the rest of
+  // the graph does.
+  //
+  // What it guards specifically: `src/ambient/jsx.d.ts` supplies a global `JSX`
+  // namespace that React 19's types no longer provide, and ambient `.d.ts` files
+  // are never emitted to `dist/`. Any emitted declaration reachable from a public
+  // entry that names bare `JSX.Element` would therefore fail for an adopter with
+  // "Cannot find namespace 'JSX'". Today none is reachable; this keeps it that way.
+  "extends": "./tsconfig.bundler.json",
+  "compilerOptions": {
+    "skipLibCheck": false
+  }
+}

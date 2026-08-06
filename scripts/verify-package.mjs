@@ -332,6 +332,35 @@ step('Type-checking the consumer (moduleResolution: nodenext)')
 run('pnpm', ['run', 'typecheck:nodenext'], CONSUMER_DIR)
 check('all code subpaths type-check under "nodenext"', true)
 
+// Both runs above set `skipLibCheck: true`, as every real consumer's tsconfig
+// does — which means neither of them checks the editor's own emitted `.d.ts` at
+// all. That hides a specific hazard: `src/ambient/jsx.d.ts` supplies a global
+// `JSX` namespace that React 19's types no longer provide, and ambient files are
+// never emitted to `dist/`. Several emitted declarations do name bare
+// `JSX.Element`; none is reachable from a public entry today, so an adopter
+// never loads them — but nothing was holding that.
+//
+// Run the same program with `skipLibCheck` off and filter the errors to those
+// originating inside the installed editor. Errors from other packages'
+// declarations (@mathjax/src and lexical both have some) are not ours and are
+// deliberately ignored — the assertion is that *our* shipped declarations are
+// self-contained, not that the whole graph is clean under a mode nobody uses.
+step('Type-checking the consumer with skipLibCheck off (emitted declarations)')
+let declarationDiagnostics = ''
+try {
+  run('pnpm', ['run', 'typecheck:declarations'], CONSUMER_DIR)
+} catch (error) {
+  declarationDiagnostics = `${error.stdout ?? ''}`
+}
+const ourDeclarationErrors = declarationDiagnostics
+  .split('\n')
+  .filter((line) => /error TS\d+/.test(line) && line.includes('@liminis/editor'))
+check(
+  'no emitted declaration fails to type-check on its own terms',
+  ourDeclarationErrors.length === 0,
+  ourDeclarationErrors.slice(0, 5).join('\n      '),
+)
+
 // ---------------------------------------------------------------------------
 // 5. Build the measurement arms
 // ---------------------------------------------------------------------------
