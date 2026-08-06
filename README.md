@@ -111,6 +111,38 @@ import '@liminis/editor/styles.css'
 The sheet is plain CSS — OKLCH design tokens plus the editor's own rules. It has
 no build-step requirement and works with any bundler.
 
+#### TypeScript needs to be told CSS imports exist
+
+If you type-check your app, that import is an error out of the box:
+
+```
+error TS2882: Cannot find module or type declarations for side-effect import
+  of '@liminis/editor/styles.css'.
+```
+
+This is a TypeScript language limitation, not something the package can fix from
+its side: TypeScript has no built-in meaning for a `.css` module, so *any*
+stylesheet import from *any* package needs an ambient declaration. Most React
+starters already provide one and you will never see this. If yours does not, one
+line anywhere in your project's `include` fixes it:
+
+```ts
+// css.d.ts
+declare module '*.css'
+```
+
+If you are on Vite, adding its client types does the same job and covers assets
+too:
+
+```jsonc
+// tsconfig.json
+{ "compilerOptions": { "types": ["vite/client"] } }
+```
+
+Note the contrast with the failure above: forgetting the *import* fails
+silently, while adding it without a declaration fails loudly at compile time.
+Neither is a package defect, but only one of them tells you what is wrong.
+
 ### If you use Tailwind
 
 Some of the editor's markup also uses Tailwind utility classes. Tailwind v4

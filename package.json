@@ -1,6 +1,7 @@
 {
   "name": "@liminis/editor",
   "version": "0.1.0",
+  "//private": "Deliberate, not an oversight. Publishing to a registry is out of scope for #940 (see ADR-078); this issue only proves the package is publishable. `pnpm pack` works on a private package, so the whole verify:package pipeline runs — but `npm publish` will refuse, which is the guard we want until the publish decision is actually taken. Remove this flag as part of that decision, not before.",
   "private": true,
   "license": "MIT",
   "description": "Lexical-based markdown WYSIWYG editor with mdast round-trip and a host-injection seam",
