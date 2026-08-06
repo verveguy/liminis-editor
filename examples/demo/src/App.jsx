@@ -146,14 +146,14 @@ export function App() {
               <>
                 <ul className="demo-annotations">
                   {annotations.map((a) => (
-                    <li
-                      key={a.id}
-                      className={a.id === activeId ? 'is-active' : undefined}
-                      onClick={() => setActiveId(a.id)}
-                    >
-                      <strong>{a.payload?.note ?? a.id}</strong>
-                      <span className="demo-quote">“{a.anchor.targetText}”</span>
-                      <span className="demo-outcome">{a.outcome ?? 'unchanged'}</span>
+                    // A button, not a clickable <li> — activating an annotation
+                    // has to be reachable by keyboard, not just by mouse.
+                    <li key={a.id} className={a.id === activeId ? 'is-active' : undefined}>
+                      <button type="button" onClick={() => setActiveId(a.id)}>
+                        <strong>{a.payload?.note ?? a.id}</strong>
+                        <span className="demo-quote">“{a.anchor.targetText}”</span>
+                        <span className="demo-outcome">{a.outcome ?? 'unchanged'}</span>
+                      </button>
                     </li>
                   ))}
                 </ul>

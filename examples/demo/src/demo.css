@@ -41,14 +41,9 @@ body {
 
 .demo-annotations { list-style: none; padding: 0; margin: 0 0 12px; }
 .demo-annotations li {
-  padding: 8px;
   border: 1px solid #e4e4e4;
   border-radius: 6px;
   margin-bottom: 6px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 .demo-annotations li.is-active { border-color: #f0b429; background: #fffbf0; }
 .demo-quote { color: #666; font-style: italic; }
@@ -56,7 +51,10 @@ body {
 
 .demo-editor { flex: 1; min-width: 0; overflow-y: auto; background: #fff; }
 
-button {
+/* Scoped to the demo shell. A bare `button` selector here would also restyle
+   the editor's own toolbar controls, which defeats the point of a demo that is
+   supposed to show what `@liminis/editor/styles.css` actually looks like. */
+.demo-sidebar button {
   font: inherit;
   padding: 6px 10px;
   border: 1px solid #ccc;
@@ -64,4 +62,18 @@ button {
   background: #fff;
   cursor: pointer;
 }
-button:hover { background: #f4f4f4; }
+.demo-sidebar button:hover { background: #f4f4f4; }
+
+/* The annotation list rows are buttons so they are keyboard-reachable; strip the
+   shell button chrome back off them and let the row styling below apply. */
+.demo-annotations button {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px;
+  cursor: pointer;
+}
+.demo-annotations button:focus-visible { outline: 2px solid #f0b429; outline-offset: 2px; }

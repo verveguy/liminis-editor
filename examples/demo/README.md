@@ -17,12 +17,18 @@ If you would rather do it by hand:
 
 ```bash
 pnpm --filter @liminis/editor run build
-cd packages/editor && pnpm pack --pack-destination /tmp && cd -
+# `pnpm pack` prints the absolute path of the tarball it wrote — capture it
+# rather than hard-coding a version that goes stale on the next bump.
+TARBALL=$(cd packages/editor && pnpm pack --pack-destination /tmp | tail -1)
 cd examples/demo
 pnpm install --ignore-workspace
-pnpm add --ignore-workspace /tmp/liminis-editor-0.1.0.tgz
+pnpm add --ignore-workspace "$TARBALL"
 pnpm dev
 ```
+
+Note that `pnpm add` rewrites this directory's `package.json` to point at that
+tarball path. `pnpm demo` snapshots and restores the manifest for you; if you run
+the steps by hand, `git checkout examples/demo/package.json` afterwards.
 
 ## What to try
 

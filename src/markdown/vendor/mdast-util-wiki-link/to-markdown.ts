@@ -30,7 +30,20 @@ export function toMarkdown(opts: WikiLinkToMarkdownOptions = {}): ToMarkdownExte
     const exit = state.enter('wikiLink' as never)
 
     const nodeValue = state.safe(wikiLink.value, { before: '[', after: ']' })
-    const nodeAlias = state.safe(wikiLink.data?.alias ?? undefined, { before: '[', after: ']' })
+
+    // Second deliberate divergence from upstream. Upstream passes the alias
+    // through `safe()` unconditionally; `safe(undefined)` yields `''`, which is
+    // then unequal to a non-empty target, so a node carrying *no* alias
+    // serialized as `[[Target<divider>]]`. That output is malformed — it does
+    // not round-trip, parsing back as an empty alias rather than none.
+    //
+    // Nothing in this repository could reach it (`fromMarkdown` always populates
+    // `data.alias`, falling back to the target), so this changes no in-repo
+    // behaviour. It only matters to an external host that builds `wikiLink`
+    // nodes by hand — which is precisely who the published package is for.
+    const rawAlias = wikiLink.data?.alias
+    const hasAlias = typeof rawAlias === 'string' && rawAlias.length > 0
+    const nodeAlias = hasAlias ? state.safe(rawAlias, { before: '[', after: ']' }) : nodeValue
 
     const value =
       nodeAlias !== nodeValue ? `[[${nodeValue}${aliasDivider}${nodeAlias}]]` : `[[${nodeValue}]]`
