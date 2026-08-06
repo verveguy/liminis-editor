@@ -43,15 +43,26 @@ console.log('▶ Installing it into examples/demo')
 // *next* run — `pnpm install` would try to resolve a tarball that no longer
 // exists, before `pnpm add` ever got the chance to replace it. Snapshot and
 // restore, exactly as `scripts/verify-package.mjs` does for its own fixture.
+// The lockfile needs the same treatment. It is deleted below and rewritten by
+// the install, so restoring only the manifest leaves a lockfile pinning
+// `@liminis/editor` to a temp tarball this script is about to delete, against a
+// manifest that no longer mentions it. pnpm reconciles that on the next install
+// rather than failing, so this is tidiness rather than breakage — but a cleanup
+// block that restores half of what it disturbed is worse than one that says so.
 const demoManifestPath = join(DEMO_DIR, 'package.json')
 const demoManifest = readFileSync(demoManifestPath, 'utf8')
+const demoLockPath = join(DEMO_DIR, 'pnpm-lock.yaml')
+const hadDemoLock = existsSync(demoLockPath)
+const demoLock = hadDemoLock ? readFileSync(demoLockPath, 'utf8') : null
 try {
   rmSync(join(DEMO_DIR, 'node_modules'), { recursive: true, force: true })
-  rmSync(join(DEMO_DIR, 'pnpm-lock.yaml'), { force: true })
+  rmSync(demoLockPath, { force: true })
   run('pnpm', ['install', '--ignore-workspace', '--no-frozen-lockfile'], DEMO_DIR)
   run('pnpm', ['add', '--ignore-workspace', tarball], DEMO_DIR)
 } finally {
   writeFileSync(demoManifestPath, demoManifest)
+  if (hadDemoLock) writeFileSync(demoLockPath, demoLock)
+  else rmSync(demoLockPath, { force: true })
 }
 
 console.log('▶ Starting the demo — http://localhost:5178\n')
