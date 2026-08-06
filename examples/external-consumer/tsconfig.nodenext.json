@@ -1,0 +1,23 @@
+{
+  // Node-ESM resolution: the stricter of the two. This is what catches an emit
+  // whose relative specifiers are missing their `.js` extensions — a build that
+  // type-checks fine under "bundler" and fails to resolve under Node.
+  //
+  // The arms are excluded: they are JSX/CSS entry points, and `.css` has no
+  // meaning to `nodenext`. Subpath resolution is what this project checks.
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["react", "react-dom"]
+  },
+  "include": ["src/subpaths.ts"]
+}
