@@ -75,7 +75,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
-  "//peerDependencies": "Ranges are the compatibility contract, not the tested matrix. CI resolves one point version per range (currently react 19.2.x latest and lexical 0.44.x latest), so every caret range here has an untested lower half — narrowing `react` to the devDependency's `^19.2.5` would not change that, it would only reject working consumers. The floors are the lowest versions whose APIs this package relies on: React 19 (the `use`/ref-as-prop era both apps target) and Lexical 0.44. Raise a floor when the code actually starts needing a later API, not to mirror whatever CI happened to install.",
+  "//peerDependencies": "Ranges are the compatibility contract, not the tested matrix. CI resolves one point version per range (currently react 19.2.x latest and lexical 0.44.x latest), so every caret range here has an untested lower half — narrowing `react` to the devDependency's `^19.2.5` would not change that, it would only reject working consumers. Checked rather than assumed for the react floor specifically: the package imports nothing newer than React 19.0 (no `use`, no `useEffectEvent`, no `<Activity>`), so 19.2.0 is a conservative floor, not a guess. Raise a floor when the code actually starts needing a later API, not to mirror whatever CI happened to install.",
   "peerDependencies": {
     "@lexical/code": "^0.44.0",
     "@lexical/code-prism": "^0.44.0",
