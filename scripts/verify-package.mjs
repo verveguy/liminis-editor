@@ -132,11 +132,41 @@ check(
   hardSingletons.join(', '),
 )
 
+// Both directions, deliberately. A floor alone catches under-peering (a package
+// the editor imports left as a hard dependency, the two-registries failure) but
+// is blind to over-peering — a name drifting into `peerDependencies` that the
+// editor does not import is install burden pushed onto every consumer, and it
+// would pass a `>= 14` check silently. So the set is pinned by name: adding a
+// twelfth `@lexical/*` is fine, it just has to be a deliberate edit here rather
+// than something that arrives unnoticed.
+const EXPECTED_PEERS = [
+  'react',
+  'react-dom',
+  'lexical',
+  '@lexical/code',
+  '@lexical/code-prism',
+  '@lexical/link',
+  '@lexical/list',
+  '@lexical/mark',
+  '@lexical/markdown',
+  '@lexical/react',
+  '@lexical/rich-text',
+  '@lexical/selection',
+  '@lexical/table',
+  '@lexical/utils',
+]
 const declaredPeers = Object.keys(packed.peerDependencies ?? {}).filter((name) => SINGLE_INSTANCE.test(name))
+const missingPeers = EXPECTED_PEERS.filter((name) => !declaredPeers.includes(name))
+const unexpectedPeers = declaredPeers.filter((name) => !EXPECTED_PEERS.includes(name))
 check(
-  `every React/Lexical package is peered (${declaredPeers.length} found)`,
-  declaredPeers.length >= 14,
-  `expected react, react-dom, lexical and the @lexical/* set; got ${declaredPeers.join(', ')}`,
+  `every React/Lexical package the editor imports is peered (${declaredPeers.length} found)`,
+  missingPeers.length === 0,
+  `not peered: ${missingPeers.join(', ')}`,
+)
+check(
+  'no unexpected React/Lexical package has been added to peerDependencies',
+  unexpectedPeers.length === 0,
+  `${unexpectedPeers.join(', ')} — if this is intended, add it to EXPECTED_PEERS in this script`,
 )
 
 // ADR-075 §4: declaring `sideEffects` re-separated prismjs's core from
