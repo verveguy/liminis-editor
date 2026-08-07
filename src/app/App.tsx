@@ -4,6 +4,7 @@ import type { SelectionContextMenuEvent } from './editor/SelectionContextMenuPlu
 import type { SweepFn } from './editor/AmbientCorrectionPlugin';
 import type { AnnotationCreateEvent } from './editor/AnnotationPlugin';
 import type { Annotation, AnnotationEditorHandle, AnnotationKindConfigs } from '../annotations/types';
+import type { WikiLinkPromotionMode } from './mapper/lexicalToMdast';
 import type { HostToUIMessage, SlashMDSettings, TextEdit, ThemeOverrides } from '../types';
 import { useEditorHost } from '../host/context';
 import { useHostMessages } from '../host/messages';
@@ -61,6 +62,15 @@ interface AppProps {
   filePath?: string;
   /** Resolve a workspace-relative file path to a data URL for display */
   resolveLocalAsset?: (relativePath: string) => Promise<string | null>;
+  /**
+   * Whether an untitled relative link is promoted to wiki-link syntax on
+   * export. Defaults to `'promote'`, today's only behavior. Unlike
+   * `imagePathResolution`, this is a direct prop rather than sourced from IPC
+   * `SlashMDSettings` — `App` also supports a non-IPC "inline" mode (`content`/
+   * `onChange` props), where `settings` stays null forever, and a
+   * settings-only path would be unreachable there (liminis#951).
+   */
+  wikiLinkPromotion?: WikiLinkPromotionMode;
   /** Called when user right-clicks a text selection and chooses a context menu action */
   onSelectionContextMenu?: (event: SelectionContextMenuEvent) => void;
   /** Called when a single-word substitution is detected after a debounce window. */
@@ -83,7 +93,7 @@ interface AppProps {
   className?: string;
 }
 
-export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, onSelectionContextMenu, onSubstitutionDetected, sweepRef, annotationKinds, annotations, activeAnnotationId, scrollToAnnotation, onCreateAnnotation, onActivateAnnotation, annotationEditorHandleRef, annotationLogger, className = 'min-h-screen p-0' }: AppProps) {
+export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, wikiLinkPromotion, onSelectionContextMenu, onSubstitutionDetected, sweepRef, annotationKinds, annotations, activeAnnotationId, scrollToAnnotation, onCreateAnnotation, onActivateAnnotation, annotationEditorHandleRef, annotationLogger, className = 'min-h-screen p-0' }: AppProps) {
   const { bridge, logger } = useEditorHost();
   const log = useMemo(() => logger('slashmd/App'), [logger]);
   const { requestInit, applyTextEdits } = useHostMessages();
@@ -271,6 +281,7 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
         assetBaseUri={assetBaseUri}
         documentDirUri={documentDirUri}
         imagePathResolution={settings?.imagePathResolution ?? 'document'}
+        wikiLinkPromotion={wikiLinkPromotion}
         resolveLocalAsset={resolveLocalAsset}
         editable={editable}
         filePath={filePath}

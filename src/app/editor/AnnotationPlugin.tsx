@@ -3,6 +3,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { COMMAND_PRIORITY_CRITICAL } from 'lexical';
 import type { AnchorFields } from '../../annotations/anchor-model';
 import type { AnnotationKindConfigs } from '../../annotations/types';
+import type { WikiLinkPromotionMode } from '../mapper/lexicalToMdast';
 import {
   readAnchorFields,
   removeMarksForAnnotation,
@@ -32,6 +33,8 @@ interface AnnotationPluginProps {
   onCreateAnnotation: (event: AnnotationCreateEvent) => void;
   /** Injected so the package never imports a host logger directly (FR-010). */
   logger?: { warn: (message: string, ...args: unknown[]) => void };
+  /** Forwarded to the anchor-capture export pass — see `Editor`'s own prop of the same name. */
+  wikiLinkPromotion?: WikiLinkPromotionMode;
 }
 
 /**
@@ -46,7 +49,7 @@ interface AnnotationPluginProps {
  * Not gated on `editable`: annotating is decoupled from editing, and a
  * read-only document is a legitimate place to comment.
  */
-export function AnnotationPlugin({ kinds, onCreateAnnotation, logger }: AnnotationPluginProps) {
+export function AnnotationPlugin({ kinds, onCreateAnnotation, logger, wikiLinkPromotion }: AnnotationPluginProps) {
   const [editor] = useLexicalComposerContext();
 
   const mintId = useCallback((): string => {
@@ -159,7 +162,7 @@ export function AnnotationPlugin({ kinds, onCreateAnnotation, logger }: Annotati
         queueMicrotask(() => {
           if (unmountedRef.current) return;
           pendingIds.delete(id);
-          const anchor = readAnchorFields(editor, id);
+          const anchor = readAnchorFields(editor, id, { wikiLinkPromotion });
           // Comments keep the mark (it is their live anchor and the composer's
           // highlight); corrections discard it so nothing ever paints.
           if (!retainMark) removeMarksForAnnotation(editor, id);
@@ -174,7 +177,7 @@ export function AnnotationPlugin({ kinds, onCreateAnnotation, logger }: Annotati
     // Only the registration is scoped to this effect run; cancellation and the
     // pending-mark retraction live in the teardown effect above.
     return unregister;
-  }, [editor, kinds, onCreateAnnotation, logger, mintId]);
+  }, [editor, kinds, onCreateAnnotation, logger, mintId, wikiLinkPromotion]);
 
   return null;
 }

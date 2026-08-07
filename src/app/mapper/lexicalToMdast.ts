@@ -65,12 +65,32 @@ import type {
 } from 'mdast';
 import type { DefListTermNode, DefListDescriptionNode } from 'mdast-util-definition-list';
 
+/**
+ * Whether an untitled relative link (a `.md` path, `.md` path with anchor, bare
+ * `#anchor`, or directory-style path — see `isWikiLinkUrl`) is promoted to
+ * wiki-link syntax (`[[target]]` / `[[target|alias]]`) on export, or emitted as
+ * a standard markdown link (`[text](target)`). `'promote'` (the default)
+ * reproduces the pipeline's only historical behavior; `'off'` is for a
+ * consumer whose documents are rendered by something that doesn't understand
+ * wiki-link syntax (e.g. the GitHub web UI — liminis#951).
+ *
+ * Never affects a **titled** link, which is never promoted regardless of this
+ * setting (liminis#919), or wiki-link *parsing* on import, which this setting
+ * does not touch at all.
+ */
+export type WikiLinkPromotionMode = 'promote' | 'off';
+
+export interface ExportOptions {
+  /** @default 'promote' */
+  wikiLinkPromotion?: WikiLinkPromotionMode;
+}
+
 // Convert Lexical editor state to mdast tree
-export function exportLexicalToMdast(editor: LexicalEditor): Root {
+export function exportLexicalToMdast(editor: LexicalEditor, options: ExportOptions = {}): Root {
   let root: Root = { type: 'root', children: [] };
 
   editor.getEditorState().read(() => {
-    root = exportLexicalToMdastInEditorState();
+    root = exportLexicalToMdastInEditorState(options);
   });
 
   return root;
@@ -84,7 +104,14 @@ export function exportLexicalToMdast(editor: LexicalEditor): Root {
  * run inside the same read as the plain export it's paired with, with no
  * nested `.read()` call.
  */
-export function exportLexicalToMdastInEditorState(): Root {
+export function exportLexicalToMdastInEditorState(options: ExportOptions = {}): Root {
+  // Read once per export pass into the module-level variable `convertLinkNode`
+  // consults — mirrors the `annotateTargetId` precedent below (safe under the
+  // same synchronous, non-reentrant discipline: this function is the sole
+  // entry point every caller funnels through, and it returns before any other
+  // export could start).
+  wikiLinkPromotionMode = options.wikiLinkPromotion ?? 'promote';
+
   // Refresh the sentinel-boundary maps for this export pass — populated only
   // when annotate mode is on (see setAnnotateTarget); left null otherwise, so
   // the disk-write path (never sets a target) takes on zero overhead and zero
@@ -171,6 +198,10 @@ const SENTINEL_CLOSE_END = '\u{E003}';
 let annotateTargetId: string | null = null;
 let sentinelBefore: Map<LexicalNode, string> | null = null;
 let sentinelAfter: Map<LexicalNode, string> | null = null;
+
+// Set once per export pass by exportLexicalToMdastInEditorState (see its own
+// comment); read only by convertLinkNode's promotion check below.
+let wikiLinkPromotionMode: WikiLinkPromotionMode = 'promote';
 
 /**
  * Enables (or, passed `null`, disables) annotated-serialize mode for `id`. See module doc above.
@@ -1424,7 +1455,10 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
   // Check if this should be a wiki-link. A title is a strong signal that the
   // author deliberately used standard markdown link syntax — wiki-link syntax
   // has no title slot, so promoting a titled link would silently drop it.
-  if (isWikiLinkUrl(url) && !linkNode.getTitle()) {
+  // `wikiLinkPromotionMode` (liminis#951) additionally lets a host opt out of
+  // promotion entirely, for a consumer whose documents are rendered
+  // somewhere that doesn't understand wiki-link syntax.
+  if (wikiLinkPromotionMode === 'promote' && isWikiLinkUrl(url) && !linkNode.getTitle()) {
     // Convert URL back to wiki-link target
     let target: string;
 
