@@ -203,8 +203,9 @@ describe('AnchorScrollPlugin over the injected onScrollToAnchor service', () => 
 
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const scrollIntoView = vi.fn()
-    HTMLElement.prototype.scrollIntoView = scrollIntoView
+    const scrollIntoView = vi
+      .spyOn(HTMLElement.prototype, 'scrollIntoView')
+      .mockImplementation(() => {})
 
     try {
       const { editor } = await mountPlugin({ onScrollToAnchor }, <AnchorScrollPlugin />)
@@ -226,6 +227,7 @@ describe('AnchorScrollPlugin over the injected onScrollToAnchor service', () => 
     } finally {
       errorSpy.mockRestore()
       warnSpy.mockRestore()
+      scrollIntoView.mockRestore()
     }
   })
 
@@ -250,20 +252,24 @@ describe('AnchorScrollPlugin over the injected onScrollToAnchor service', () => 
     // and the walk must be what finds this container. happy-dom doesn't
     // populate overflow/scroll metrics from layout, so stub them explicitly.
     const realGetComputedStyle = window.getComputedStyle.bind(window)
-    vi.spyOn(window, 'getComputedStyle').mockImplementation((el, ...rest) =>
-      el === container
-        ? ({ overflowY: 'auto' } as CSSStyleDeclaration)
-        : realGetComputedStyle(el, ...rest)
-    )
+    const getComputedStyleSpy = vi
+      .spyOn(window, 'getComputedStyle')
+      .mockImplementation((el, ...rest) =>
+        el === container
+          ? ({ overflowY: 'auto' } as CSSStyleDeclaration)
+          : realGetComputedStyle(el, ...rest)
+      )
     Object.defineProperty(container, 'scrollHeight', { value: 2000, configurable: true })
     Object.defineProperty(container, 'clientHeight', { value: 500, configurable: true })
     const scrollTo = vi.fn()
     container.scrollTo = scrollTo
 
-    act(() => emit!('design notes'))
-    expect(scrollTo).toHaveBeenCalledTimes(1)
-
-    vi.restoreAllMocks()
+    try {
+      act(() => emit!('design notes'))
+      expect(scrollTo).toHaveBeenCalledTimes(1)
+    } finally {
+      getComputedStyleSpy.mockRestore()
+    }
   })
 
   it('positions the resolved heading near the top of the container rather than flush or via raw offsetTop', async () => {
