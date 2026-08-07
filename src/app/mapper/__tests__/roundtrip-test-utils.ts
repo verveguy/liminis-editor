@@ -8,70 +8,17 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { createEditor, LexicalEditor } from 'lexical';
-import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { registerList } from '@lexical/list';
-import { CodeNode, CodeHighlightNode } from '@lexical/code';
-import { AutoLinkNode } from '@lexical/link';
-import { MarkNode } from '@lexical/mark';
-import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
-import {
-  CalloutNode,
-  ToggleContainerNode,
-  ToggleTitleNode,
-  ToggleContentNode,
-  ImageNode,
-  HorizontalRuleNode,
-  EquationNode,
-  MermaidNode,
-  C4Node,
-  FrontmatterNode,
-  CustomLinkNode,
-  CustomListNode,
-  CustomListItemNode,
-  FootnoteNode,
-  DefinitionListNode,
-  DefinitionTermNode,
-  DefinitionDescriptionNode,
-  HtmlNode,
-  ListItemParagraphBreakNode,
-} from '../../editor/nodes';
 import { parseMarkdown } from '../../../markdown/parse';
 import { stringifyMarkdown } from '../../../markdown/stringify';
 import { importMarkdownToLexical } from '../mdastToLexical';
 import { exportLexicalToMdast } from '../lexicalToMdast';
 import { createTwoFilesPatch } from 'diff';
+import { editorNodes } from '../../editor/editorNodes';
 
-// All editor node types, matching Editor.tsx
-export const editorNodes = [
-  HeadingNode,
-  QuoteNode,
-  CustomListNode,
-  CustomListItemNode,
-  CodeNode,
-  CodeHighlightNode,
-  CustomLinkNode,
-  AutoLinkNode,
-  TableNode,
-  TableRowNode,
-  TableCellNode,
-  CalloutNode,
-  ToggleContainerNode,
-  ToggleTitleNode,
-  ToggleContentNode,
-  ImageNode,
-  HorizontalRuleNode,
-  EquationNode,
-  MermaidNode,
-  C4Node,
-  FrontmatterNode,
-  FootnoteNode,
-  DefinitionListNode,
-  DefinitionTermNode,
-  DefinitionDescriptionNode,
-  HtmlNode,
-  ListItemParagraphBreakNode,
-  MarkNode,
-];
+// Re-exported for the ~15 internal test files that import the production
+// node set from here (#954: single source of truth is `../../editor/editorNodes`).
+export { editorNodes };
 
 export function createTestEditor(
   onError?: (error: Error) => void,
