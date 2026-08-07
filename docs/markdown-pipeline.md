@@ -80,6 +80,47 @@ import { importMarkdownToLexical, exportLexicalToMdast } from '@liminis/editor'
 These are what `<Editor>` uses internally. Reach for them directly only if you
 are driving a Lexical editor yourself.
 
+### Building a headless editor
+
+The mapper functions instantiate Lexical node classes directly, so a
+`createEditor` you build yourself must be configured with the *exact* node set
+`<Editor>` uses — any node type Lexical encounters that isn't registered
+throws. `@liminis/editor/nodes` exports that array (`editorNodes`) alongside
+the two mapper functions, without pulling in `<Editor>`/`<App>`, Mermaid, or
+Prism. This is the entry point to use for a fast round-trip regression test
+that exercises the real mapper without mounting a React component:
+
+```ts
+import { createEditor } from 'lexical'
+import { editorNodes, importMarkdownToLexical, exportLexicalToMdast } from '@liminis/editor/nodes'
+import { parseMarkdown } from '@liminis/editor/markdown'
+
+const editor = createEditor({
+  namespace: 'headless',
+  nodes: editorNodes,
+  onError: (error) => { throw error },
+})
+
+const parsed = parseMarkdown(markdownSource)
+
+// `importMarkdownToLexical` schedules its own `editor.update()`, which by
+// default reconciles on a microtask. Wrap it in a `discrete: true` update so
+// the mutation is committed before `exportLexicalToMdast` reads it back.
+editor.update(() => {
+  importMarkdownToLexical(editor, parsed.root)
+}, { discrete: true })
+
+const mdast = exportLexicalToMdast(editor)
+```
+
+`editorNodes` is the same array `<Editor>` configures its own `LexicalComposer`
+with — not a separately maintained copy — so a node type added to the
+production editor is reflected here automatically. `EquationNode` imports
+MathJax's lite adaptor at module scope, so loading `./nodes` carries the same
+documented MathJax-lite exception as `./headless`; it does not initialize
+Mermaid, C4's layout engine, or Prism, since those node classes lazy-load their
+render components.
+
 ## Wiki-links
 
 Wiki-links are `[[target]]` or `[[target|alias]]` (Obsidian/Foam style — the

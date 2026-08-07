@@ -1,5 +1,5 @@
 /**
- * `@liminis/editor/nodes` — the headless mapper surface (#954).
+ * `@liminis/editor/nodes` — the headless mapper surface (#954, ADR-079).
  *
  * The seventh declared export subpath, added as a *considered* export under
  * ADR-075's "closed set of declared subpaths" rule (same pattern ADR-077 used
