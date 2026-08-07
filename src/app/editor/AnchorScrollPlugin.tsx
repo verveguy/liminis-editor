@@ -113,6 +113,11 @@ export function AnchorScrollPlugin(): null {
       // previous one.
       cancelAnimationFrame(raf);
 
+      // Normalization is independent of DOM timing, so an anchor that
+      // normalizes to empty (e.g. punctuation-only) can never match no
+      // matter how long we retry — skip the animation-frame budget entirely.
+      if (!normalizeForMatch(anchor)) return;
+
       let attempts = 0;
       const tryScroll = () => {
         if (scrollToHeading(editor, anchor)) return;
