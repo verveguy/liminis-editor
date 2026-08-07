@@ -116,11 +116,17 @@ export function ImageComponent({
       console.error('Failed to copy image to clipboard:', err);
       // The <img> no longer requests CORS mode (see crossOrigin removal below),
       // so drawing a cross-origin image onto the canvas taints it and toBlob()
-      // rejects. That's an accepted tradeoff: display wins over copy for
-      // remote images that don't support CORS.
+      // rejects with a SecurityError. That's an accepted tradeoff: display
+      // wins over copy for remote images that don't support CORS. Since this
+      // is now the primary expected trigger for this catch (rather than an
+      // edge case), give it a message that explains the cause instead of the
+      // generic DOMException text.
+      const isTaintedCanvas = err instanceof DOMException && err.name === 'SecurityError';
       notifyError(
         'Failed to copy image',
-        err instanceof Error ? err.message : String(err)
+        isTaintedCanvas
+          ? 'This image is hosted on another site that does not allow copying — try saving it instead.'
+          : err instanceof Error ? err.message : String(err)
       );
     }
     setContextMenu((prev) => ({ ...prev, visible: false }));
