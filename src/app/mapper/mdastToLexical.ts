@@ -400,6 +400,7 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
 
       const paragraph = $createParagraphNode();
       const link = $createCustomLinkNode(url);
+      link.setWikiLinkOrigin(true);
       // Parse format markers in alias (e.g., **bold**, *italic*, ~~strike~~)
       const { text: plainText, formats } = parseFormattedAlias(rawDisplayText);
       const textNode = $createTextNode(plainText);
@@ -1057,6 +1058,10 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageN
       }
       
       const link = $createCustomLinkNode(url);
+      // Marks this link as genuine author-written wiki-link syntax, so export
+      // (convertLinkNode) always emits it back as a wiki-link even when a host
+      // has disabled promotion of ordinary links (liminis#951).
+      link.setWikiLinkOrigin(true);
       // Preserve empty-alias state for round-trip
       if ((wikiLink as any).data?._emptyAlias) {
         link.setWikiAliasState('empty');

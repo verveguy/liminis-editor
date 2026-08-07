@@ -389,6 +389,15 @@ its input, instead of being promoted.
 - **`bare-anchor.md`** (`[section](#section)`): a bare anchor-only link.
 - **`directory-link.md`** (`[folder](./folder/)`): a directory-style (trailing-slash)
   link.
+- **`genuine-wiki-link.md`** (`[[notes|note]]`) and **`genuine-wiki-link-bare.md`**
+  (`[[notes]]`): the opt-out's other edge — a link that was already wiki-link syntax in
+  the source, not an ordinary standard link this option is meant to stop promoting. These
+  pin that `wikiLinkPromotion: 'off'` only suppresses promotion of an *ordinary* link; a
+  genuine, author-written wiki-link still round-trips as one, since demoting it back to
+  `[text](target)` would corrupt a document's existing links (the exact failure mode this
+  option exists to prevent, just in the opposite direction). The two are distinguished by
+  provenance tracked on the parsed link node (`CustomLinkNode.getWikiLinkOrigin()`), not
+  by the URL, which is identical to `relative-md-link.md`'s either way.
 
 Each is byte-identical to its input (no `.expected.md`) and, like every other
 successfully round-tripping fixture in this corpus, gets its output round-tripped a
