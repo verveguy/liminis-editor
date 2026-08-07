@@ -27,18 +27,8 @@
  * into lazy/eager halves is a real fix but a separate refactor, out of scope
  * for this purely-additive change.
  *
- * A consumer builds a headless editor for testing like:
- *
- * ```ts
- * import { createEditor } from 'lexical'
- * import { editorNodes, importMarkdownToLexical, exportLexicalToMdast } from '@liminis/editor/nodes'
- * import { parseMarkdown } from '@liminis/editor/markdown'
- *
- * const editor = createEditor({ namespace: 'test', nodes: editorNodes, onError: (e) => { throw e } })
- * const parsed = parseMarkdown(markdownSource)
- * editor.update(() => importMarkdownToLexical(editor, parsed.root), { discrete: true })
- * const mdast = exportLexicalToMdast(editor)
- * ```
+ * See docs/markdown-pipeline.md for an example of building a headless editor
+ * from this entry's exports.
  */
 
 export { editorNodes } from './app/editor/editorNodes'
