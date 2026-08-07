@@ -168,3 +168,67 @@ Note also that `<Editor>`'s own *serialization* does not go through
 that additionally understands `data._emptyAlias`. `wikiLinkToMarkdown` is the
 faithful vendored upstream serializer, not a byte-for-byte match for what the
 editor emits.
+
+## Wiki-link promotion on export
+
+Everything above is about *parsing* `[[target]]` syntax the author already wrote.
+Independently, `exportLexicalToMdast` (in `lexicalToMdast.ts`) also *produces*
+wiki-link syntax on export, for a link the author wrote as an ordinary standard
+markdown link: `convertLinkNode` promotes any **untitled** link whose URL looks
+like a relative note reference — a relative `.md` path (with or without a
+leading `./`/`../`), a `.md` path with an anchor, a bare `#anchor`, or a
+directory-style (trailing-slash) path (see `isWikiLinkUrl`) — into `[[target]]`
+/ `[[target|alias]]` on export. A **titled** link (`[text](url "title")`) is
+never promoted, regardless of URL shape — wiki-link syntax has no slot for a
+title, so promoting one would silently drop it
+([#919](https://github.com/verveguy/liminis/issues/919)).
+
+This is deliberate for `liminis-app`, whose documents are wiki-link-native: a
+relative link to another note *is* a wiki-link, and round-tripping it as one is
+correct. It is not correct for every consumer — a host whose documents are
+plain markdown rendered somewhere that doesn't understand `[[...]]` syntax
+(e.g. the GitHub web UI) would see every untitled relative link rewritten into
+non-rendering syntax on save, which is document corruption from that
+consumer's point of view, not a normalization
+([#951](https://github.com/verveguy/liminis/issues/951)).
+
+### The `wikiLinkPromotion` option
+
+`exportLexicalToMdast(editor, options)` accepts an optional `ExportOptions`
+object with a `wikiLinkPromotion?: 'promote' | 'off'` field, defaulting to
+`'promote'` — today's only behavior, unchanged for any caller that doesn't set
+it. `'off'` disables the promotion branch entirely: every link (titled or not)
+is emitted as a standard markdown link. This does not change which URLs
+`isWikiLinkUrl` classifies as wiki-link-like, and it has no effect on parsing —
+a genuine, author-written `[[target]]` in the source still parses to a
+`wikiLink` node on import regardless of this setting.
+
+Both types are exported from the root barrel (`@liminis/editor`), alongside
+`exportLexicalToMdast` itself:
+
+```ts
+import { exportLexicalToMdast, type ExportOptions, type WikiLinkPromotionMode } from '@liminis/editor'
+
+const mdast = exportLexicalToMdast(editor, { wikiLinkPromotion: 'off' })
+```
+
+The `<Editor>`/`<App>` component surface exposes the same setting as an
+optional `wikiLinkPromotion` prop, mirroring the existing `imagePathResolution`
+prop's shape (though sourced differently — see below):
+
+```tsx
+<App wikiLinkPromotion="off" ... />
+```
+
+Unlike `imagePathResolution` (which `<App>` derives from IPC-delivered
+`SlashMDSettings`), `wikiLinkPromotion` is a direct `AppProps` field, not
+settings-derived: `<App>` also supports a non-IPC "inline" mode (`content`/
+`onChange` props, bypassing the host-message channel entirely), where
+`settings` stays `null` forever — a settings-only path would be unreachable by
+a host running that way, which is exactly the shape the option was added for.
+
+The setting also reaches the annotation-anchor-capture export path
+(`annotation-marks.ts`), not just the disk-write path: both are expected to
+agree on whether a link's raw-markdown form is wiki-link or standard syntax, so
+an opted-out host's annotation anchors are captured against the same link
+syntax its saved document actually contains.
