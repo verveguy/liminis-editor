@@ -1,20 +1,84 @@
 import { useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
+import type { LexicalEditor } from 'lexical';
 import { useEditorHost } from '../../host/context';
 
 /**
- * Normalize text for anchor matching.
- * - Lowercase for case-insensitive comparison
- * - Normalize em-dash, en-dash, hyphen, underscore to space
- * - Collapse multiple whitespace to single space
- * - Trim leading/trailing whitespace
+ * Reduce text to a GitHub-style anchor slug so a link fragment matches a heading
+ * regardless of punctuation the anchor drops. GitHub lowercases, removes
+ * punctuation (dots, backticks, `?`, emoji, …), and turns spaces into hyphens —
+ * e.g. a heading "Rebase and migration from `.env.enc`" slugs to
+ * `rebase-and-migration-from-envenc`, matching that link fragment. Applying the
+ * same reduction to both the anchor and each heading makes them comparable.
  */
 function normalizeForMatch(text: string): string {
   return text
     .toLowerCase()
-    .replace(/[—–\-_]/g, ' ')  // em-dash, en-dash, hyphen, underscore → space
-    .replace(/\s+/g, ' ')      // collapse whitespace
-    .trim();
+    .replace(/[^a-z0-9\s\-_]/g, '') // drop punctuation/emoji GitHub strips
+    .trim()
+    .replace(/[\s-]+/g, '-') // spaces and dash runs → single hyphen
+    .replace(/^-+|-+$/g, ''); // trim stray hyphens
+}
+
+/**
+ * Find the scrollable container for a heading: the known editor scroll ids first,
+ * then the nearest ancestor that actually scrolls (robust to host markup).
+ */
+function scrollContainerFor(heading: HTMLElement): HTMLElement | null {
+  const byId =
+    heading.closest('#editor-scroll-container') ||
+    heading.closest('#editor-panel-scroll-container');
+  if (byId) return byId as HTMLElement;
+  let el: HTMLElement | null = heading.parentElement;
+  while (el) {
+    const overflowY = getComputedStyle(el).overflowY;
+    if (/(auto|scroll)/.test(overflowY) && el.scrollHeight > el.clientHeight) return el;
+    el = el.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Scroll the editor to the heading whose normalized text matches `anchor`.
+ * Returns true if a matching heading was found and scrolled — false if not (yet)
+ * present, so the caller can retry while async content finishes rendering.
+ */
+function scrollToHeading(editor: LexicalEditor, anchor: string): boolean {
+  const normalizedAnchor = normalizeForMatch(anchor);
+  if (!normalizedAnchor) return false;
+  const rootElement = editor.getRootElement();
+  if (!rootElement) return false;
+
+  const selector = [
+    '.editor-heading-h1',
+    '.editor-heading-h2',
+    '.editor-heading-h3',
+    '.editor-heading-h4',
+    '.editor-heading-h5',
+  ].join(',');
+  const headings = Array.from(rootElement.querySelectorAll<HTMLElement>(selector));
+  const heading = headings.find(
+    (h) => normalizeForMatch(h.textContent || '') === normalizedAnchor
+  );
+  if (!heading) return false;
+
+  const container = scrollContainerFor(heading);
+  if (container) {
+    // rect-based offset is robust regardless of the heading's offsetParent;
+    // leave a small margin so the heading sits near the top, not flush against it.
+    const MARGIN = 16;
+    const top = Math.max(
+      0,
+      heading.getBoundingClientRect().top -
+        container.getBoundingClientRect().top +
+        container.scrollTop -
+        MARGIN
+    );
+    container.scrollTo({ top, behavior: 'smooth' });
+  } else {
+    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  return true;
 }
 
 /**
@@ -26,9 +90,11 @@ function normalizeForMatch(text: string): string {
  *
  * The plugin:
  * 1. Subscribes via the injected `onScrollToAnchor` host service
- * 2. Finds headings by text matching (case-insensitive, normalizes special chars)
- * 3. Scrolls within the editor scroll container
- * 4. Cleans up the subscription on unmount
+ * 2. Finds headings by GitHub-style slug matching (case-insensitive, punctuation-stripped)
+ * 3. Retries across animation frames (bounded) while async content (equations,
+ *    diagrams, code highlighting) is still rendering the target heading
+ * 4. Scrolls the discovered scrollable ancestor, positioning the heading near the top
+ * 5. Cleans up the subscription and any in-flight retry loop on unmount
  */
 export function AnchorScrollPlugin(): null {
   const [editor] = useLexicalComposerContext();
@@ -40,43 +106,25 @@ export function AnchorScrollPlugin(): null {
       return;
     }
 
+    let raf = 0;
+
     const unsubscribe = onScrollToAnchor((anchor: string) => {
-      const normalizedAnchor = normalizeForMatch(anchor);
-      const rootElement = editor.getRootElement();
+      // A new anchor emission supersedes any retry loop still in flight for a
+      // previous one.
+      cancelAnimationFrame(raf);
 
-      if (!rootElement) {
-        return;
-      }
-
-      // Query all headings using established CSS class pattern from editorTheme
-      const selector = [
-        '.editor-heading-h1',
-        '.editor-heading-h2',
-        '.editor-heading-h3',
-        '.editor-heading-h4',
-        '.editor-heading-h5',
-      ].join(',');
-      const headings = Array.from(rootElement.querySelectorAll(selector));
-
-      // Find heading with matching text
-      const heading = headings.find(h =>
-        normalizeForMatch(h.textContent || '') === normalizedAnchor
-      ) as HTMLElement | undefined;
-
-      if (heading) {
-        // Scroll within the editor scroll container only, not the entire window.
-        // Using scrollIntoView() would scroll all ancestors including the app chrome.
-        const container = heading.closest('#editor-scroll-container')
-          || heading.closest('#editor-panel-scroll-container');
-        if (container) {
-          container.scrollTo({ top: heading.offsetTop, behavior: 'smooth' });
-        }
-      } else {
-        console.warn('Anchor target not found:', anchor);
-      }
+      let attempts = 0;
+      const tryScroll = () => {
+        if (scrollToHeading(editor, anchor)) return;
+        if (attempts++ < 30) raf = requestAnimationFrame(tryScroll);
+      };
+      tryScroll();
     });
 
-    return unsubscribe;
+    return () => {
+      cancelAnimationFrame(raf);
+      unsubscribe();
+    };
   }, [editor, onScrollToAnchor]);
 
   return null;
