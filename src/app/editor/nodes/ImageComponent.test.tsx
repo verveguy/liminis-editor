@@ -73,6 +73,10 @@ async function triggerCopyImage(container: HTMLElement) {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  // vi.restoreAllMocks() does not revert vi.stubGlobal() — undo those too,
+  // so the 'still succeeds for a data: URL image' test's stubbed
+  // `navigator` doesn't leak into later tests.
+  vi.unstubAllGlobals();
 });
 
 describe('ImageComponent crossOrigin (FR-001/FR-002)', () => {
@@ -114,15 +118,21 @@ describe('ImageComponent copy-to-clipboard (FR-004/FR-005)', () => {
 
     // Simulate the tainted-canvas SecurityError a real browser throws when a
     // cross-origin (no-crossOrigin-attribute) <img> is drawn onto a canvas
-    // whose toBlob()/getImageData() is then called. happy-dom doesn't enforce
-    // real cross-origin canvas tainting, so this mocks the code path rather
-    // than exercising true browser CORS semantics (see Fabrik Research notes).
+    // whose toBlob() is then called: per the HTML Standard, toBlob() on a
+    // non-origin-clean canvas throws a SecurityError DOMException
+    // synchronously rather than invoking its callback with null. happy-dom
+    // doesn't enforce real cross-origin canvas tainting, so this mocks the
+    // code path rather than exercising true browser CORS semantics (see
+    // Fabrik Research notes).
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
       scale: vi.fn(),
       drawImage: vi.fn(),
     } as unknown as CanvasRenderingContext2D);
-    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) => {
-      callback(null);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(() => {
+      throw new DOMException(
+        "Failed to execute 'toBlob' on 'HTMLCanvasElement': Tainted canvases may not be exported.",
+        'SecurityError'
+      );
     });
 
     const { container } = mountImage(
@@ -135,7 +145,10 @@ describe('ImageComponent copy-to-clipboard (FR-004/FR-005)', () => {
     await triggerCopyImage(container);
 
     await waitFor(() => expect(notifyError).toHaveBeenCalledTimes(1));
-    expect(notifyError).toHaveBeenCalledWith('Failed to copy image', 'toBlob failed');
+    expect(notifyError).toHaveBeenCalledWith(
+      'Failed to copy image',
+      'This image is hosted on another site that does not allow copying — try saving it instead.'
+    );
     expect(consoleErrorSpy).toHaveBeenCalled();
     // The context menu closes regardless of outcome.
     expect(screen.queryByText('Copy image to clipboard')).toBeNull();
