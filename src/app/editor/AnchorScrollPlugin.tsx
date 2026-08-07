@@ -25,6 +25,8 @@ function normalizeForMatch(text: string): string {
  * then the nearest ancestor that actually scrolls (robust to host markup).
  */
 function scrollContainerFor(heading: HTMLElement): HTMLElement | null {
+  // Assumes the two known ids are never nested inside one another; neither
+  // known host does. If that ever changes, the closer one should win instead.
   const byId =
     heading.closest('#editor-scroll-container') ||
     heading.closest('#editor-panel-scroll-container');
