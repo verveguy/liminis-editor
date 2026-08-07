@@ -120,11 +120,13 @@ interface EditorProps {
   documentDirUri?: string;
   imagePathResolution?: ImagePathResolution;
   /**
-   * Whether an untitled relative link (a `.md` path, bare `#anchor`, or
-   * directory-style path) is promoted to wiki-link syntax on export.
-   * Defaults to `'promote'`, today's only behavior — set to `'off'` for a
-   * host whose documents are rendered somewhere that doesn't understand
-   * wiki-link syntax (liminis#951).
+   * Whether an untitled relative link (a `.md` path, a `.md` path with an
+   * anchor, a bare `#anchor`, or a directory-style path) is promoted to
+   * wiki-link syntax on export. Defaults to `'promote'`, today's only
+   * behavior — set to `'off'` for a host whose documents are rendered
+   * somewhere that doesn't understand wiki-link syntax (liminis#951). Never
+   * affects a genuine author-written `[[target]]` wiki-link, which always
+   * round-trips as one regardless of this setting.
    */
   wikiLinkPromotion?: WikiLinkPromotionMode;
   /** Resolve a workspace-relative file path to a data URL for display */

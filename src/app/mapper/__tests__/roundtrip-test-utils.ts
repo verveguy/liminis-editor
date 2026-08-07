@@ -225,9 +225,15 @@ export function discoverFixtures(dir: string): FixtureEntry[] {
         }
       }
 
-      const exportOptions: ExportOptions = existsSync(exportOptionsPath)
-        ? JSON.parse(readFileSync(exportOptionsPath, 'utf-8'))
-        : {};
+      let exportOptions: ExportOptions = {};
+      if (existsSync(exportOptionsPath)) {
+        try {
+          exportOptions = JSON.parse(readFileSync(exportOptionsPath, 'utf-8'));
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          throw new Error(`${exportOptionsPath} is not valid JSON: ${reason}`, { cause: error });
+        }
+      }
 
       const name = relative(dir, stem).split(sep).join('/');
       entries.push({
