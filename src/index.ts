@@ -79,6 +79,7 @@ export {
 export { stringifyMarkdown } from './markdown/stringify'
 export type { StringifyOptions } from './markdown/stringify'
 export { importMarkdownToLexical, exportLexicalToMdast } from './app/mapper'
+export type { ExportOptions, WikiLinkPromotionMode } from './app/mapper'
 
 // --- Host message contract -------------------------------------------------
 export * from './types'

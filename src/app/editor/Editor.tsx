@@ -91,7 +91,7 @@ import type {
 } from '../../annotations/types';
 import type { AnnotationCreateEvent } from './AnnotationPlugin';
 
-import { exportLexicalToMdast } from '../mapper/lexicalToMdast';
+import { exportLexicalToMdast, type WikiLinkPromotionMode } from '../mapper/lexicalToMdast';
 import { parseMarkdown } from '../../markdown/parse';
 import { stringifyMarkdown } from '../../markdown/stringify';
 import type { ImagePathResolution } from '../../types';
@@ -119,6 +119,14 @@ interface EditorProps {
   assetBaseUri?: string;
   documentDirUri?: string;
   imagePathResolution?: ImagePathResolution;
+  /**
+   * Whether an untitled relative link (a `.md` path, bare `#anchor`, or
+   * directory-style path) is promoted to wiki-link syntax on export.
+   * Defaults to `'promote'`, today's only behavior — set to `'off'` for a
+   * host whose documents are rendered somewhere that doesn't understand
+   * wiki-link syntax (liminis#951).
+   */
+  wikiLinkPromotion?: WikiLinkPromotionMode;
   /** Resolve a workspace-relative file path to a data URL for display */
   resolveLocalAsset?: (relativePath: string) => Promise<string | null>;
   /** When false, the editor is read-only */
@@ -668,6 +676,7 @@ export function Editor({
   assetBaseUri,
   documentDirUri,
   imagePathResolution,
+  wikiLinkPromotion,
   resolveLocalAsset,
   editable = true,
   filePath,
@@ -741,6 +750,12 @@ export function Editor({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
+  // Same reasoning as onChangeRef: flushPendingChange must stay a stable
+  // ([]) callback, so the latest prop value is read through a ref rather than
+  // closed over.
+  const wikiLinkPromotionRef = useRef(wikiLinkPromotion);
+  wikiLinkPromotionRef.current = wikiLinkPromotion;
+
   // Export pending editor state and propagate if changed.
   // Shared by the debounce timer callback and unmount flush.
   const flushPendingChange = useCallback(() => {
@@ -750,7 +765,7 @@ export function Editor({
     const timeSinceLoad = Date.now() - lastExternalLoadRef.current;
     if (timeSinceLoad < POST_LOAD_SUPPRESS_MS) return;
 
-    const mdast = exportLexicalToMdast(pendingEditor);
+    const mdast = exportLexicalToMdast(pendingEditor, { wikiLinkPromotion: wikiLinkPromotionRef.current });
     const markdown = stringifyMarkdown(mdast);
 
     if (markdown !== currentContentRef.current) {
@@ -895,6 +910,7 @@ export function Editor({
                   markdownTextRef={markdownTextRef}
                   offsetsVersion={offsetsVersion}
                   logger={annotationLogger}
+                  wikiLinkPromotion={wikiLinkPromotion}
                 />
               </Suspense>
             )}
