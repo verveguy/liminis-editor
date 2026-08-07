@@ -37,7 +37,7 @@ function renderEditor(props: Record<string, unknown> = {}) {
 }
 
 /** Replaces the document with a single paragraph containing one link, and waits for the debounced onChange to fire. */
-async function replaceWithLink(container: HTMLElement): Promise<void> {
+async function replaceWithLink(container: HTMLElement, options: { wikiLinkOrigin?: boolean } = {}): Promise<void> {
   const root = container.querySelector<HTMLElement>('[contenteditable]')!;
   const editor = getNearestEditorFromDOMNode(root)!;
 
@@ -52,6 +52,7 @@ async function replaceWithLink(container: HTMLElement): Promise<void> {
     editor.update(() => {
       const paragraph = $createParagraphNode();
       const link = $createCustomLinkNode('notes.md');
+      if (options.wikiLinkOrigin) link.setWikiLinkOrigin(true);
       link.append($createTextNode('note'));
       paragraph.append(link);
       $getRoot().clear().append(paragraph);
@@ -88,6 +89,25 @@ describe('Editor wikiLinkPromotion prop (#951, SC-003)', () => {
     });
 
     await replaceWithLink(container);
+
+    expect(onChange).toHaveBeenCalledWith('[[notes|note]]\n');
+  });
+
+  it('still emits a genuine wiki-link as wiki-link syntax when set to "off"', async () => {
+    // The opt-out only stops promoting an *ordinary* link that merely looks
+    // wiki-link-shaped — it must not demote a link that was genuine
+    // author-written [[...]] syntax, or an opted-out host would corrupt a
+    // document's existing wiki-links on save. See CustomLinkNode's
+    // wikiLinkOrigin flag, set by mdastToLexical's `wikiLink` case.
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    let container!: HTMLElement;
+
+    await act(async () => {
+      ({ container } = renderEditor({ wikiLinkPromotion: 'off', onChange }));
+    });
+
+    await replaceWithLink(container, { wikiLinkOrigin: true });
 
     expect(onChange).toHaveBeenCalledWith('[[notes|note]]\n');
   });

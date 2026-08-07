@@ -1399,7 +1399,11 @@ export function formatAliasWithMarkers(text: string, format: number): string {
 }
 
 function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
-  const linkNode = node as unknown as { getURL: () => string; getTitle: () => string | null };
+  const linkNode = node as unknown as {
+    getURL: () => string;
+    getTitle: () => string | null;
+    getWikiLinkOrigin?: () => boolean;
+  };
   const url = linkNode.getURL();
   const children: PhrasingContent[] = [];
 
@@ -1456,9 +1460,12 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
   // author deliberately used standard markdown link syntax — wiki-link syntax
   // has no title slot, so promoting a titled link would silently drop it.
   // `wikiLinkPromotionMode` (liminis#951) additionally lets a host opt out of
-  // promotion entirely, for a consumer whose documents are rendered
-  // somewhere that doesn't understand wiki-link syntax.
-  if (wikiLinkPromotionMode === 'promote' && isWikiLinkUrl(url) && !linkNode.getTitle()) {
+  // promoting an *ordinary* link whose URL merely looks wiki-link-shaped. It
+  // never suppresses a link that was genuine wiki-link syntax on import
+  // (`getWikiLinkOrigin()`) — an opted-out host must not corrupt a document's
+  // existing `[[...]]` links, only stop creating new ones.
+  const isGenuineWikiLink = linkNode.getWikiLinkOrigin?.() ?? false;
+  if ((wikiLinkPromotionMode === 'promote' || isGenuineWikiLink) && isWikiLinkUrl(url) && !linkNode.getTitle()) {
     // Convert URL back to wiki-link target
     let target: string;
 

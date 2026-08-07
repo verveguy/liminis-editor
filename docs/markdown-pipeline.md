@@ -197,11 +197,18 @@ consumer's point of view, not a normalization
 `exportLexicalToMdast(editor, options)` accepts an optional `ExportOptions`
 object with a `wikiLinkPromotion?: 'promote' | 'off'` field, defaulting to
 `'promote'` — today's only behavior, unchanged for any caller that doesn't set
-it. `'off'` disables the promotion branch entirely: every link (titled or not)
-is emitted as a standard markdown link. This does not change which URLs
-`isWikiLinkUrl` classifies as wiki-link-like, and it has no effect on parsing —
-a genuine, author-written `[[target]]` in the source still parses to a
-`wikiLink` node on import regardless of this setting.
+it. `'off'` disables promotion of an *ordinary* standard-markdown link whose
+URL merely looks wiki-link-shaped: it is emitted as a standard markdown link
+instead of `[[target]]`. It does not affect a link that was genuine,
+author-written `[[target]]` / `[[target|alias]]` wiki-link syntax in the
+source — that always round-trips back out as a wiki-link, regardless of this
+setting, so an opted-out host still never corrupts a document's existing
+wiki-links, only stops creating new ones. (The two are distinguished by
+provenance, tracked on the parsed link node — not by re-inspecting the URL,
+which is identical either way.) This does not change which URLs
+`isWikiLinkUrl` classifies as wiki-link-like, and it has no effect on
+*parsing* — a genuine, author-written `[[target]]` in the source still parses
+to a link node on import regardless of this setting.
 
 Both types are exported from the root barrel (`@liminis/editor`), alongside
 `exportLexicalToMdast` itself:
