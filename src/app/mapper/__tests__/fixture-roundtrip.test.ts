@@ -46,11 +46,11 @@ describe('Markdown round-trip fixture corpus', () => {
       for (const fixture of entries) {
         it(leafName(fixture), async () => {
           if (fixture.expectedError !== null) {
-            await expect(roundTrip(fixture.input)).rejects.toThrow(fixture.expectedError);
+            await expect(roundTrip(fixture.input, { exportOptions: fixture.exportOptions })).rejects.toThrow(fixture.expectedError);
             return;
           }
 
-          const { output } = await roundTrip(fixture.input);
+          const { output } = await roundTrip(fixture.input, { exportOptions: fixture.exportOptions });
           const expected = fixture.expected ?? fixture.input;
           if (output !== expected) {
             throw new Error(formatUnifiedDiff(expected, output, fixture.name));
@@ -65,7 +65,7 @@ describe('Markdown round-trip fixture corpus', () => {
           if (fixture.idempotenceExempt !== null) {
             return;
           }
-          const { output: secondOutput } = await roundTrip(output);
+          const { output: secondOutput } = await roundTrip(output, { exportOptions: fixture.exportOptions });
           if (secondOutput !== output) {
             throw new Error(formatUnifiedDiff(output, secondOutput, `${fixture.name} (second pass)`));
           }
