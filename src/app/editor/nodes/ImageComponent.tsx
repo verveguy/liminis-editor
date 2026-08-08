@@ -4,6 +4,7 @@ import { $getNodeByKey, NodeKey } from 'lexical';
 import { $isImageNode } from './ImageNode';
 import { useAssetContext } from '../AssetContext';
 import { DiagramContextMenu } from './DiagramContextMenu';
+import { useEditorHost } from '../../../host/context';
 
 interface ImageComponentProps {
   src: string;
@@ -34,6 +35,7 @@ export function ImageComponent({
 }: ImageComponentProps): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const { resolveAssetPath, resolveLocalAsset } = useAssetContext();
+  const { notifyError } = useEditorHost();
   const imageRef = useRef<HTMLImageElement>(null);
 
   // Resolve the src path for display
@@ -112,9 +114,23 @@ export function ImageComponent({
       ]);
     } catch (err) {
       console.error('Failed to copy image to clipboard:', err);
+      // The <img> no longer requests CORS mode (see crossOrigin removal below),
+      // so drawing a cross-origin image onto the canvas taints it and toBlob()
+      // rejects with a SecurityError. That's an accepted tradeoff: display
+      // wins over copy for remote images that don't support CORS. Since this
+      // is now the primary expected trigger for this catch (rather than an
+      // edge case), give it a message that explains the cause instead of the
+      // generic DOMException text.
+      const isTaintedCanvas = err instanceof DOMException && err.name === 'SecurityError';
+      notifyError(
+        'Failed to copy image',
+        isTaintedCanvas
+          ? 'This image is hosted on another site that does not allow copying — try saving it instead.'
+          : err instanceof Error ? err.message : String(err)
+      );
     }
     setContextMenu((prev) => ({ ...prev, visible: false }));
-  }, []);
+  }, [notifyError]);
 
   const [isResizing, setIsResizing] = useState(false);
   const [isSelected, setIsSelected] = useState(false);
@@ -275,7 +291,13 @@ export function ImageComponent({
         alt={alt}
         title={title}
         draggable={false}
-        crossOrigin={isAbsoluteUrl(displaySrc) && !displaySrc.startsWith('data:') ? 'anonymous' : undefined}
+        // No crossOrigin attribute: requesting CORS mode makes display of a
+        // remote image depend on the host sending Access-Control-Allow-Origin,
+        // which most ordinary image hosts (e.g. shields.io badges) don't do —
+        // the browser would render nothing instead of the image. The only
+        // consumer of an untainted canvas is handleCopyImage's clipboard
+        // read-back above, which already handles (and now surfaces) failure
+        // when a cross-origin image taints the canvas.
         onLoad={handleImageLoad}
         style={{
           // If an explicit width is set (from resize), use it.
