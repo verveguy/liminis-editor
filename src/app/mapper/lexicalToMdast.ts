@@ -201,7 +201,7 @@ function effectiveChildren(node: ElementNode): LexicalNode[] {
 // That "identical except for the tokens" property is load-bearing and is *not*
 // self-evident from the code: it holds only because no conversion decision
 // anywhere reads a text value the tokens have been spliced into. Two did, and
-// silently perturbed unrelated output until `annotated-serialize-corpus.ts`
+// silently perturbed unrelated output until `annotated-serialize-corpus.test.ts`
 // pinned the property corpus-wide (Liminis #970); both now go through
 // `stripAnnotateSentinels` first. Any new decision made from a text value
 // carries the same obligation.
