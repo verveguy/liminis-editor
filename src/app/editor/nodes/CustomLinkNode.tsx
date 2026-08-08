@@ -3,6 +3,7 @@ import { DOMConversionMap, DOMConversionOutput, EditorConfig, LexicalNode } from
 
 export type SerializedCustomLinkNode = SerializedLinkNode & {
   wikiAliasState?: 'empty';
+  wikiLinkOrigin?: true;
 };
 
 /**
@@ -15,6 +16,16 @@ export type SerializedCustomLinkNode = SerializedLinkNode & {
 export class CustomLinkNode extends LinkNode {
   /** @internal */
   __wikiAliasState: 'empty' | null;
+  /**
+   * Whether this link was parsed from genuine `[[target]]` / `[[target|alias]]`
+   * wiki-link syntax, as opposed to a standard `[text](url)` link whose URL
+   * merely looks wiki-link-shaped. Export (`convertLinkNode` in
+   * `lexicalToMdast.ts`) always promotes a node with this flag set back to
+   * wiki-link syntax, regardless of `wikiLinkPromotionMode` — an opted-out
+   * host still must not corrupt a document's existing wiki-links (liminis#951).
+   * @internal
+   */
+  __wikiLinkOrigin: boolean;
 
   constructor(
     url: string,
@@ -23,6 +34,7 @@ export class CustomLinkNode extends LinkNode {
   ) {
     super(url, attributes, key);
     this.__wikiAliasState = null;
+    this.__wikiLinkOrigin = false;
   }
 
   static getType(): string {
@@ -36,6 +48,7 @@ export class CustomLinkNode extends LinkNode {
       node.__key
     );
     cloned.__wikiAliasState = node.__wikiAliasState;
+    cloned.__wikiLinkOrigin = node.__wikiLinkOrigin;
     return cloned;
   }
 
@@ -162,6 +175,9 @@ export class CustomLinkNode extends LinkNode {
     if (serializedNode.wikiAliasState === 'empty') {
       node.__wikiAliasState = 'empty';
     }
+    if (serializedNode.wikiLinkOrigin) {
+      node.__wikiLinkOrigin = true;
+    }
     node.setFormat(serializedNode.format);
     node.setIndent(serializedNode.indent);
     node.setDirection(serializedNode.direction);
@@ -174,6 +190,7 @@ export class CustomLinkNode extends LinkNode {
       type: 'link',
       version: 1,
       wikiAliasState: this.__wikiAliasState ?? undefined,
+      wikiLinkOrigin: this.__wikiLinkOrigin ? true : undefined,
     };
   }
 
@@ -184,6 +201,15 @@ export class CustomLinkNode extends LinkNode {
 
   getWikiAliasState(): 'empty' | null {
     return this.__wikiAliasState ?? null;
+  }
+
+  setWikiLinkOrigin(origin: boolean): void {
+    const writable = this.getWritable();
+    writable.__wikiLinkOrigin = origin;
+  }
+
+  getWikiLinkOrigin(): boolean {
+    return this.__wikiLinkOrigin;
   }
 }
 

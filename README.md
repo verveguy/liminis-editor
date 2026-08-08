@@ -71,8 +71,8 @@ to.
 
 ## Entry points
 
-Six, and they are not stylistic. Each keeps a specific dependency graph out of a
-specific consumer, and importing the wrong one is measured in megabytes.
+Seven, and they are not stylistic. Each keeps a specific dependency graph out of
+a specific consumer, and importing the wrong one is measured in megabytes.
 
 | Entry | Contains | Import it when |
 |---|---|---|
@@ -81,9 +81,10 @@ specific consumer, and importing the wrong one is measured in megabytes.
 | `@liminis/editor/annotations` | The anchor model, resolver, block structure, and annotation types. DOM-, React- and Lexical-free | You are resolving or storing annotations outside a rendered editor |
 | `@liminis/editor/headless` | The C4 subsystem, server-side SVG rendering, MathJax lite adaptor | You are rendering diagrams or equations with no DOM (a server, a worker, an Electron main process) |
 | `@liminis/editor/contract` | The host-message shapes, as types | You are writing a boundary that must not pull renderer code in — an Electron preload script. Use `import type` |
+| `@liminis/editor/nodes` | `editorNodes` (the exact Lexical node array `<Editor>` configures itself with), plus `importMarkdownToLexical` / `exportLexicalToMdast` | You are building your own headless Lexical `createEditor` — for example, to test the markdown↔Lexical mapper without mounting `<Editor>` |
 | `@liminis/editor/styles.css` | The stylesheet | Always, once, in your app |
 
-Two of these are load-bearing in ways that are easy to undo by accident:
+Three of these are load-bearing in ways that are easy to undo by accident:
 
 - **`./markdown` is deliberately *not* `./headless`.** `./headless` re-exports
   the MathJax configuration, whose ~90 bare
@@ -92,9 +93,15 @@ Two of these are load-bearing in ways that are easy to undo by accident:
   you do is parse markdown, import `./markdown` and you never pay it.
 - **`./contract` is only type-free of `zod` if you `import type`.** A value
   import pulls the schemas in.
+- **`./nodes` is the one entry that legitimately requires Lexical and React** —
+  its whole purpose is exporting the node classes the mapper instantiates. It
+  inherits `./headless`'s MathJax-lite exception (loading it evaluates the same
+  ~90 side-effectful TeX-configuration imports, via `EquationNode`), but it
+  pulls in none of Mermaid's, C4's, or Prism's rendering weight — those
+  decorator components are lazy-loaded and never evaluate in a headless editor.
 
 Do not deep-import into `dist/`. Everything intended for consumers is on one of
-the six entries above; anything else is internal and will move.
+the seven entries above; anything else is internal and will move.
 
 ## Styling
 
