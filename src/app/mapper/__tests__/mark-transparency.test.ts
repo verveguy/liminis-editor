@@ -305,13 +305,19 @@ describe('annotated-serialize sentinel survival under stringify post-processing 
 
     const firstOpen = wrapped.indexOf(openToken);
     const lastClose = wrapped.lastIndexOf(closeToken);
+    // The mark covers the bold run in full, so #970 hoists both tokens outside
+    // the `**` delimiters rather than splicing them into the run's own text:
+    // a recovered range must never begin or end inside inline syntax, or a
+    // host's refresh pass rewrites the stored anchor to a malformed slice
+    // (FR-011/FR-012). Before #970 this read `snake_case_word`, with the
+    // delimiters split across the boundary.
     const slice = wrapped.slice(firstOpen + openToken.length, lastClose);
-    expect(slice).toBe('snake_case_word');
+    expect(slice).toBe('**snake_case_word**');
 
     // The real content immediately outside the sentinel-bracketed span must
     // be untouched by their presence — same prefix/suffix as an un-annotated export.
-    expect(wrapped.slice(0, firstOpen)).toBe('See [the docs](https://example.com/a_b) about **');
-    expect(wrapped.slice(lastClose + closeToken.length)).toBe('** here.\n\nMore text.\n');
+    expect(wrapped.slice(0, firstOpen)).toBe('See [the docs](https://example.com/a_b) about ');
+    expect(wrapped.slice(lastClose + closeToken.length)).toBe(' here.\n\nMore text.\n');
   });
 
   it('annotate mode never leaks into the disk-write path once disabled', async () => {
