@@ -557,3 +557,42 @@ describe('Toolbar — no configured kind means no affordance (User Story 3)', ()
     expect(seen).toEqual([]);
   });
 });
+
+// Regression (PR #966 review finding): registerEditableListener flipped
+// `editable` but never recomputed format flags, so a selection already live
+// when the editor becomes editable (e.g. a reviewer had bold text selected
+// read-only, then the host makes the document editable) rendered the Bold
+// button inactive until the next unrelated selection change.
+describe('Toolbar — format flags recompute when editable flips true with a live selection (regression)', () => {
+  it('reflects the selection formatting once editable becomes true, not a stale default', () => {
+    const { editorRef, getByLabelText } = renderToolbar({ editable: false });
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+      editorRef.current!.update(
+        () => {
+          const textNode = $getRoot()
+            .getAllTextNodes()
+            .find((n) => n.getTextContent().includes(NEEDLE))!;
+          const idx = textNode.getTextContent().indexOf(NEEDLE);
+          const selection = $createRangeSelection();
+          selection.anchor.set(textNode.getKey(), idx, 'text');
+          selection.focus.set(textNode.getKey(), idx + NEEDLE.length, 'text');
+          // Bold on the selection itself, deliberately without dispatching
+          // SELECTION_CHANGE_COMMAND — that path already recomputed format
+          // flags before this fix, so omitting it isolates the
+          // registerEditableListener transition the fix targets.
+          selection.toggleFormat('bold');
+          $setSelection(selection);
+        },
+        { discrete: true },
+      );
+    });
+
+    act(() => {
+      editorRef.current!.setEditable(true);
+    });
+
+    expect(getByLabelText('Bold').className).toContain('active');
+  });
+});

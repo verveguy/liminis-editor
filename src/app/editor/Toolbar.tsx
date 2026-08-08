@@ -56,12 +56,6 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const dismissedByClickRef = useRef(false);
 
-  useEffect(() => {
-    return editor.registerEditableListener((isEditable) => {
-      setEditable(isEditable);
-    });
-  }, [editor]);
-
   // Visibility + position, sourced from the native browser selection rather
   // than Lexical's. Lexical never reports a range selection on a
   // non-editable root, and doesn't reliably dispatch SELECTION_CHANGE_COMMAND
@@ -143,6 +137,21 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
       isLink,
     }));
   }, []);
+
+  // A selection can already be live when `editable` flips true (e.g. a
+  // reviewer had bold text selected read-only, then the host makes the
+  // document editable) — format flags must be recomputed on that transition,
+  // not just left at their stale/default value until the next selection change.
+  useEffect(() => {
+    return editor.registerEditableListener((isEditable) => {
+      setEditable(isEditable);
+      if (isEditable) {
+        editor.getEditorState().read(() => {
+          updateFormatFlags();
+        });
+      }
+    });
+  }, [editor, updateFormatFlags]);
 
   useEffect(() => {
     const unregisterSelection = editor.registerCommand(
