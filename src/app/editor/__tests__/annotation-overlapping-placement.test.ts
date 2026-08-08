@@ -24,7 +24,7 @@ import { exportLexicalToMdast } from '../../mapper/lexicalToMdast';
 import { stringifyMarkdown } from '../../../markdown/stringify';
 import { editorNodes } from '../../mapper/__tests__/roundtrip-test-utils';
 import { captureAnchor, type Anchor } from '../../../annotations/anchor-model';
-import { hasLiveMark, markElementsForId, placeMarksForAnchors } from '../annotation-marks';
+import { hasLiveMark, markElementsForId, placeMarksForAnchors, removeMarksForAnnotation } from '../annotation-marks';
 import { registerMarkOverlapResolver } from '../mark-overlap-resolver';
 
 /** The issue's reference paragraph — one prose run plus an inline link. */
@@ -271,5 +271,103 @@ describe('overlapping annotation placement (#970 defect 1)', () => {
     expect(placeMarksForAnchors(editor, spans, md, [{ anchor: anchorFor(md, '[project docs](https://example.com/docs)'), id: 'c1' }])).toEqual(['c1']);
     expect(coveredText(editor, 'c1')).toBe('project docs');
     expect(stringifyMarkdown(exportLexicalToMdast(editor))).toBe(md);
+  });
+});
+
+/**
+ * FR-005/FR-006: `$wrapSelectionInMarkNode` nests a MarkNode inside an existing
+ * one rather than merging ids, so the shared region of two overlapping
+ * annotations resolved to only the inner id. `registerMarkOverlapResolver`
+ * un-nests those into id-unioned siblings — which is the shape
+ * `AnnotationMarkerPlugin` already assumes.
+ */
+describe('registerMarkOverlapResolver (#970 FR-005/FR-006)', () => {
+  const CROSSING = [
+    { target: 'quick brown fox jumps over the lazy dog', id: 'outer' },
+    { target: 'fox jumps over the lazy dog, and then it', id: 'overlapping' },
+  ] as const;
+
+  function placeCrossingPair(): { editor: LexicalEditor; element: HTMLElement } {
+    const { editor, spans, element } = mount(REFERENCE, { unnestOverlaps: true });
+    placeMarksForAnchors(
+      editor,
+      spans,
+      REFERENCE,
+      CROSSING.map(({ target, id }) => ({ anchor: anchorFor(REFERENCE, target), id })),
+    );
+    return { editor, element };
+  }
+
+  it('leaves no mark nested inside another', () => {
+    const { element } = placeCrossingPair();
+    expect(element.querySelectorAll('mark mark').length).toBe(0);
+  });
+
+  // FR-005: a click or hover on the shared region must resolve to both ids.
+  it('attributes the overlapping region to both ids on one shared element', () => {
+    const { editor } = placeCrossingPair();
+    const outerElements = new Set(markElementsForId(editor, 'outer'));
+    const shared = markElementsForId(editor, 'overlapping').filter((element) => outerElements.has(element));
+
+    expect(shared.length).toBe(1);
+    expect(shared[0].textContent).toBe('fox jumps over the lazy dog');
+  });
+
+  it('still reports each id’s full coverage across its sibling marks', () => {
+    const { editor } = placeCrossingPair();
+    expect(coveredText(editor, 'outer')).toBe('quick brown fox jumps over the lazy dog');
+    expect(coveredText(editor, 'overlapping')).toBe('fox jumps over the lazy dog, and then it');
+  });
+
+  // FR-006: removing one annotation leaves the other's coverage over the
+  // shared region intact — the shared mark keeps its remaining id rather than
+  // being unwrapped.
+  it('keeps the survivor’s coverage intact when one of the pair is removed', () => {
+    const { editor } = placeCrossingPair();
+    removeMarksForAnnotation(editor, 'overlapping');
+
+    expect(hasLiveMark(editor, 'overlapping')).toBe(false);
+    expect(coveredText(editor, 'outer')).toBe('quick brown fox jumps over the lazy dog');
+    expect(stringifyMarkdown(exportLexicalToMdast(editor))).toBe(REFERENCE);
+  });
+
+  it('un-nests a strictly nested pair into three sibling marks', () => {
+    const { editor, spans, element } = mount(REFERENCE, { unnestOverlaps: true });
+    placeMarksForAnchors(editor, spans, REFERENCE, [
+      { anchor: anchorFor(REFERENCE, 'quick brown fox jumps over the lazy dog'), id: 'outer' },
+      { anchor: anchorFor(REFERENCE, 'brown fox'), id: 'inner' },
+    ]);
+
+    expect(element.querySelectorAll('mark mark').length).toBe(0);
+    expect(coveredText(editor, 'outer')).toBe('quick brown fox jumps over the lazy dog');
+    expect(coveredText(editor, 'inner')).toBe('brown fox');
+    // The shared region is exactly the inner annotation's own range.
+    const innerElements = new Set(markElementsForId(editor, 'inner'));
+    const shared = markElementsForId(editor, 'outer').filter((element) => innerElements.has(element));
+    expect(shared.map((element) => element.textContent).join('')).toBe('brown fox');
+  });
+
+  // Still one reconciliation: the resolver is a node transform, so it runs
+  // inside the update that created the nesting (FR-009).
+  it('does not add an extra editor update', () => {
+    const { editor, spans } = mount(REFERENCE, { unnestOverlaps: true });
+    let updates = 0;
+    const unregister = editor.registerUpdateListener(() => {
+      updates++;
+    });
+    placeMarksForAnchors(
+      editor,
+      spans,
+      REFERENCE,
+      CROSSING.map(({ target, id }) => ({ anchor: anchorFor(REFERENCE, target), id })),
+    );
+    unregister();
+
+    expect(updates).toBe(1);
+  });
+
+  it('keeps the document byte-identical', () => {
+    const { editor } = placeCrossingPair();
+    expect(stringifyMarkdown(exportLexicalToMdast(editor))).toBe(REFERENCE);
   });
 });
