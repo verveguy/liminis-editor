@@ -275,7 +275,7 @@ describe('Toolbar — the toolbar-surfaced create affordance (US1/SC-001/SC-006)
     expect(event.rect).toBeDefined();
   });
 
-  it('offers one affordance per toolbar-surfaced kind (FR-009)', () => {
+  it('offers one affordance per toolbar-surfaced kind (Edge Cases: multiple toolbar-surfaced kinds)', () => {
     const editorRef: { current: import('lexical').LexicalEditor | null } = { current: null };
     const { getByLabelText } = render(
       <LexicalComposer
@@ -411,6 +411,35 @@ describe('Toolbar — double-click parity while editable (US3/SC-005)', () => {
 
     expect(getByLabelText('Bold')).not.toBeNull();
     expect(getByLabelText('Comment')).not.toBeNull();
+  });
+});
+
+// Regression: opening the link input moves focus (and the native selection)
+// off the editor root, which the FR-003 containment check would otherwise
+// mistake for "selection left the editor" and close the input it just opened.
+describe('Toolbar — link input keeps the toolbar open (regression)', () => {
+  it('does not hide the toolbar when the link input steals focus', async () => {
+    const { getByLabelText, getByPlaceholderText, container } = renderToolbar();
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+    });
+    expect(container.querySelector('.toolbar')).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.mouseDown(getByLabelText('Link'));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // Simulate the browser clearing the editor's native selection as focus
+    // moves to the link input, then the selectionchange event that follows.
+    window.getSelection()?.removeAllRanges();
+    act(() => {
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+
+    expect(getByPlaceholderText('Enter URL...')).not.toBeNull();
+    expect(container.querySelector('.toolbar')).not.toBeNull();
   });
 });
 

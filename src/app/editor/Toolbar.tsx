@@ -73,6 +73,15 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
       return;
     }
 
+    // Don't hide the toolbar while focus is inside it. Opening the link
+    // input moves focus (and therefore the native selection) away from the
+    // editor root the instant it appears, which would otherwise look
+    // identical to "selection left the editor" and close the input the user
+    // just opened.
+    if (toolbarRef.current && document.activeElement && toolbarRef.current.contains(document.activeElement)) {
+      return;
+    }
+
     const nativeSelection = window.getSelection();
     const rootElement = editor.getRootElement();
 
@@ -82,7 +91,9 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
       nativeSelection.isCollapsed ||
       !rootElement ||
       !nativeSelection.anchorNode ||
-      !rootElement.contains(nativeSelection.anchorNode)
+      !nativeSelection.focusNode ||
+      !rootElement.contains(nativeSelection.anchorNode) ||
+      !rootElement.contains(nativeSelection.focusNode)
     ) {
       setState(prev => prev.isVisible ? { ...prev, isVisible: false } : prev);
       return;
