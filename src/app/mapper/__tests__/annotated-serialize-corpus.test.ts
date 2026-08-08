@@ -29,7 +29,7 @@
  * - **whole-run** wraps all of an element's children in one mark, so a mark's
  *   boundary lands on the first/last construct of a whole phrasing run.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { $getRoot, $isElementNode, type ElementNode, type LexicalNode } from 'lexical';
@@ -171,8 +171,16 @@ describe('#970: annotate mode differs from a plain export only by its sentinel t
     }
   }
 
-  it('actually exercised the annotate path across the corpus', () => {
-    expect(totalIds).toBeGreaterThan(100);
-    expect(totalIdsWithTokens).toBeGreaterThan(100);
+  // In `afterAll` rather than a trailing `it`, so a shuffled run (`--sequence
+  // .shuffle`) can't reorder the check ahead of the cases that feed it. The
+  // thresholds are relative to what actually ran for the same reason: under a
+  // name filter the totals are legitimately smaller, and an absolute floor
+  // would report that as a failure.
+  afterAll(() => {
+    expect(totalIds).toBeGreaterThan(0);
+    // Nearly every id in the corpus brackets real content; the few that can't
+    // (a fixture that is only a thematic break) are a small minority, so a
+    // silent regression to "no tokens emitted" still fails loudly here.
+    expect(totalIdsWithTokens).toBeGreaterThan(totalIds * 0.5);
   });
 });
