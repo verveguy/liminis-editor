@@ -214,6 +214,32 @@ describe('overlapping annotation placement (#970 defect 1)', () => {
     expect(hasLiveMark(editor, 'orphan')).toBe(false);
   });
 
+  // FR-004/FR-010: the returned ids are the ids that now have a live mark, so
+  // an anchor that resolves to a zero-width range — every character of its
+  // target is markdown syntax rather than rendered text, so both endpoints snap
+  // out of the same gap onto the same edge — must be reported as declined, not
+  // placed. It is `AnnotationSurface`'s `placedRef` that makes this matter: an
+  // id it records as placed is never attempted again.
+  it('does not report an anchor as placed when no mark was created', () => {
+    const md = 'hello **big world** end\n';
+    const { editor, spans } = mount(md);
+
+    expect(placeMarksForAnchors(editor, spans, md, [{ anchor: anchorFor(md, '**'), id: 'syntax-only' }])).toEqual([]);
+    expect(hasLiveMark(editor, 'syntax-only')).toBe(false);
+  });
+
+  it('does not let a zero-width entry stop its siblings from placing', () => {
+    const md = 'hello **big world** end\n';
+    const { editor, spans } = mount(md);
+    const placed = placeMarksForAnchors(editor, spans, md, [
+      { anchor: anchorFor(md, '**'), id: 'syntax-only' },
+      { anchor: anchorFor(md, 'big world'), id: 'real' },
+    ]);
+
+    expect(placed).toEqual(['real']);
+    expect(coveredText(editor, 'real')).toBe('big world');
+  });
+
   // FR-007: re-placing an id that already has a live mark changes nothing.
   it('is idempotent for an overlapping batch', () => {
     const { editor, spans, element } = mount(REFERENCE);

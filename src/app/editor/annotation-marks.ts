@@ -581,7 +581,7 @@ function $resolveAnchorPlacement(
  * Phase 2 of {@link placeMarksForAnchors}: re-resolve a pair of absolute text
  * offsets against the *current* tree — which earlier placements in the same
  * batch may already have split — and wrap the resulting range in a `MarkNode`
- * for `id`.
+ * for `id`. Reports whether a mark actually landed.
  */
 function $applyPlacement(id: string, start: number, end: number): boolean {
   const startPoint = $pointAtAbsoluteTextOffset(start, 'start');
@@ -594,7 +594,18 @@ function $applyPlacement(id: string, start: number, end: number): boolean {
   $setSelection(selection);
 
   $wrapSelectionInMarkNode(selection, false, id);
-  return true;
+
+  // Not a formality: `$wrapSelectionInMarkNode` wraps whatever the selection
+  // *extracts*, and a collapsed selection extracts nothing, so it can return
+  // having created no mark at all. That happens for a target whose every
+  // character is markdown syntax rather than rendered text — `**` in
+  // `**bold**`, or a stale anchor left holding `](url)` — where both endpoints
+  // snap out of the same gap onto the same edge of the same span. Reporting
+  // that id as placed would be a lie the caller cannot detect: the surface
+  // records it in `placedRef` and never attempts it again, so the annotation
+  // stays markerless for the life of the document. Decline instead, the same
+  // as any other anchor this module cannot map (FR-004/FR-010).
+  return liveMarkTexts(id).length > 0;
 }
 
 /**
