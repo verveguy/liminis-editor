@@ -1,5 +1,6 @@
 /**
- * End-to-end coverage for the toolbar-surfaced create affordance (SC-006).
+ * End-to-end coverage for the toolbar-surfaced create affordance (SC-006),
+ * including the read-only path (issue #965).
  *
  * `Toolbar` and `AnnotationPlugin` are already each covered in isolation
  * (`selection-context-menu-selection.test.tsx`'s Seed pattern for a live
@@ -9,12 +10,23 @@
  * button → onCreateAnnotation) is exercised, not just its two halves.
  *
  * jsdom does not fire `selectionchange` when a native `Range` is added
- * programmatically, so a real click-and-drag selection would leave `Toolbar`
- * invisible in this environment no matter what the component does. Both the
- * native selection (which `AnnotationPlugin`'s capture reads) and the live
- * Lexical selection (which `Toolbar`'s visibility reads) are set explicitly,
- * and `SELECTION_CHANGE_COMMAND` is dispatched by hand to stand in for the
- * event jsdom won't produce.
+ * programmatically (documented jsdom limitation), so every test here that
+ * exercises the real user path dispatches a manual `selectionchange` event
+ * to stand in for it.
+ *
+ * Two distinct selection helpers matter, because they exercise different
+ * code paths in `Toolbar`:
+ *   - `selectNeedle` sets *both* a live Lexical selection and the native
+ *     selection, then dispatches `SELECTION_CHANGE_COMMAND` by hand — the
+ *     proxy for a drag-selection while editable, where Lexical's own command
+ *     reliably fires.
+ *   - `selectNeedleNatively` sets *only* the native selection and fires a
+ *     manual `selectionchange` event, with no Lexical selection and no
+ *     `SELECTION_CHANGE_COMMAND` dispatch at all — the proxy for a
+ *     double-click selection, and for *any* selection on a non-editable
+ *     root, where Lexical never reports a range selection. Before #965,
+ *     `Toolbar` computed visibility exclusively from Lexical's selection, so
+ *     this path is exactly what the bug hid.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { useEffect } from 'react';
@@ -123,6 +135,84 @@ function selectNeedle(editor: import('lexical').LexicalEditor, needle: string): 
   editor.dispatchCommand(SELECTION_CHANGE_COMMAND, undefined);
 }
 
+/**
+ * Selects `needle` in the native DOM only — no Lexical selection is ever
+ * set, and `SELECTION_CHANGE_COMMAND` is never dispatched. This is the path
+ * a real double-click selection takes, and the only path any selection can
+ * take on a non-editable root, since Lexical does not sync a non-editable
+ * root's native selection into its own model. A manual `selectionchange`
+ * event stands in for jsdom's documented failure to fire one for a
+ * programmatically-added `Range`.
+ */
+function selectNeedleNatively(needle: string): void {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  let found = false;
+  while ((node = walker.nextNode())) {
+    const index = node.textContent?.indexOf(needle) ?? -1;
+    if (index !== -1) {
+      const range = document.createRange();
+      range.setStart(node, index);
+      range.setEnd(node, index + needle.length);
+      const selection = window.getSelection()!;
+      selection.removeAllRanges();
+      selection.addRange(range);
+      found = true;
+      break;
+    }
+  }
+  if (!found) throw new Error(`no text node containing ${JSON.stringify(needle)}`);
+
+  document.dispatchEvent(new Event('selectionchange'));
+}
+
+/**
+ * Sets a zero-length (collapsed) native selection at `needle` — a plain
+ * click, no drag — and fires the event. Distinct from an empty selection
+ * (`rangeCount === 0`): this is a real `Range` whose start equals its end.
+ */
+function collapseNativeSelection(needle: string): void {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  let found = false;
+  while ((node = walker.nextNode())) {
+    const index = node.textContent?.indexOf(needle) ?? -1;
+    if (index !== -1) {
+      const range = document.createRange();
+      range.setStart(node, index);
+      range.setEnd(node, index);
+      const selection = window.getSelection()!;
+      selection.removeAllRanges();
+      selection.addRange(range);
+      found = true;
+      break;
+    }
+  }
+  if (!found) throw new Error(`no text node containing ${JSON.stringify(needle)}`);
+
+  document.dispatchEvent(new Event('selectionchange'));
+}
+
+/**
+ * Selects text in an element appended outside the editor's own root, to
+ * exercise the containment check (FR-003): a `selectionchange` fired for a
+ * selection elsewhere on the page must not show this editor's toolbar.
+ */
+function selectOutsideRoot(text: string): HTMLElement {
+  const outside = document.createElement('div');
+  outside.textContent = text;
+  document.body.appendChild(outside);
+
+  const range = document.createRange();
+  range.selectNodeContents(outside);
+  const selection = window.getSelection()!;
+  selection.removeAllRanges();
+  selection.addRange(range);
+
+  document.dispatchEvent(new Event('selectionchange'));
+  return outside;
+}
+
 /** Captures the live editor instance for use by `selectNeedle` outside React. */
 function EditorCapture({ editorRef }: { editorRef: { current: import('lexical').LexicalEditor | null } }) {
   const [editor] = useLexicalComposerContext();
@@ -185,26 +275,7 @@ describe('Toolbar — the toolbar-surfaced create affordance (US1/SC-001/SC-006)
     expect(event.rect).toBeDefined();
   });
 
-  // Annotating is decoupled from editing (FR-006) — AnnotationPlugin already
-  // ignores `editable`, and neither Toolbar's existing buttons nor the new one
-  // check it either. SC-002 pins that the toolbar path specifically inherits
-  // this rather than regressing it.
-  it('still offers the affordance and fires onCreateAnnotation when read-only (SC-002)', async () => {
-    const onCreate = vi.fn();
-    const { getByLabelText } = renderAndSelect(onCreate, false);
-
-    const button = getByLabelText('Comment');
-    expect(button).not.toBeNull();
-
-    await act(async () => {
-      fireEvent.mouseDown(button);
-    });
-
-    expect(onCreate).toHaveBeenCalledOnce();
-    expect((onCreate.mock.calls[0][0] as AnnotationCreateEvent).kind).toBe('comment');
-  });
-
-  it('offers one affordance per toolbar-surfaced kind (FR-009)', () => {
+  it('offers one affordance per toolbar-surfaced kind (Edge Cases: multiple toolbar-surfaced kinds)', () => {
     const editorRef: { current: import('lexical').LexicalEditor | null } = { current: null };
     const { getByLabelText } = render(
       <LexicalComposer
@@ -238,6 +309,175 @@ describe('Toolbar — the toolbar-surfaced create affordance (US1/SC-001/SC-006)
 
     expect(() => getByLabelText('Comment')).not.toThrow();
     expect(() => getByLabelText('Flag')).not.toThrow();
+  });
+});
+
+/** Renders `Toolbar` + `AnnotationPlugin` wired together, `editable` and affordances configurable. */
+function renderToolbar({
+  editable = true,
+  annotationAffordances = [{ kind: 'comment', label: 'Comment' }],
+  onCreate = vi.fn(),
+}: {
+  editable?: boolean;
+  annotationAffordances?: { kind: string; label: string }[];
+  onCreate?: (e: AnnotationCreateEvent) => void;
+} = {}) {
+  const editorRef: { current: import('lexical').LexicalEditor | null } = { current: null };
+  const utils = render(
+    <LexicalComposer
+      initialConfig={{
+        namespace: 'toolbar-readonly-test',
+        nodes: editorNodes,
+        editable,
+        onError: (error: Error) => {
+          throw error;
+        },
+      }}
+    >
+      <RichTextPlugin
+        contentEditable={<ContentEditable />}
+        placeholder={null}
+        ErrorBoundary={LexicalErrorBoundary}
+      />
+      <EditorCapture editorRef={editorRef} />
+      <Harness onCreate={onCreate} annotationAffordances={annotationAffordances} />
+    </LexicalComposer>,
+  );
+  return { ...utils, editorRef, onCreate };
+}
+
+// US1: a read-only editor's native selection (drag or double-click both
+// collapse to "a Range is set and selectionchange fires" in jsdom — see the
+// file header) must make the toolbar-surfaced affordance reachable, since
+// Lexical never reports a range selection on a non-editable root (#965).
+describe('Toolbar — reachable in a read-only editor via the native selection (US1, issue #965)', () => {
+  it('shows only the configured affordance, no formatting controls (AC1/AC2)', () => {
+    const { getByLabelText, queryByLabelText } = renderToolbar({ editable: false });
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+    });
+
+    const button = getByLabelText('Comment');
+    expect(button).not.toBeNull();
+    expect(queryByLabelText('Bold')).toBeNull();
+    expect(queryByLabelText('Italic')).toBeNull();
+    expect(queryByLabelText('Link')).toBeNull();
+  });
+
+  it('fires onCreateAnnotation with a captured anchor on invocation (AC3, SC-001)', async () => {
+    const onCreate = vi.fn();
+    const { getByLabelText } = renderToolbar({ editable: false, onCreate });
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+    });
+
+    await act(async () => {
+      fireEvent.mouseDown(getByLabelText('Comment'));
+    });
+
+    expect(onCreate).toHaveBeenCalledOnce();
+    const event = onCreate.mock.calls[0][0] as AnnotationCreateEvent;
+    expect(event.kind).toBe('comment');
+    expect(event.anchor?.targetText).toBe(NEEDLE);
+  });
+});
+
+// US2/SC-003: a read-only editor with no toolbar-surfaced kind configured has
+// nothing to offer — the toolbar must not render an empty, contentless bar.
+describe('Toolbar — nothing renders read-only with no toolbar-surfaced kind (US2/SC-003)', () => {
+  it('renders no .toolbar element for any selection', () => {
+    const { container } = renderToolbar({ editable: false, annotationAffordances: [] });
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+    });
+
+    expect(container.querySelector('.toolbar')).toBeNull();
+  });
+});
+
+// US3/SC-005: while editable, a double-click-style selection (native
+// selection only, no SELECTION_CHANGE_COMMAND dispatch) must also show the
+// toolbar — previously only drag-selections reliably did.
+describe('Toolbar — double-click parity while editable (US3/SC-005)', () => {
+  it('shows formatting controls and configured affordances on a native-only selection', () => {
+    const { getByLabelText } = renderToolbar({ editable: true });
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+    });
+
+    expect(getByLabelText('Bold')).not.toBeNull();
+    expect(getByLabelText('Comment')).not.toBeNull();
+  });
+});
+
+// Regression: opening the link input moves focus (and the native selection)
+// off the editor root, which the FR-003 containment check would otherwise
+// mistake for "selection left the editor" and close the input it just opened.
+describe('Toolbar — link input keeps the toolbar open (regression)', () => {
+  it('does not hide the toolbar when the link input steals focus', async () => {
+    const { getByLabelText, getByPlaceholderText, container } = renderToolbar();
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+    });
+    expect(container.querySelector('.toolbar')).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.mouseDown(getByLabelText('Link'));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // Simulate the browser clearing the editor's native selection as focus
+    // moves to the link input, then the selectionchange event that follows.
+    window.getSelection()?.removeAllRanges();
+    act(() => {
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+
+    expect(getByPlaceholderText('Enter URL...')).not.toBeNull();
+    expect(container.querySelector('.toolbar')).not.toBeNull();
+  });
+});
+
+describe('Toolbar — edge cases', () => {
+  it('does not appear for a selection outside the editor root (FR-003)', () => {
+    const { container } = renderToolbar();
+
+    let outside!: HTMLElement;
+    act(() => {
+      outside = selectOutsideRoot('elsewhere on the page');
+    });
+
+    expect(container.querySelector('.toolbar')).toBeNull();
+    outside.remove();
+  });
+
+  it('does not appear for a collapsed native selection while editable (FR-009)', () => {
+    const { container } = renderToolbar();
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+    });
+    expect(container.querySelector('.toolbar')).not.toBeNull();
+
+    act(() => {
+      collapseNativeSelection(NEEDLE);
+    });
+    expect(container.querySelector('.toolbar')).toBeNull();
+  });
+
+  it('does not appear for a collapsed native selection while read-only (FR-009)', () => {
+    const { container } = renderToolbar({ editable: false });
+
+    act(() => {
+      collapseNativeSelection(NEEDLE);
+    });
+
+    expect(container.querySelector('.toolbar')).toBeNull();
   });
 });
 
@@ -315,5 +555,96 @@ describe('Toolbar — no configured kind means no affordance (User Story 3)', ()
     });
 
     expect(seen).toEqual([]);
+  });
+});
+
+// Regression (PR #966 review finding): registerEditableListener flipped
+// `editable` but never recomputed format flags, so a selection already live
+// when the editor becomes editable (e.g. a reviewer had bold text selected
+// read-only, then the host makes the document editable) rendered the Bold
+// button inactive until the next unrelated selection change.
+describe('Toolbar — format flags recompute when editable flips true with a live selection (regression)', () => {
+  it('reflects the selection formatting once editable becomes true, not a stale default', () => {
+    const { editorRef, getByLabelText } = renderToolbar({ editable: false });
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+      editorRef.current!.update(
+        () => {
+          const textNode = $getRoot()
+            .getAllTextNodes()
+            .find((n) => n.getTextContent().includes(NEEDLE))!;
+          const idx = textNode.getTextContent().indexOf(NEEDLE);
+          const selection = $createRangeSelection();
+          selection.anchor.set(textNode.getKey(), idx, 'text');
+          selection.focus.set(textNode.getKey(), idx + NEEDLE.length, 'text');
+          // Bold on the selection itself, deliberately without dispatching
+          // SELECTION_CHANGE_COMMAND — that path already recomputed format
+          // flags before this fix, so omitting it isolates the
+          // registerEditableListener transition the fix targets.
+          selection.toggleFormat('bold');
+          $setSelection(selection);
+        },
+        { discrete: true },
+      );
+    });
+
+    act(() => {
+      editorRef.current!.setEditable(true);
+    });
+
+    expect(getByLabelText('Bold').className).toContain('active');
+  });
+});
+
+// Review finding (PR #966, handarbeit-pruefer): the native `selectionchange`
+// listener calls `updateFormatFlags` assuming Lexical's own `$getSelection()`
+// has already been synced from the native selection. That sync is driven by
+// Lexical's internal `pointerdown` handler (gated on `editor.isEditable()`),
+// which sets a flag consumed by the *next* `selectionchange` — so a genuine
+// double-click, which always fires a real `pointerdown` first, reconciles
+// correctly. A purely programmatic selection change with no preceding
+// `pointerdown` on this root — which is what `selectNeedleNatively` proxies,
+// per this file's own documented jsdom limitation — does not go through that
+// reconciliation, so format flags stay at their last-known value rather than
+// reflecting the newly-selected (here: bold) text. Confirmed empirically
+// against this Lexical version; documented as a known limitation of the
+// native-selection proxy rather than fixed, since deriving format flags any
+// other way would mean re-deriving bold/italic/link state from raw DOM
+// instead of Lexical's own model — out of scope per the spec's Assumptions
+// ("this issue does not change how those specific flags are computed").
+describe('Toolbar — format flags after a native-only selection with no preceding pointerdown (known limitation)', () => {
+  it('does not retroactively reflect formatting Lexical never reconciled', () => {
+    const { editorRef, getByLabelText } = renderToolbar({ editable: true });
+
+    act(() => {
+      editorRef.current!.update(
+        () => {
+          const textNode = $getRoot()
+            .getAllTextNodes()
+            .find((n) => n.getTextContent().includes(NEEDLE))!;
+          const idx = textNode.getTextContent().indexOf(NEEDLE);
+          const selection = $createRangeSelection();
+          selection.anchor.set(textNode.getKey(), idx, 'text');
+          selection.focus.set(textNode.getKey(), idx + NEEDLE.length, 'text');
+          selection.toggleFormat('bold');
+          // No preceding pointerdown reaches Lexical here, so clearing the
+          // selection leaves nothing for the native-only path below to
+          // reconcile from — matching a real selection change with no
+          // editor-recognized pointerdown.
+          $setSelection(null);
+        },
+        { discrete: true },
+      );
+    });
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+    });
+
+    // The toolbar still appears (visibility is native-selection-driven,
+    // FR-001/FR-002) — only the format flag is affected.
+    expect(getByLabelText('Bold')).not.toBeNull();
+    expect(getByLabelText('Bold').className).not.toContain('active');
   });
 });
