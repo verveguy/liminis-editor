@@ -407,8 +407,9 @@ function hoistTargetOutward(mark: MarkNode): LexicalNode | null {
   }
 
   // The token is emitted as a sibling of `target`, so `target`'s own parent has
-  // to be one whose inline run can carry it.
-  return target && canCarryHoistedTokens(target.getParent()) ? target : null;
+  // to be one whose inline run can carry it — and that parent has to route
+  // `target` itself through that run rather than to the block dispatcher.
+  return target && canCarryHoistedTokens(target.getParent()) && hoistedTokenReachesOutput(target) ? target : null;
 }
 
 /**
@@ -425,6 +426,31 @@ function canCarryHoistedTokens(parent: LexicalNode | null): boolean {
   let node = parent;
   while (node && $isMarkNode(node)) node = node.getParent();
   return !!node && $isElementNode(node) && !$isCodeNode(node) && !$isLinkNode(node);
+}
+
+/**
+ * The same question asked of the *construct* rather than its container, because
+ * one container routes its children unevenly.
+ *
+ * `convertListItemNode` sends only text runs, line breaks and links through the
+ * inline phrasing path; every other child goes to the block dispatcher, which
+ * has nowhere to put a phrasing token. Hoisting a boundary onto one of those
+ * would drop the token silently, and `locateLiveMarkdownRange` would then fail
+ * to find the mark at all.
+ *
+ * No document reaches that state today, which is why this is a guard rather
+ * than a fix: an image, inline equation, footnote reference or inline HTML
+ * inside a list item is *itself* block-promoted by that same dispatcher, so it
+ * does not survive a round trip inline (`- The value $x^2$ matters` exports as
+ * three blocks) and any range over it is already rejected by
+ * `locateLiveMarkdownRange`'s slice check. Repairing that unrelated,
+ * pre-existing round-trip defect must not silently regress annotation ranges as
+ * its side effect.
+ */
+function hoistedTokenReachesOutput(node: LexicalNode): boolean {
+  let parent = node.getParent();
+  while (parent && $isMarkNode(parent)) parent = parent.getParent();
+  return $isListItemNode(parent) ? $isLinkNode(node) : true;
 }
 
 /**
@@ -472,7 +498,7 @@ function hoistTargetAt(mark: MarkNode, edge: 'start' | 'end'): LexicalNode | nul
   while (index >= first && index <= last && $isLineBreakNode(flat[index])) index += step;
   if (index < first || index > last) return null;
 
-  if (isHoistableConstruct(flat[index])) return flat[index];
+  if (isHoistableConstruct(flat[index])) return hoistedTokenReachesOutput(flat[index]) ? flat[index] : null;
 
   const run = mergeableRunBounds(flat, index);
   if (run && run.start >= first && run.end <= last) return flat[edge === 'start' ? run.start : run.end];

@@ -165,6 +165,20 @@ describe('inline-construct-safe live ranges (#970 defect 2)', () => {
     expect(recoveredSlice(md, '**big world** end')).toBe('**big world** end');
   });
 
+  // A list item routes only text runs, line breaks and links through the inline
+  // phrasing path, so a link inside one hoists exactly like a link in a
+  // paragraph — this is the shape that does reach the hoisted-token emission
+  // added to `convertListItemNode`.
+  it.each([
+    ['bullet item', '- See [the docs](https://example.com) now\n'],
+    ['ordered item', '1. See [the docs](https://example.com) now\n'],
+    ['blockquote', '> See [the docs](https://example.com) now\n'],
+    ['heading', '## See [the docs](https://example.com) now\n'],
+    ['table cell', '| Col |\n| - |\n| See [the docs](https://example.com) now |\n'],
+  ])('recovers a whole link inside a %s', (_name, md) => {
+    expect(recoveredSlice(md, 'See [the docs](https://example.com) now')).toBe('See [the docs](https://example.com) now');
+  });
+
   // FR-015: a range that touches no inline syntax behaves exactly as before.
   it('leaves a range touching no inline syntax unchanged', () => {
     expect(recoveredSlice(REFERENCE, 'brown fox jumps')).toBe('brown fox jumps');
