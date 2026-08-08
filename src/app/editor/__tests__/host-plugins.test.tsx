@@ -159,6 +159,35 @@ describe('AnchorScrollPlugin over the injected onScrollToAnchor service', () => 
     expect(scrollTo).toHaveBeenCalledTimes(1)
   })
 
+  it('resolves an anchor into a non-Latin-script heading instead of stripping it to empty', async () => {
+    let emit: ((anchor: string) => void) | null = null
+    const onScrollToAnchor = vi.fn((cb: (anchor: string) => void) => {
+      emit = cb
+      return vi.fn()
+    })
+
+    const { editor } = await mountPlugin({ onScrollToAnchor }, <AnchorScrollPlugin />)
+
+    await act(async () => {
+      editor.update(() => {
+        const heading = $createHeadingNode('h2')
+        // An ASCII-only normalizer would strip this to the empty string,
+        // making it indistinguishable from a punctuation-only heading and
+        // permanently unreachable.
+        heading.append($createTextNode('介绍'))
+        $getRoot().clear().append(heading)
+      })
+    })
+
+    const scroller = editor.getRootElement()!.parentElement!
+    scroller.id = 'editor-scroll-container'
+    const scrollTo = vi.fn()
+    scroller.scrollTo = scrollTo
+
+    act(() => emit!('介绍'))
+    expect(scrollTo).toHaveBeenCalledTimes(1)
+  })
+
   it('retries across animation frames until a heading rendered asynchronously appears', async () => {
     let emit: ((anchor: string) => void) | null = null
     const onScrollToAnchor = vi.fn((cb: (anchor: string) => void) => {
