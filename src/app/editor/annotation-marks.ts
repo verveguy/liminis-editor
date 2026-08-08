@@ -65,7 +65,7 @@ import { $isMarkNode, $unwrapMarkNode, $wrapSelectionInMarkNode, MarkNode } from
 import { captureAnchor, type Anchor, type AnchorFields, type AnchorRange } from '../../annotations/anchor-model';
 import { locateInSpan } from '../../annotations/anchor-align';
 import type { OffsetSpan } from '../mapper/mdastToLexical';
-import { exportLexicalToMdastInEditorState, markCloseToken, markOpenToken, setAnnotateTarget } from '../mapper/lexicalToMdast';
+import { exportLexicalToMdastInEditorState, markCloseToken, markOpenToken, setAnnotateTarget, type ExportOptions } from '../mapper/lexicalToMdast';
 import { stringifyMarkdown } from '../../markdown/stringify';
 
 /** Depth-first, document-order walk collecting every `MarkNode` in the tree. */
@@ -95,10 +95,10 @@ function liveMarkTexts(id: string): string[] {
  * markdown domain (#47). Must run inside an active `editor.update()`/
  * `editor.getEditorState().read()`.
  */
-function exportAnnotatedMarkdown(id: string): string {
+function exportAnnotatedMarkdown(id: string, exportOptions: ExportOptions): string {
   setAnnotateTarget(id);
   try {
-    return stringifyMarkdown(exportLexicalToMdastInEditorState());
+    return stringifyMarkdown(exportLexicalToMdastInEditorState(exportOptions));
   } finally {
     setAnnotateTarget(null);
   }
@@ -131,10 +131,10 @@ function exportAnnotatedMarkdown(id: string): string {
  * finding, #47) `markdownText` turns out not to actually match the derived
  * range — see the check below.
  */
-function locateLiveMarkdownRange(markdownText: string, id: string): AnchorRange | null {
+function locateLiveMarkdownRange(markdownText: string, id: string, exportOptions: ExportOptions): AnchorRange | null {
   if (collectMarkNodesInOrder($getRoot()).filter((node) => node.hasID(id)).length === 0) return null;
 
-  const annotated = exportAnnotatedMarkdown(id);
+  const annotated = exportAnnotatedMarkdown(id, exportOptions);
   const openToken = markOpenToken(id);
   const closeToken = markCloseToken(id);
 
@@ -311,12 +311,12 @@ export function wrapNativeRangeInMark(editor: LexicalEditor, range: Range, id: s
  * is known, {@link captureAnchor} (already markdown-domain-correct, and
  * already used by the FR-006 re-anchor path) does the rest.
  */
-export function readAnchorFields(editor: LexicalEditor, id: string): AnchorFields | null {
+export function readAnchorFields(editor: LexicalEditor, id: string, exportOptions: ExportOptions = {}): AnchorFields | null {
   return editor.getEditorState().read(() => {
     if (collectMarkNodesInOrder($getRoot()).filter((n) => n.hasID(id)).length === 0) return null;
 
-    const markdownText = stringifyMarkdown(exportLexicalToMdastInEditorState());
-    const range = locateLiveMarkdownRange(markdownText, id);
+    const markdownText = stringifyMarkdown(exportLexicalToMdastInEditorState(exportOptions));
+    const range = locateLiveMarkdownRange(markdownText, id, exportOptions);
     if (!range) return null;
 
     const { docVersion: _docVersion, ...fields } = captureAnchor(markdownText, range, 'live');
@@ -605,7 +605,11 @@ function pointAtMarkdownOffset(
  * Comments with no live mark (orphaned, flagged, or not yet resolved into
  * the open document) are simply absent from the returned map.
  */
-export function collectLiveAnchorSnapshots(editor: LexicalEditor, markdownText: string): Map<string, AnchorRange> {
+export function collectLiveAnchorSnapshots(
+  editor: LexicalEditor,
+  markdownText: string,
+  exportOptions: ExportOptions = {},
+): Map<string, AnchorRange> {
   return editor.getEditorState().read(() => {
     const ids = new Set<string>();
     for (const markNode of collectMarkNodesInOrder($getRoot())) {
@@ -614,7 +618,7 @@ export function collectLiveAnchorSnapshots(editor: LexicalEditor, markdownText: 
 
     const snapshots = new Map<string, AnchorRange>();
     for (const id of ids) {
-      const range = locateLiveMarkdownRange(markdownText, id);
+      const range = locateLiveMarkdownRange(markdownText, id, exportOptions);
       if (range) snapshots.set(id, range);
     }
     return snapshots;

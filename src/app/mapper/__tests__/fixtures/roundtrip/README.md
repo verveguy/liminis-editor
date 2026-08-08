@@ -31,6 +31,14 @@ automatically the next time the suite runs.
   An exemption file that exists but is empty is a hard error — the reason is mandatory.
   This is not a general escape hatch — it exists for one documented case today (see the
   `902-list-item-double-hard-break*` section below).
+- **`<name>.export-options.json`**: most fixtures exercise the pipeline's default export
+  configuration. If a fixture needs a non-default `ExportOptions` value (e.g.
+  `{"wikiLinkPromotion":"off"}`), add a sibling `.export-options.json` file containing the
+  JSON object to pass as `roundTrip()`'s `exportOptions`. It's read by `discoverFixtures`
+  and threaded through both the first-pass and second-pass (idempotence) round trips, so
+  the non-default configuration applies consistently to a fixture's whole test. Absent, a
+  fixture gets `{}` — today's default behavior. See the `951-no-wiki-link-promotion/`
+  section below for the fixture group that uses this.
 
 A file is only picked up as a fixture if it ends in `.md` and its name does not end in
 `.expected.md`; `README.md` itself is excluded.
@@ -360,6 +368,41 @@ byte-identical (no `.expected.md`):
   asymmetry is pre-existing, unchanged by this issue, and deliberately left alone (FR-001
   retains `table`/`code`/`math` behaviour); it is pinned here so the convention's actual
   scope is documented rather than assumed.
+
+## The `951-no-wiki-link-promotion/` fixture group
+
+Added by [#951](https://github.com/verveguy/liminis/issues/951): `convertLinkNode` in
+`lexicalToMdast.ts` promotes an untitled relative link (a `.md` path, a `.md` path with
+an anchor, a bare `#anchor`, or a directory-style path — see `isWikiLinkUrl`) to
+wiki-link syntax (`[[target]]` / `[[target|alias]]`) on export by default — the behavior
+every other fixture in this corpus exercises. This group instead pins the opt-out
+configuration (`{"wikiLinkPromotion":"off"}`, set via the `.export-options.json` sidecar
+described above): each fixture round-trips as a standard markdown link, byte-identical to
+its input, instead of being promoted.
+
+- **`relative-md-link.md`** (`[notes](notes.md)`): the untitled relative `.md` link — the
+  same URL shape as the corpus's pre-existing `relative-md-link-without-title.md`, which
+  pins the *default* (promote) behavior for this shape via its own `.expected.md`. This
+  fixture pins the opposite: with the option off, the same input stays a standard link.
+- **`relative-md-link-anchor.md`** (`[note](./notes.md#section)`): a `.md` path with an
+  anchor.
+- **`bare-anchor.md`** (`[section](#section)`): a bare anchor-only link.
+- **`directory-link.md`** (`[folder](./folder/)`): a directory-style (trailing-slash)
+  link.
+- **`genuine-wiki-link.md`** (`[[notes|note]]`) and **`genuine-wiki-link-bare.md`**
+  (`[[notes]]`): the opt-out's other edge — a link that was already wiki-link syntax in
+  the source, not an ordinary standard link this option is meant to stop promoting. These
+  pin that `wikiLinkPromotion: 'off'` only suppresses promotion of an *ordinary* link; a
+  genuine, author-written wiki-link still round-trips as one, since demoting it back to
+  `[text](target)` would corrupt a document's existing links (the exact failure mode this
+  option exists to prevent, just in the opposite direction). The two are distinguished by
+  provenance tracked on the parsed link node (`CustomLinkNode.getWikiLinkOrigin()`), not
+  by the URL, which is identical to `relative-md-link.md`'s either way.
+
+Each is byte-identical to its input (no `.expected.md`) and, like every other
+successfully round-tripping fixture in this corpus, gets its output round-tripped a
+second time to confirm the opt-out configuration is idempotent too (see "Idempotence"
+below) — the `.export-options.json` sidecar applies to both passes.
 
 ## Diagnosing a failure
 

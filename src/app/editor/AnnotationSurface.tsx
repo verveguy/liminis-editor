@@ -9,6 +9,7 @@ import {
   type MarkerTarget,
 } from '../../annotations/types';
 import type { OffsetSpan } from '../mapper/mdastToLexical';
+import type { WikiLinkPromotionMode } from '../mapper/lexicalToMdast';
 import {
   collectLiveAnchorSnapshots,
   placeMarksForAnchors,
@@ -30,6 +31,8 @@ export interface AnnotationSurfaceProps {
   markdownTextRef: MutableRefObject<string>;
   offsetsVersion: number;
   logger?: { warn: (message: string, ...args: unknown[]) => void };
+  /** Forwarded to the anchor-capture export pass — see `Editor`'s own prop of the same name. */
+  wikiLinkPromotion?: WikiLinkPromotionMode;
 }
 
 /**
@@ -113,20 +116,23 @@ function AnnotationMarkPlacementPlugin({
  */
 function AnnotationEditorHandlePlugin({
   handleRef,
+  wikiLinkPromotion,
 }: {
   handleRef: MutableRefObject<AnnotationEditorHandle | null>;
+  wikiLinkPromotion?: WikiLinkPromotionMode;
 }) {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
     handleRef.current = {
       removeMarksForAnnotation: (id) => removeMarksForAnnotation(editor, id),
-      collectLiveAnchorSnapshots: (markdownText) => collectLiveAnchorSnapshots(editor, markdownText),
+      collectLiveAnchorSnapshots: (markdownText) =>
+        collectLiveAnchorSnapshots(editor, markdownText, { wikiLinkPromotion }),
     };
     return () => {
       handleRef.current = null;
     };
-  }, [editor, handleRef]);
+  }, [editor, handleRef, wikiLinkPromotion]);
 
   return null;
 }
@@ -151,6 +157,7 @@ export default function AnnotationSurface({
   markdownTextRef,
   offsetsVersion,
   logger,
+  wikiLinkPromotion,
 }: AnnotationSurfaceProps) {
   const targets = useMemo(() => deriveMarkerTargets(annotations, kinds), [annotations, kinds]);
 
@@ -170,7 +177,12 @@ export default function AnnotationSurface({
   return (
     <>
       {onCreateAnnotation && (
-        <AnnotationPlugin kinds={kinds} onCreateAnnotation={onCreateAnnotation} logger={logger} />
+        <AnnotationPlugin
+          kinds={kinds}
+          onCreateAnnotation={onCreateAnnotation}
+          logger={logger}
+          wikiLinkPromotion={wikiLinkPromotion}
+        />
       )}
       <AnnotationMarkPlacementPlugin
         offsetSpansRef={offsetSpansRef}
@@ -185,7 +197,9 @@ export default function AnnotationSurface({
         onActivateAnnotation={onActivateAnnotation ?? (() => undefined)}
         scrollToAnnotation={scrollToAnnotation}
       />
-      {editorHandleRef && <AnnotationEditorHandlePlugin handleRef={editorHandleRef} />}
+      {editorHandleRef && (
+        <AnnotationEditorHandlePlugin handleRef={editorHandleRef} wikiLinkPromotion={wikiLinkPromotion} />
+      )}
     </>
   );
 }

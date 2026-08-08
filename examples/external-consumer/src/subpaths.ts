@@ -33,6 +33,8 @@ import type {
   AnnotationKindConfigs,
   AnnotationCreateEvent,
   CursorState,
+  ExportOptions,
+  WikiLinkPromotionMode,
 } from '@liminis/editor'
 
 // --- `./markdown` — pure mdast, no Lexical/React/MathJax ---------------------
@@ -114,4 +116,6 @@ export type Types = {
   layout: LayoutResult
   toUi: HostToUIMessage
   fromUi: UIToHostMessage
+  exportOptions: ExportOptions
+  wikiLinkPromotion: WikiLinkPromotionMode
 }
