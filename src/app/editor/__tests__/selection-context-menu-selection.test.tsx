@@ -90,7 +90,10 @@ function CommandRecorder({ seen }: { seen: string[] }) {
   return null
 }
 
-function renderMenu(extra?: React.ReactNode) {
+function renderMenu(
+  extra?: React.ReactNode,
+  annotationAffordances: { kind: string; label: string }[] = [{ kind: 'correction', label: 'Correction…' }],
+) {
   const utils = render(
     <LexicalComposer
       initialConfig={{
@@ -108,7 +111,7 @@ function renderMenu(extra?: React.ReactNode) {
       />
       <Seed />
       {extra}
-      <SelectionContextMenuPlugin onSelectionContextMenu={vi.fn()} correctionKindEnabled />
+      <SelectionContextMenuPlugin onSelectionContextMenu={vi.fn()} annotationAffordances={annotationAffordances} />
     </LexicalComposer>,
   )
 
@@ -188,5 +191,64 @@ describe('SelectionContextMenuPlugin — preserving the selection across a menu 
     const state = useCorrectionStore.getState()
     expect(state.isOpen).toBe(true)
     expect(state.selectedText).toBe('quick')
+  })
+})
+
+// User Story 2 (FR-004/FR-005/FR-010): a contextMenu-surfaced kind is
+// reachable under any name, not just the literal 'correction'.
+describe('SelectionContextMenuPlugin — a contextMenu kind under any name', () => {
+  it('offers the configured label for a non-correction kind', () => {
+    const { getByText, queryByText } = renderMenu(undefined, [{ kind: 'note', label: 'Note…' }])
+
+    expect(getByText('Note…')).not.toBeNull()
+    expect(queryByText('Correction…')).toBeNull()
+  })
+
+  it('dispatches the annotation composer command with that kind, not "correction"', () => {
+    const seen: string[] = []
+    const { getByText } = renderMenu(<CommandRecorder seen={seen} />, [{ kind: 'note', label: 'Note…' }])
+
+    act(() => {
+      fireEvent.click(getByText('Note…'))
+    })
+
+    expect(seen).toEqual(['note'])
+  })
+
+  it('does not open the legacy correction panel for a non-correction kind', () => {
+    const { getByText } = renderMenu(undefined, [{ kind: 'note', label: 'Note…' }])
+
+    act(() => {
+      fireEvent.click(getByText('Note…'))
+    })
+
+    expect(useCorrectionStore.getState().isOpen).toBe(false)
+  })
+
+  it('offers one entry per kind when multiple kinds are configured on this surface (FR-010)', () => {
+    const { getByText } = renderMenu(undefined, [
+      { kind: 'note', label: 'Note…' },
+      { kind: 'correction', label: 'Correction…' },
+    ])
+
+    expect(getByText('Note…')).not.toBeNull()
+    expect(getByText('Correction…')).not.toBeNull()
+  })
+})
+
+// User Story 3 / FR-007: with no configured affordances, the menu offers no
+// annotation entry and never dispatches the command.
+describe('SelectionContextMenuPlugin — no configured kind means no affordance', () => {
+  it('renders no annotation entry when annotationAffordances is empty', () => {
+    const { queryByText } = renderMenu(undefined, [])
+
+    expect(queryByText('Correction…')).toBeNull()
+  })
+
+  it('never dispatches OPEN_ANNOTATION_COMPOSER_COMMAND when no affordance is configured', () => {
+    const seen: string[] = []
+    renderMenu(<CommandRecorder seen={seen} />, [])
+
+    expect(seen).toEqual([])
   })
 })
