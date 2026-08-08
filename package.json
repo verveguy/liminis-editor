@@ -29,6 +29,10 @@
       "types": "./src/contract.ts",
       "default": "./src/contract.ts"
     },
+    "./nodes": {
+      "types": "./src/nodes.ts",
+      "default": "./src/nodes.ts"
+    },
     "./styles.css": "./src/styles.css"
   },
   "publishConfig": {
@@ -54,6 +58,10 @@
       "./contract": {
         "types": "./dist/contract.d.ts",
         "default": "./dist/contract.js"
+      },
+      "./nodes": {
+        "types": "./dist/nodes.d.ts",
+        "default": "./dist/nodes.js"
       },
       "./styles.css": "./dist/styles.css"
     }
