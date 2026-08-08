@@ -11,12 +11,8 @@ import { TabIndentationPlugin } from '@lexical/react/LexicalTabIndentationPlugin
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { HeadingNode, QuoteNode } from '@lexical/rich-text';
-import { CodeNode, CodeHighlightNode, $isCodeNode } from '@lexical/code';
+import { $isCodeNode } from '@lexical/code';
 import { registerCodeHighlighting } from '@lexical/code-prism';
-import { AutoLinkNode } from '@lexical/link';
-import { MarkNode } from '@lexical/mark';
-import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
 import {
   $createParagraphNode,
   $createRangeSelection,
@@ -56,27 +52,7 @@ import type { SelectionContextMenuEvent } from './SelectionContextMenuPlugin';
 import { CorrectionPanelPlugin } from './CorrectionPanelPlugin';
 import { AmbientCorrectionPlugin, type SweepFn } from './AmbientCorrectionPlugin';
 import { AssetContext, createAssetContextValue } from './AssetContext';
-import {
-  CalloutNode,
-  ToggleContainerNode,
-  ToggleTitleNode,
-  ToggleContentNode,
-  ImageNode,
-  HorizontalRuleNode,
-  EquationNode,
-  MermaidNode,
-  C4Node,
-  FrontmatterNode,
-  FootnoteNode,
-  HtmlNode,
-  ListItemParagraphBreakNode,
-  CustomLinkNode,
-  CustomListNode,
-  DefinitionListNode,
-  DefinitionTermNode,
-  DefinitionDescriptionNode,
-  CustomListItemNode,
-} from './nodes';
+import { editorNodes } from './editorNodes';
 import {
   importMarkdownToLexicalInEditorStateWithOffsets,
   importMarkdownToLexicalWithOffsets,
@@ -234,37 +210,6 @@ const editorTheme = {
 function editorOnError(error: Error): void {
   console.error('Lexical error:', error);
 }
-
-const editorNodes = [
-  HeadingNode,
-  QuoteNode,
-  CustomListNode,  // Replaces ListNode - uses same type 'list' but carries spread (loose/tight) state
-  CustomListItemNode,  // Replaces ListItemNode - uses same type 'listitem' but carries per-item task-checked state
-  CodeNode,
-  CodeHighlightNode,
-  CustomLinkNode,  // Replaces LinkNode - uses same type 'link' but renders data-href
-  AutoLinkNode,
-  TableNode,
-  TableRowNode,
-  TableCellNode,
-  CalloutNode,
-  ToggleContainerNode,
-  ToggleTitleNode,
-  ToggleContentNode,
-  ImageNode,
-  HorizontalRuleNode,
-  EquationNode,
-  MermaidNode,
-  C4Node,
-  FrontmatterNode,
-  FootnoteNode,
-  DefinitionListNode,
-  DefinitionTermNode,
-  DefinitionDescriptionNode,
-  HtmlNode,
-  ListItemParagraphBreakNode,
-  MarkNode,  // Annotation live marks (see ADR-077); inert unless an annotation kind is configured
-];
 
 // Mirror of $exitCodeNodeOnEnter in @lexical/code-core@0.44 (CodeExtension.register).
 // CodePrismExtension requires LexicalExtensionComposer which is incompatible with
