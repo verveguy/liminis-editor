@@ -11,6 +11,17 @@ import {
 } from 'lexical';
 import { $isLinkNode, TOGGLE_LINK_COMMAND } from '@lexical/link';
 import { getSelectedNode } from './utils';
+import { OPEN_ANNOTATION_COMPOSER_COMMAND } from './annotationCommands';
+
+/** One toolbar-surfaced annotation kind's affordance, plain data only (FR-001/FR-009). */
+export interface ToolbarAnnotationAffordance {
+  kind: string;
+  label: string;
+}
+
+interface ToolbarProps {
+  annotationAffordances?: ToolbarAnnotationAffordance[];
+}
 
 // Consolidated toolbar state to batch updates
 interface ToolbarState {
@@ -37,7 +48,7 @@ const initialToolbarState: ToolbarState = {
   linkUrl: '',
 };
 
-export function Toolbar() {
+export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
   const [editor] = useLexicalComposerContext();
   const [state, setState] = useState<ToolbarState>(initialToolbarState);
   const linkInputRef = useRef<HTMLInputElement>(null);
@@ -184,6 +195,13 @@ export function Toolbar() {
     setState(prev => ({ ...prev, showLinkInput: false, linkUrl: '' }));
   }, []);
 
+  const createAnnotation = useCallback(
+    (kind: string) => {
+      editor.dispatchCommand(OPEN_ANNOTATION_COMPOSER_COMMAND, { kind });
+    },
+    [editor]
+  );
+
   if (!state.isVisible) return null;
 
   return (
@@ -278,6 +296,26 @@ export function Toolbar() {
             onBlur={cancelLink}
           />
         </div>
+      )}
+      {annotationAffordances.length > 0 && (
+        <>
+          <div className="toolbar-divider" />
+          {annotationAffordances.map(({ kind, label }) => (
+            <button
+              key={kind}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                createAnnotation(kind);
+              }}
+              className="toolbar-button"
+              aria-label={label}
+              title={label}
+            >
+              {label}
+            </button>
+          ))}
+        </>
       )}
     </div>
   );
