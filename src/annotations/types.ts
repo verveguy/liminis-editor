@@ -80,6 +80,14 @@ export interface AnnotationKindConfig<TPayload = unknown> {
   /**
    * User-initiated creation. Omitted or null means host-injected only — the
    * package offers no way for a user to create one.
+   *
+   * CAUTION: a kind literally named `correction` on the `contextMenu` surface
+   * is special-cased internally — `SelectionContextMenuPlugin` opens the
+   * package's own legacy correction panel for it in addition to dispatching
+   * this create flow. If such a kind's host also supplies
+   * `onCreateAnnotation`, both UIs open off the same click with no
+   * coordination between them. Name a kind something other than `correction`
+   * if you want only the standard create flow.
    */
   createAffordance?: AnnotationCreateAffordance | null
   /**
