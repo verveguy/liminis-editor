@@ -10,11 +10,14 @@ import { useEditorHost } from '../../host/context';
  * e.g. a heading "Rebase and migration from `.env.enc`" slugs to
  * `rebase-and-migration-from-envenc`, matching that link fragment. Applying the
  * same reduction to both the anchor and each heading makes them comparable.
+ * `\p{L}\p{N}` (rather than `a-z0-9`) keeps non-Latin letters — e.g. "Übersicht"
+ * or "介绍" — instead of stripping them to nothing, which would make such
+ * headings permanently unreachable and collide with unrelated ASCII headings.
  */
 function normalizeForMatch(text: string): string {
   return text
     .toLowerCase()
-    .replace(/[^a-z0-9\s\-_]/g, '') // drop punctuation/emoji GitHub strips
+    .replace(/[^\p{L}\p{N}\s\-_]/gu, '') // drop punctuation/emoji GitHub strips
     .trim()
     .replace(/[\s-]+/g, '-') // spaces and dash runs → single hyphen
     .replace(/^-+|-+$/g, ''); // trim stray hyphens
