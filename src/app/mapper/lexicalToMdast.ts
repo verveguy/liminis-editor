@@ -187,16 +187,34 @@ function effectiveChildren(node: ElementNode): LexicalNode[] {
 // target annotation id is set via `setAnnotateTarget`, that id's live
 // MarkNode(s) — already transparent to markdown — additionally get their
 // content bracketed with a pair of Unicode Private-Use-Area sentinel tokens
-// carrying the id. Serializing with this mode on is byte-for-byte identical to
-// a normal export *except* for those inserted tokens (no other line of this
-// file's conversion logic branches on `annotateTargetId`), so a caller can find
-// the id's sentinel tokens in the resulting string and know that: the first
-// open token's own position is this mark's real start offset in the *plain*
-// export of the same state, and the (sentinel-stripped) text between the
-// outermost tokens is the exact raw markdown slice the mark covers — including
-// whatever markdown syntax the mark's boundary happens to fall on, which is
-// exactly what a search for the mark's *rendered* text could not reliably
-// locate. Never enabled on the disk-write path.
+// carrying the id (see `markdown/annotate-sentinels.ts`). Serializing with this
+// mode on is byte-for-byte identical to a normal export *except* for those
+// inserted tokens, so a caller can find the id's sentinel tokens in the
+// resulting string and know that: the first open token's own position is this
+// mark's real start offset in the *plain* export of the same state, and the
+// (sentinel-stripped) text between the outermost tokens is the exact raw
+// markdown slice the mark covers — including whatever markdown syntax the
+// mark's boundary happens to fall on, which is exactly what a search for the
+// mark's *rendered* text could not reliably locate. Never enabled on the
+// disk-write path.
+//
+// That "identical except for the tokens" property is load-bearing and is *not*
+// self-evident from the code: it holds only because no conversion decision
+// anywhere reads a text value the tokens have been spliced into. Two did, and
+// silently perturbed unrelated output until `annotated-serialize-corpus.ts`
+// pinned the property corpus-wide (Liminis #970); both now go through
+// `stripAnnotateSentinels` first. Any new decision made from a text value
+// carries the same obligation.
+//
+// Where a token *lands* is not simply "the boundary text leaf". A token spliced
+// into a leaf that sits inside an inline construct would put the recovered range
+// inside that construct's syntax — a mark over `it [rests](https://example.com)`
+// recovered as `it [rests`, a slice ending mid-link that a host then wrote back
+// as the annotation's stored target (#970, defect 2). So a boundary abutting an
+// inline construct whose whole content the mark covers is *hoisted* outside it
+// and emitted as its own mdast text node beside the construct. See
+// `collectSentinelPlacements` and `hoistTargetAt` for the exact rule, and why
+// partial coverage deliberately does not hoist.
 // ============================================================================
 
 let annotateTargetId: string | null = null;
