@@ -198,6 +198,10 @@ The package owns anchor mechanics and marker rendering. Identity, storage and
 lifecycle stay in your app — `id` is opaque to the package and `payload` is
 carried through untouched. See [`docs/annotations.md`](./docs/annotations.md).
 
+Configuring more than one kind on the same `createAffordance.surface` offers
+one toolbar button or context-menu entry per kind, in `annotationKinds`'
+declaration order.
+
 ## Documentation
 
 - [`docs/editor-api.md`](./docs/editor-api.md) — the `<Editor>` props and the
