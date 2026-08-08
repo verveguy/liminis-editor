@@ -123,10 +123,14 @@ export function AnchorScrollPlugin(): null {
       // matter how long we retry — skip the animation-frame budget entirely.
       if (!normalizeForMatch(anchor)) return;
 
+      // attempts counts this call before scrollToHeading runs, so the budget
+      // below caps the loop at exactly 30 total calls (1 immediate + up to 29
+      // retries), not 31.
       let attempts = 0;
       const tryScroll = () => {
+        attempts++;
         if (scrollToHeading(editor, anchor)) return;
-        if (attempts++ < 30) raf = requestAnimationFrame(tryScroll);
+        if (attempts < 30) raf = requestAnimationFrame(tryScroll);
       };
       tryScroll();
     });
