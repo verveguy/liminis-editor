@@ -64,6 +64,13 @@ import type {
   Html,
 } from 'mdast';
 import type { DefListTermNode, DefListDescriptionNode } from 'mdast-util-definition-list';
+import {
+  SENTINEL_CLOSE_END,
+  SENTINEL_CLOSE_START,
+  SENTINEL_OPEN_END,
+  SENTINEL_OPEN_START,
+  stripAnnotateSentinels,
+} from '../../markdown/annotate-sentinels';
 
 /**
  * Whether an untitled relative link (a `.md` path, `.md` path with anchor, bare
@@ -189,11 +196,6 @@ function effectiveChildren(node: ElementNode): LexicalNode[] {
 // exactly what a search for the mark's *rendered* text could not reliably
 // locate. Never enabled on the disk-write path.
 // ============================================================================
-
-const SENTINEL_OPEN_START = '\u{E000}';
-const SENTINEL_OPEN_END = '\u{E001}';
-const SENTINEL_CLOSE_START = '\u{E002}';
-const SENTINEL_CLOSE_END = '\u{E003}';
 
 let annotateTargetId: string | null = null;
 let sentinelBefore: Map<LexicalNode, string> | null = null;
@@ -675,11 +677,18 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean, spread: bool
   // Preserve explicit task markers in text to keep round-trip stable.
   // If a list item's first paragraph already starts with [ ] or [x], keep it
   // and avoid setting `checked` to prevent duplicate markers on stringify.
+  //
+  // The test runs against the sentinel-*free* text: in annotate mode the
+  // paragraph's first value is prefixed with an open token, so matching the raw
+  // value made this decision flip to false and the item got a `checked` flag on
+  // top of the literal marker it already carried — `1. [ ] [ ] Run the setup
+  // script`, i.e. annotate mode changing output outside its own tokens, which
+  // is exactly what `locateLiveMarkdownRange`'s offset math forbids (#970).
   let hasExplicitMarker = false;
   const firstChild = children[0];
   if (firstChild?.type === 'paragraph') {
     const firstPhrasing = firstChild.children[0];
-    if (firstPhrasing?.type === 'text' && /^\[( |x|X)\]\s+/.exec(firstPhrasing.value)) {
+    if (firstPhrasing?.type === 'text' && /^\[( |x|X)\]\s+/.exec(stripAnnotateSentinels(firstPhrasing.value))) {
       hasExplicitMarker = true;
     }
   }

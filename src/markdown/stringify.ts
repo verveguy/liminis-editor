@@ -5,6 +5,7 @@ import { defListToMarkdown } from 'mdast-util-definition-list';
 import { gfmFootnoteToMarkdown } from 'mdast-util-gfm-footnote';
 import { frontmatterToMarkdown } from 'mdast-util-frontmatter';
 import type { Root } from 'mdast';
+import { stripAnnotateSentinels } from './annotate-sentinels';
 
 export interface StringifyOptions {
   wrapWidth?: number;
@@ -268,10 +269,17 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
       // Doesn't apply inside a list item: a table/code fence there needs blank-line
       // separation from the preceding paragraph to parse back correctly, regardless
       // of how that paragraph ends.
+      // The colon test reads the sentinel-*free* text: in annotated-serialize
+      // mode (see `annotate-sentinels.ts`) the paragraph's last value can carry
+      // a trailing close token, so matching the raw value made the paragraph
+      // stop "ending with a colon" and re-inserted the blank line before the
+      // fence — annotate mode changing output outside its own tokens, which is
+      // exactly what `locateLiveMarkdownRange`'s offset math forbids (#970).
       (left: any, right: any, parent: any) => {
         if (left.type === 'paragraph' && parent?.type !== 'listItem') {
           const lastChild = left.children?.[left.children.length - 1];
-          const endsWithColon = lastChild?.type === 'text' && lastChild.value?.trimEnd().endsWith(':');
+          const endsWithColon =
+            lastChild?.type === 'text' && stripAnnotateSentinels(lastChild.value ?? '').trimEnd().endsWith(':');
           if (endsWithColon && ['table', 'code', 'math'].includes(right.type)) {
             return 0; // No blank line
           }
