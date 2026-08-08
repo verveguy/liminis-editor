@@ -320,6 +320,43 @@ describe('annotated-serialize sentinel survival under stringify post-processing 
     expect(wrapped.slice(lastClose + closeToken.length)).toBe(' here.\n\nMore text.\n');
   });
 
+  /**
+   * A mark's boundary token is only ever hoisted onto a construct the emission
+   * path will actually route through its inline run. `convertListItemNode`
+   * routes only text runs, line breaks and links that way — every other child
+   * goes to the block dispatcher, which has nowhere to put a phrasing token.
+   *
+   * Without that guard the *open* token was silently dropped while the close
+   * token still emitted, leaving an unpaired token in the annotated export
+   * (Copilot / CodeRabbit on PR #971). No round-tripping document reaches this
+   * shape today — an image, inline equation or inline HTML inside a list item
+   * is itself block-promoted by the same dispatcher, so it does not survive
+   * export inline — but repairing *that* unrelated defect must not silently
+   * take annotation ranges down with it.
+   */
+  it.each([
+    ['inline math', '- The value $x^2$ matters\n'],
+    ['inline HTML', '- Some <span>raw</span> markup\n'],
+    ['inline image', '- Look at ![a](https://e.com/i.png) closely\n'],
+  ])('emits a paired token for a mark bounded by %s in a list item', async (_name, md) => {
+    const wrapped = await exportAnnotated(md, 'c1', (root) => {
+      // Wrap from the non-text construct onward, so the mark's own first child
+      // is the construct — the boundary the guard covers.
+      const item = root.getFirstDescendant()?.getParent();
+      if (!item || !$isElementNode(item)) throw new Error('no list item');
+      const kids = item.getChildren();
+      const from = kids.findIndex((kid) => !$isTextNode(kid));
+      expect(from).toBeGreaterThan(-1);
+      const slice = kids.slice(from);
+      const mark = $createMarkNode(['c1']);
+      slice[0].replace(mark);
+      mark.append(...slice);
+    });
+
+    expect(wrapped).toContain(markOpenToken('c1'));
+    expect(wrapped).toContain(markCloseToken('c1'));
+  });
+
   it('annotate mode never leaks into the disk-write path once disabled', async () => {
     const md = 'See [the docs](https://example.com/a_b) about **snake_case_word** here.\n';
     await exportAnnotated(md, 'c1', () => wrapPlainTextInMark('snake_case_word', 'c1'));
