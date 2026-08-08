@@ -118,6 +118,18 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
   // from Lexical's own selection, exactly as before — only computed while
   // editable, since the controls that display them don't render otherwise.
   // Must be called from inside an editor state read.
+  //
+  // Known limitation: this reads whatever Lexical's own $getSelection() last
+  // reconciled, which Lexical updates from the native selection via its own
+  // pointerdown-gated sync (see the native selectionchange listener below).
+  // A genuine double-click always fires a real pointerdown first, so it
+  // reconciles correctly; a selection change with no preceding pointerdown
+  // on this root leaves these flags at their last-known value rather than
+  // the newly-selected text's actual formatting (see the regression test
+  // "format flags after a native-only selection with no preceding
+  // pointerdown"). Deriving these flags any other way would mean
+  // re-implementing bold/italic/link detection from raw DOM instead of
+  // Lexical's model, which is out of scope per the spec's Assumptions.
   const updateFormatFlags = useCallback(() => {
     const selection = $getSelection();
     if (!$isRangeSelection(selection) || selection.isCollapsed()) {
@@ -194,6 +206,17 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
   // Native selectionchange fires for every selection the browser makes,
   // including a non-editable root and a double-click word-selection — neither
   // of which reliably drives SELECTION_CHANGE_COMMAND (FR-001/FR-002).
+  //
+  // For a normal drag-selection while editable, this listener and the
+  // SELECTION_CHANGE_COMMAND handler above both fire for the same underlying
+  // browser event (Lexical's own command is itself dispatched from its
+  // internal selectionchange handling), so a single real selection change
+  // runs updateVisibility/updateFormatFlags twice. This is intentional, not
+  // an oversight: both computations are idempotent (same selection in ⇒ same
+  // state out), the extra pass is cheap, and de-duplicating the two triggers
+  // would mean re-introducing a way to tell "did SELECTION_CHANGE_COMMAND
+  // already run for this event" — more state to get wrong than the
+  // duplicate, harmless recompute it would save.
   useEffect(() => {
     const handleNativeSelectionChange = () => {
       updateVisibility();

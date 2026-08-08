@@ -596,3 +596,55 @@ describe('Toolbar — format flags recompute when editable flips true with a liv
     expect(getByLabelText('Bold').className).toContain('active');
   });
 });
+
+// Review finding (PR #966, handarbeit-pruefer): the native `selectionchange`
+// listener calls `updateFormatFlags` assuming Lexical's own `$getSelection()`
+// has already been synced from the native selection. That sync is driven by
+// Lexical's internal `pointerdown` handler (gated on `editor.isEditable()`),
+// which sets a flag consumed by the *next* `selectionchange` — so a genuine
+// double-click, which always fires a real `pointerdown` first, reconciles
+// correctly. A purely programmatic selection change with no preceding
+// `pointerdown` on this root — which is what `selectNeedleNatively` proxies,
+// per this file's own documented jsdom limitation — does not go through that
+// reconciliation, so format flags stay at their last-known value rather than
+// reflecting the newly-selected (here: bold) text. Confirmed empirically
+// against this Lexical version; documented as a known limitation of the
+// native-selection proxy rather than fixed, since deriving format flags any
+// other way would mean re-deriving bold/italic/link state from raw DOM
+// instead of Lexical's own model — out of scope per the spec's Assumptions
+// ("this issue does not change how those specific flags are computed").
+describe('Toolbar — format flags after a native-only selection with no preceding pointerdown (known limitation)', () => {
+  it('does not retroactively reflect formatting Lexical never reconciled', () => {
+    const { editorRef, getByLabelText } = renderToolbar({ editable: true });
+
+    act(() => {
+      editorRef.current!.update(
+        () => {
+          const textNode = $getRoot()
+            .getAllTextNodes()
+            .find((n) => n.getTextContent().includes(NEEDLE))!;
+          const idx = textNode.getTextContent().indexOf(NEEDLE);
+          const selection = $createRangeSelection();
+          selection.anchor.set(textNode.getKey(), idx, 'text');
+          selection.focus.set(textNode.getKey(), idx + NEEDLE.length, 'text');
+          selection.toggleFormat('bold');
+          // No preceding pointerdown reaches Lexical here, so clearing the
+          // selection leaves nothing for the native-only path below to
+          // reconcile from — matching a real selection change with no
+          // editor-recognized pointerdown.
+          $setSelection(null);
+        },
+        { discrete: true },
+      );
+    });
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+    });
+
+    // The toolbar still appears (visibility is native-selection-driven,
+    // FR-001/FR-002) — only the format flag is affected.
+    expect(getByLabelText('Bold')).not.toBeNull();
+    expect(getByLabelText('Bold').className).not.toContain('active');
+  });
+});
