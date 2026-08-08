@@ -51,32 +51,39 @@ const initialToolbarState: ToolbarState = {
 export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
   const [editor] = useLexicalComposerContext();
   const [state, setState] = useState<ToolbarState>(initialToolbarState);
+  const [editable, setEditable] = useState(editor.isEditable());
   const linkInputRef = useRef<HTMLInputElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const dismissedByClickRef = useRef(false);
 
-  const updateToolbar = useCallback(() => {
+  useEffect(() => {
+    return editor.registerEditableListener((isEditable) => {
+      setEditable(isEditable);
+    });
+  }, [editor]);
+
+  // Visibility + position, sourced from the native browser selection rather
+  // than Lexical's. Lexical never reports a range selection on a
+  // non-editable root, and doesn't reliably dispatch SELECTION_CHANGE_COMMAND
+  // for a double-click word-selection even when editable — window.getSelection()
+  // is accurate in both cases, matching AnnotationPlugin's own capture path.
+  const updateVisibility = useCallback(() => {
     // Don't show toolbar if it was just dismissed by clicking outside
     if (dismissedByClickRef.current) {
       return;
     }
 
-    const selection = $getSelection();
-
-    if (!$isRangeSelection(selection)) {
-      setState(prev => prev.isVisible ? { ...prev, isVisible: false } : prev);
-      return;
-    }
-
-    const isCollapsed = selection.isCollapsed();
-    if (isCollapsed) {
-      setState(prev => prev.isVisible ? { ...prev, isVisible: false } : prev);
-      return;
-    }
-
-    // Get selection position
     const nativeSelection = window.getSelection();
-    if (!nativeSelection || nativeSelection.rangeCount === 0) {
+    const rootElement = editor.getRootElement();
+
+    if (
+      !nativeSelection ||
+      nativeSelection.rangeCount === 0 ||
+      nativeSelection.isCollapsed ||
+      !rootElement ||
+      !nativeSelection.anchorNode ||
+      !rootElement.contains(nativeSelection.anchorNode)
+    ) {
       setState(prev => prev.isVisible ? { ...prev, isVisible: false } : prev);
       return;
     }
@@ -84,24 +91,37 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
     const range = nativeSelection.getRangeAt(0);
     const rect = range.getBoundingClientRect();
 
-    // Check for link
+    setState(prev => ({
+      ...prev,
+      isVisible: true,
+      position: {
+        top: rect.top - 45,
+        left: rect.left + rect.width / 2,
+      },
+    }));
+  }, [editor]);
+
+  // Format-flag booleans (bold/italic/strikethrough/code/link) stay sourced
+  // from Lexical's own selection, exactly as before — only computed while
+  // editable, since the controls that display them don't render otherwise.
+  // Must be called from inside an editor state read.
+  const updateFormatFlags = useCallback(() => {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection) || selection.isCollapsed()) {
+      return;
+    }
+
     const node = getSelectedNode(selection);
     const parent = node.getParent();
     const isLink = $isLinkNode(parent) || $isLinkNode(node);
 
-    // Batch all state updates into a single setState call
     setState(prev => ({
       ...prev,
-      isVisible: true,
       isBold: selection.hasFormat('bold'),
       isItalic: selection.hasFormat('italic'),
       isStrikethrough: selection.hasFormat('strikethrough'),
       isCode: selection.hasFormat('code'),
       isLink,
-      position: {
-        top: rect.top - 45,
-        left: rect.left + rect.width / 2,
-      },
     }));
   }, []);
 
@@ -109,9 +129,12 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
     const unregisterSelection = editor.registerCommand(
       SELECTION_CHANGE_COMMAND,
       () => {
-        editor.getEditorState().read(() => {
-          updateToolbar();
-        });
+        updateVisibility();
+        if (editor.isEditable()) {
+          editor.getEditorState().read(() => {
+            updateFormatFlags();
+          });
+        }
         return false;
       },
       COMMAND_PRIORITY_CRITICAL
@@ -123,9 +146,11 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
       () => {
         // Defer the update to run after the format is applied
         setTimeout(() => {
-          editor.getEditorState().read(() => {
-            updateToolbar();
-          });
+          if (editor.isEditable()) {
+            editor.getEditorState().read(() => {
+              updateFormatFlags();
+            });
+          }
         }, 0);
         return false;
       },
@@ -136,7 +161,24 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
       unregisterSelection();
       unregisterFormat();
     };
-  }, [editor, updateToolbar]);
+  }, [editor, updateVisibility, updateFormatFlags]);
+
+  // Native selectionchange fires for every selection the browser makes,
+  // including a non-editable root and a double-click word-selection — neither
+  // of which reliably drives SELECTION_CHANGE_COMMAND (FR-001/FR-002).
+  useEffect(() => {
+    const handleNativeSelectionChange = () => {
+      updateVisibility();
+      if (editor.isEditable()) {
+        editor.getEditorState().read(() => {
+          updateFormatFlags();
+        });
+      }
+    };
+
+    document.addEventListener('selectionchange', handleNativeSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleNativeSelectionChange);
+  }, [editor, updateVisibility, updateFormatFlags]);
 
   // Dismiss toolbar immediately on mousedown outside
   useEffect(() => {
@@ -202,7 +244,10 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
     [editor]
   );
 
-  if (!state.isVisible) return null;
+  // Formatting controls are inert on a read-only root, so they never render
+  // there (FR-004); with nothing else to offer, the whole toolbar stays
+  // hidden too (FR-006) rather than rendering an empty bar.
+  if (!state.isVisible || (!editable && annotationAffordances.length === 0)) return null;
 
   return (
     <div
@@ -215,91 +260,95 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
         transform: 'translateX(-50%)',
       }}
     >
-      <button
-        type="button"
-        onMouseDown={(e) => {
-          e.preventDefault();
-          formatText('bold');
-        }}
-        className={`toolbar-button ${state.isBold ? 'active' : ''}`}
-        aria-label="Bold"
-        title="Bold (Cmd+B)"
-      >
-        <strong>B</strong>
-      </button>
-      <button
-        type="button"
-        onMouseDown={(e) => {
-          e.preventDefault();
-          formatText('italic');
-        }}
-        className={`toolbar-button ${state.isItalic ? 'active' : ''}`}
-        aria-label="Italic"
-        title="Italic (Cmd+I)"
-      >
-        <em>I</em>
-      </button>
-      <button
-        type="button"
-        onMouseDown={(e) => {
-          e.preventDefault();
-          formatText('strikethrough');
-        }}
-        className={`toolbar-button ${state.isStrikethrough ? 'active' : ''}`}
-        aria-label="Strikethrough"
-        title="Strikethrough"
-      >
-        <s>S</s>
-      </button>
-      <button
-        type="button"
-        onMouseDown={(e) => {
-          e.preventDefault();
-          formatText('code');
-        }}
-        className={`toolbar-button ${state.isCode ? 'active' : ''}`}
-        aria-label="Code"
-        title="Inline Code (Cmd+E)"
-      >
-        {'</>'}
-      </button>
-      <div className="toolbar-divider" />
-      <button
-        type="button"
-        onMouseDown={(e) => {
-          e.preventDefault();
-          openLinkInput();
-        }}
-        className={`toolbar-button ${state.isLink ? 'active' : ''}`}
-        aria-label="Link"
-        title="Link (Cmd+K)"
-      >
-        🔗
-      </button>
-      {state.showLinkInput && (
-        <div className="toolbar-link-input">
-          <input
-            ref={linkInputRef}
-            type="text"
-            placeholder="Enter URL..."
-            value={state.linkUrl}
-            onChange={(e) => setState(prev => ({ ...prev, linkUrl: e.target.value }))}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                submitLink();
-              } else if (e.key === 'Escape') {
-                e.preventDefault();
-                cancelLink();
-              }
+      {editable && (
+        <>
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              formatText('bold');
             }}
-            onBlur={cancelLink}
-          />
-        </div>
+            className={`toolbar-button ${state.isBold ? 'active' : ''}`}
+            aria-label="Bold"
+            title="Bold (Cmd+B)"
+          >
+            <strong>B</strong>
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              formatText('italic');
+            }}
+            className={`toolbar-button ${state.isItalic ? 'active' : ''}`}
+            aria-label="Italic"
+            title="Italic (Cmd+I)"
+          >
+            <em>I</em>
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              formatText('strikethrough');
+            }}
+            className={`toolbar-button ${state.isStrikethrough ? 'active' : ''}`}
+            aria-label="Strikethrough"
+            title="Strikethrough"
+          >
+            <s>S</s>
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              formatText('code');
+            }}
+            className={`toolbar-button ${state.isCode ? 'active' : ''}`}
+            aria-label="Code"
+            title="Inline Code (Cmd+E)"
+          >
+            {'</>'}
+          </button>
+          <div className="toolbar-divider" />
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              openLinkInput();
+            }}
+            className={`toolbar-button ${state.isLink ? 'active' : ''}`}
+            aria-label="Link"
+            title="Link (Cmd+K)"
+          >
+            🔗
+          </button>
+          {state.showLinkInput && (
+            <div className="toolbar-link-input">
+              <input
+                ref={linkInputRef}
+                type="text"
+                placeholder="Enter URL..."
+                value={state.linkUrl}
+                onChange={(e) => setState(prev => ({ ...prev, linkUrl: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitLink();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelLink();
+                  }
+                }}
+                onBlur={cancelLink}
+              />
+            </div>
+          )}
+        </>
       )}
       {annotationAffordances.length > 0 && (
         <>
-          <div className="toolbar-divider" />
+          {editable && <div className="toolbar-divider" />}
           {annotationAffordances.map(({ kind, label }) => (
             <button
               key={kind}
