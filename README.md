@@ -202,6 +202,12 @@ Configuring more than one kind on the same `createAffordance.surface` offers
 one toolbar button or context-menu entry per kind, in `annotationKinds`'
 declaration order.
 
+A `toolbar`-surfaced affordance works the same way whether `editable` is
+`true` or `false` — annotating is decoupled from editing, so a selection in a
+read-only editor still shows the floating toolbar with the configured
+affordance (formatting controls are omitted there, since they would be
+inert).
+
 ## Documentation
 
 - [`docs/editor-api.md`](./docs/editor-api.md) — the `<Editor>` props and the
