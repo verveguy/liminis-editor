@@ -16,7 +16,7 @@ implementation detail you never have to touch.
 | `initialContent` | `string` | Markdown text. **Required.** |
 | `onChange` | `(markdown: string) => void` | Fires on edit with the serialized markdown. **Required.** |
 | `contentVersion` | `number` | Bump to force a re-import of `initialContent`. Without it, changing `initialContent` alone does not reload the document — that is deliberate, so a controlled `onChange` loop does not fight the user's cursor. |
-| `editable` | `boolean` | Default `true`. `false` renders read-only. |
+| `editable` | `boolean` | Default `true`. `false` renders read-only. A `toolbar`-surfaced annotation create affordance (see the Annotations section of the package README) remains reachable via selection either way; formatting controls do not render when read-only. |
 | `filePath` | `string` | The path of the file being edited. Drives file-type-specific UI (e.g. `.mdc`). |
 
 ### Cursor and selection
