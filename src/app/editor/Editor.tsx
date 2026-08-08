@@ -11,12 +11,8 @@ import { TabIndentationPlugin } from '@lexical/react/LexicalTabIndentationPlugin
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { HeadingNode, QuoteNode } from '@lexical/rich-text';
-import { CodeNode, CodeHighlightNode, $isCodeNode } from '@lexical/code';
+import { $isCodeNode } from '@lexical/code';
 import { registerCodeHighlighting } from '@lexical/code-prism';
-import { AutoLinkNode } from '@lexical/link';
-import { MarkNode } from '@lexical/mark';
-import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
 import {
   $createParagraphNode,
   $createRangeSelection,
@@ -56,27 +52,7 @@ import type { SelectionContextMenuEvent } from './SelectionContextMenuPlugin';
 import { CorrectionPanelPlugin } from './CorrectionPanelPlugin';
 import { AmbientCorrectionPlugin, type SweepFn } from './AmbientCorrectionPlugin';
 import { AssetContext, createAssetContextValue } from './AssetContext';
-import {
-  CalloutNode,
-  ToggleContainerNode,
-  ToggleTitleNode,
-  ToggleContentNode,
-  ImageNode,
-  HorizontalRuleNode,
-  EquationNode,
-  MermaidNode,
-  C4Node,
-  FrontmatterNode,
-  FootnoteNode,
-  HtmlNode,
-  ListItemParagraphBreakNode,
-  CustomLinkNode,
-  CustomListNode,
-  DefinitionListNode,
-  DefinitionTermNode,
-  DefinitionDescriptionNode,
-  CustomListItemNode,
-} from './nodes';
+import { editorNodes } from './editorNodes';
 import {
   importMarkdownToLexicalInEditorStateWithOffsets,
   importMarkdownToLexicalWithOffsets,
@@ -91,7 +67,7 @@ import type {
 } from '../../annotations/types';
 import type { AnnotationCreateEvent } from './AnnotationPlugin';
 
-import { exportLexicalToMdast } from '../mapper/lexicalToMdast';
+import { exportLexicalToMdast, type WikiLinkPromotionMode } from '../mapper/lexicalToMdast';
 import { parseMarkdown } from '../../markdown/parse';
 import { stringifyMarkdown } from '../../markdown/stringify';
 import type { ImagePathResolution } from '../../types';
@@ -119,6 +95,16 @@ interface EditorProps {
   assetBaseUri?: string;
   documentDirUri?: string;
   imagePathResolution?: ImagePathResolution;
+  /**
+   * Whether an untitled relative link (a `.md` path, a `.md` path with an
+   * anchor, a bare `#anchor`, or a directory-style path) is promoted to
+   * wiki-link syntax on export. Defaults to `'promote'`, today's only
+   * behavior — set to `'off'` for a host whose documents are rendered
+   * somewhere that doesn't understand wiki-link syntax (liminis#951). Never
+   * affects a genuine author-written `[[target]]` wiki-link, which always
+   * round-trips as one regardless of this setting.
+   */
+  wikiLinkPromotion?: WikiLinkPromotionMode;
   /** Resolve a workspace-relative file path to a data URL for display */
   resolveLocalAsset?: (relativePath: string) => Promise<string | null>;
   /** When false, the editor is read-only */
@@ -224,37 +210,6 @@ const editorTheme = {
 function editorOnError(error: Error): void {
   console.error('Lexical error:', error);
 }
-
-const editorNodes = [
-  HeadingNode,
-  QuoteNode,
-  CustomListNode,  // Replaces ListNode - uses same type 'list' but carries spread (loose/tight) state
-  CustomListItemNode,  // Replaces ListItemNode - uses same type 'listitem' but carries per-item task-checked state
-  CodeNode,
-  CodeHighlightNode,
-  CustomLinkNode,  // Replaces LinkNode - uses same type 'link' but renders data-href
-  AutoLinkNode,
-  TableNode,
-  TableRowNode,
-  TableCellNode,
-  CalloutNode,
-  ToggleContainerNode,
-  ToggleTitleNode,
-  ToggleContentNode,
-  ImageNode,
-  HorizontalRuleNode,
-  EquationNode,
-  MermaidNode,
-  C4Node,
-  FrontmatterNode,
-  FootnoteNode,
-  DefinitionListNode,
-  DefinitionTermNode,
-  DefinitionDescriptionNode,
-  HtmlNode,
-  ListItemParagraphBreakNode,
-  MarkNode,  // Annotation live marks (see ADR-077); inert unless an annotation kind is configured
-];
 
 // Mirror of $exitCodeNodeOnEnter in @lexical/code-core@0.44 (CodeExtension.register).
 // CodePrismExtension requires LexicalExtensionComposer which is incompatible with
@@ -668,6 +623,7 @@ export function Editor({
   assetBaseUri,
   documentDirUri,
   imagePathResolution,
+  wikiLinkPromotion,
   resolveLocalAsset,
   editable = true,
   filePath,
@@ -741,6 +697,12 @@ export function Editor({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
+  // Same reasoning as onChangeRef: flushPendingChange must stay a stable
+  // ([]) callback, so the latest prop value is read through a ref rather than
+  // closed over.
+  const wikiLinkPromotionRef = useRef(wikiLinkPromotion);
+  wikiLinkPromotionRef.current = wikiLinkPromotion;
+
   // Export pending editor state and propagate if changed.
   // Shared by the debounce timer callback and unmount flush.
   const flushPendingChange = useCallback(() => {
@@ -750,7 +712,7 @@ export function Editor({
     const timeSinceLoad = Date.now() - lastExternalLoadRef.current;
     if (timeSinceLoad < POST_LOAD_SUPPRESS_MS) return;
 
-    const mdast = exportLexicalToMdast(pendingEditor);
+    const mdast = exportLexicalToMdast(pendingEditor, { wikiLinkPromotion: wikiLinkPromotionRef.current });
     const markdown = stringifyMarkdown(mdast);
 
     if (markdown !== currentContentRef.current) {
@@ -895,6 +857,7 @@ export function Editor({
                   markdownTextRef={markdownTextRef}
                   offsetsVersion={offsetsVersion}
                   logger={annotationLogger}
+                  wikiLinkPromotion={wikiLinkPromotion}
                 />
               </Suspense>
             )}

@@ -4,7 +4,7 @@
  *
  * Build → pack → install the tarball into an external-style consumer *outside*
  * the pnpm workspace → type-check it under two module-resolution modes → build
- * three measurement arms → assert the entry-graph boundaries the six subpaths
+ * three measurement arms → assert the entry-graph boundaries the seven subpaths
  * exist to keep.
  *
  * Why a script rather than assertions in the unit suite: every assertion in
@@ -105,7 +105,7 @@ const packed = JSON.parse(readFileSync(join(extractDir, 'package', 'package.json
 check('main points at dist/', packed.main === './dist/index.js', `got ${packed.main}`)
 check('types points at dist/', packed.types === './dist/index.d.ts', `got ${packed.types}`)
 
-const EXPECTED_SUBPATHS = ['.', './markdown', './annotations', './headless', './contract', './styles.css']
+const EXPECTED_SUBPATHS = ['.', './markdown', './annotations', './headless', './contract', './nodes', './styles.css']
 for (const subpath of EXPECTED_SUBPATHS) {
   const entry = packed.exports?.[subpath]
   const target = typeof entry === 'string' ? entry : entry?.default
@@ -326,7 +326,7 @@ if (existsSync(installedManifest)) {
 
 step('Type-checking the consumer (moduleResolution: bundler)')
 run('pnpm', ['run', 'typecheck:bundler'], CONSUMER_DIR)
-check('all six subpaths type-check under "bundler"', true)
+check('all seven subpaths type-check under "bundler"', true)
 
 step('Type-checking the consumer (moduleResolution: nodenext)')
 run('pnpm', ['run', 'typecheck:nodenext'], CONSUMER_DIR)

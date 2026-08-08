@@ -33,6 +33,8 @@ import type {
   AnnotationKindConfigs,
   AnnotationCreateEvent,
   CursorState,
+  ExportOptions,
+  WikiLinkPromotionMode,
 } from '@liminis/editor'
 
 // --- `./markdown` — pure mdast, no Lexical/React/MathJax ---------------------
@@ -66,6 +68,14 @@ import type { C4Diagram, LayoutResult } from '@liminis/editor/headless'
 //     which is the one thing this entry exists to keep out of a preload bundle.
 import type { HostToUIMessage, UIToHostMessage } from '@liminis/editor/contract'
 
+// --- `./nodes` — the headless mapper surface (#954): Lexical node classes ---
+//     plus the mapper functions, for a consumer building its own `createEditor`.
+import {
+  editorNodes,
+  importMarkdownToLexical as importMarkdownToLexicalFromNodes,
+  exportLexicalToMdast as exportLexicalToMdastFromNodes,
+} from '@liminis/editor/nodes'
+
 // Reference everything so `noUnusedLocals` proves each import actually resolved
 // to a real exported binding rather than to `any`.
 export const values = {
@@ -97,6 +107,9 @@ export const values = {
   parseC4,
   layoutC4Diagram,
   createLiteAdaptorDocument,
+  editorNodes,
+  importMarkdownToLexicalFromNodes,
+  exportLexicalToMdastFromNodes,
 }
 
 export type Types = {
@@ -114,4 +127,6 @@ export type Types = {
   layout: LayoutResult
   toUi: HostToUIMessage
   fromUi: UIToHostMessage
+  exportOptions: ExportOptions
+  wikiLinkPromotion: WikiLinkPromotionMode
 }

@@ -8,70 +8,17 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { createEditor, LexicalEditor } from 'lexical';
-import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { registerList } from '@lexical/list';
-import { CodeNode, CodeHighlightNode } from '@lexical/code';
-import { AutoLinkNode } from '@lexical/link';
-import { MarkNode } from '@lexical/mark';
-import { TableNode, TableRowNode, TableCellNode } from '@lexical/table';
-import {
-  CalloutNode,
-  ToggleContainerNode,
-  ToggleTitleNode,
-  ToggleContentNode,
-  ImageNode,
-  HorizontalRuleNode,
-  EquationNode,
-  MermaidNode,
-  C4Node,
-  FrontmatterNode,
-  CustomLinkNode,
-  CustomListNode,
-  CustomListItemNode,
-  FootnoteNode,
-  DefinitionListNode,
-  DefinitionTermNode,
-  DefinitionDescriptionNode,
-  HtmlNode,
-  ListItemParagraphBreakNode,
-} from '../../editor/nodes';
 import { parseMarkdown } from '../../../markdown/parse';
 import { stringifyMarkdown } from '../../../markdown/stringify';
 import { importMarkdownToLexical } from '../mdastToLexical';
-import { exportLexicalToMdast } from '../lexicalToMdast';
+import { exportLexicalToMdast, type ExportOptions } from '../lexicalToMdast';
 import { createTwoFilesPatch } from 'diff';
+import { editorNodes } from '../../editor/editorNodes';
 
-// All editor node types, matching Editor.tsx
-export const editorNodes = [
-  HeadingNode,
-  QuoteNode,
-  CustomListNode,
-  CustomListItemNode,
-  CodeNode,
-  CodeHighlightNode,
-  CustomLinkNode,
-  AutoLinkNode,
-  TableNode,
-  TableRowNode,
-  TableCellNode,
-  CalloutNode,
-  ToggleContainerNode,
-  ToggleTitleNode,
-  ToggleContentNode,
-  ImageNode,
-  HorizontalRuleNode,
-  EquationNode,
-  MermaidNode,
-  C4Node,
-  FrontmatterNode,
-  FootnoteNode,
-  DefinitionListNode,
-  DefinitionTermNode,
-  DefinitionDescriptionNode,
-  HtmlNode,
-  ListItemParagraphBreakNode,
-  MarkNode,
-];
+// Re-exported for the ~15 internal test files that import the production
+// node set from here (#954: single source of truth is `../../editor/editorNodes`).
+export { editorNodes };
 
 export function createTestEditor(
   onError?: (error: Error) => void,
@@ -108,7 +55,7 @@ export function createTestEditor(
  */
 export function roundTrip(
   markdown: string,
-  options: { registerListPlugin?: boolean } = {},
+  options: { registerListPlugin?: boolean; exportOptions?: ExportOptions } = {},
 ): Promise<{ mdast: ReturnType<typeof exportLexicalToMdast>; output: string }> {
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -144,7 +91,7 @@ export function roundTrip(
           discrete: true,
           onUpdate: () => {
             try {
-              const mdast = exportLexicalToMdast(editor);
+              const mdast = exportLexicalToMdast(editor, options.exportOptions);
               const output = stringifyMarkdown(mdast);
               settleResolve({ mdast, output });
             } catch (error) {
@@ -179,6 +126,13 @@ export interface FixtureEntry {
    * general-purpose escape hatch for new non-idempotency.
    */
   idempotenceExempt: string | null;
+  /**
+   * Non-default export options for this fixture, if a `<name>.export-options.json`
+   * sidecar exists (e.g. `{"wikiLinkPromotion":"off"}`) — parsed directly into
+   * the shape `roundTrip()`'s `exportOptions` expects. Absent (`{}`) for every
+   * fixture exercising the default configuration.
+   */
+  exportOptions: ExportOptions;
 }
 
 /**
@@ -206,6 +160,7 @@ export function discoverFixtures(dir: string): FixtureEntry[] {
       const expectedPath = `${stem}.expected.md`;
       const errorPath = `${stem}.error.txt`;
       const idempotenceExemptPath = `${stem}.idempotence-exempt.txt`;
+      const exportOptionsPath = `${stem}.export-options.json`;
 
       let idempotenceExempt: string | null = null;
       if (existsSync(idempotenceExemptPath)) {
@@ -217,6 +172,16 @@ export function discoverFixtures(dir: string): FixtureEntry[] {
         }
       }
 
+      let exportOptions: ExportOptions = {};
+      if (existsSync(exportOptionsPath)) {
+        try {
+          exportOptions = JSON.parse(readFileSync(exportOptionsPath, 'utf-8'));
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          throw new Error(`${exportOptionsPath} is not valid JSON: ${reason}`, { cause: error });
+        }
+      }
+
       const name = relative(dir, stem).split(sep).join('/');
       entries.push({
         name,
@@ -225,6 +190,7 @@ export function discoverFixtures(dir: string): FixtureEntry[] {
         expected: existsSync(expectedPath) ? readFileSync(expectedPath, 'utf-8') : null,
         expectedError: existsSync(errorPath) ? readFileSync(errorPath, 'utf-8').trim() : null,
         idempotenceExempt,
+        exportOptions,
       });
     }
   }
