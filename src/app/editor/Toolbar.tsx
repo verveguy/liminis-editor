@@ -85,6 +85,14 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
     const nativeSelection = window.getSelection();
     const rootElement = editor.getRootElement();
 
+    // Both endpoints, not just one, must be inside the root — a selection
+    // that only partially overlaps the editor (e.g. a drag starting in
+    // surrounding page content and ending inside this editor) is deliberately
+    // treated as "outside," not shown. AnnotationPlugin's capture wraps the
+    // live native range directly in a Lexical mark; letting the toolbar
+    // appear for a range that reaches outside the editor's own DOM would
+    // make that affordance reachable for a selection capture was never
+    // designed to wrap.
     if (
       !nativeSelection ||
       nativeSelection.rangeCount === 0 ||
