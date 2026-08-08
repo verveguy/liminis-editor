@@ -119,6 +119,12 @@ function SelectionContextMenu({
     // nothing paints and the panel's visible behaviour is unchanged. A host
     // that supplies no `onCreateAnnotation` (as liminis-app does not) has no
     // handler registered for the command, so dispatch is simply a no-op there.
+    //
+    // CAUTION for future hosts: if a host ever configures a kind literally
+    // named `correction` *and* supplies `onCreateAnnotation`, both fire off
+    // this one click — the host's generic create flow and this hardcoded
+    // legacy panel, with no coordination between them. See the caveat on
+    // `AnnotationKindConfig` in `annotations/types.ts`.
     onCreateAnnotation(kind);
     if (kind === 'correction') {
       useCorrectionStore.getState().open({ x, y }, selectedText);
