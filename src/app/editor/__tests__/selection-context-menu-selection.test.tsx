@@ -252,3 +252,25 @@ describe('SelectionContextMenuPlugin — no configured kind means no affordance'
     expect(seen).toEqual([])
   })
 })
+
+// liminis-app passes ANNOTATION_KINDS (a `correction` kind, contextMenu
+// surface) at five <App> mount sites but wires `onCreateAnnotation` at none
+// of them. This is the exact shape that produces: the plugin has no host
+// listener for the command it dispatches, only its own name-gated legacy
+// panel. Asserted directly, without mounting AnnotationPlugin at all, so the
+// scenario can't accidentally depend on a listener being present.
+describe('SelectionContextMenuPlugin — a contextMenu kind with no onCreateAnnotation host handler', () => {
+  it('still renders and operates the entry (AnnotationPlugin is never mounted in this test)', () => {
+    const { getByText, queryByText } = renderMenu()
+
+    expect(getByText('Correction…')).not.toBeNull()
+    act(() => {
+      fireEvent.click(getByText('Correction…'))
+    })
+
+    // The command dispatch above found no registered listener and was a
+    // no-op; the legacy panel opening below is unaffected by that.
+    expect(queryByText('Correction…')).toBeNull()
+    expect(useCorrectionStore.getState().isOpen).toBe(true)
+  })
+})
