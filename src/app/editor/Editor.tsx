@@ -644,6 +644,24 @@ export function Editor({
   // loaded and no annotation command is registered.
   const annotationsEnabled = !!annotationKinds && Object.keys(annotationKinds).length > 0;
 
+  // Derived, kind-agnostic affordance lists (FR-001/FR-004/FR-009/FR-010):
+  // one entry per configured kind on each surface, label falling back to the
+  // kind name (FR-003). Plain data only, so `Toolbar`/`SelectionContextMenuPlugin`
+  // never need to know about annotation types.
+  const toolbarAnnotationAffordances = useMemo(() => {
+    if (!annotationKinds) return [];
+    return Object.entries(annotationKinds)
+      .filter(([, config]) => config.createAffordance?.surface === 'toolbar')
+      .map(([kind, config]) => ({ kind, label: config.createAffordance?.label ?? kind }));
+  }, [annotationKinds]);
+
+  const contextMenuAnnotationAffordances = useMemo(() => {
+    if (!annotationKinds) return [];
+    return Object.entries(annotationKinds)
+      .filter(([, config]) => config.createAffordance?.surface === 'contextMenu')
+      .map(([kind, config]) => ({ kind, label: config.createAffordance?.label ?? kind }));
+  }, [annotationKinds]);
+
   const offsetSpansRef = useRef<OffsetSpan[]>([]);
   const markdownTextRef = useRef<string>(initialContent);
   const [offsetsVersion, setOffsetsVersion] = useState(0);
@@ -820,7 +838,7 @@ export function Editor({
             <ImagePlugin />
             <BlockClickPlugin />
             <LinkClickPlugin editable={editable} />
-            <Toolbar />
+            <Toolbar annotationAffordances={toolbarAnnotationAffordances} />
             <SearchPlugin />
             <FrontmatterPlugin filePath={filePath} />
             <WikiLinkExistencePlugin />
@@ -828,13 +846,11 @@ export function Editor({
             <AnchorScrollPlugin />
             <SelectionContextMenuPlugin
               onSelectionContextMenu={onSelectionContextMenu}
-              // Only when the kind actually asks for a context-menu affordance:
+              // Only kinds that actually ask for a context-menu affordance:
               // with none configured, or one on another surface, AnnotationPlugin
               // would decline the command anyway, and dispatching from here would
               // claim an entry point the kind never opted into.
-              correctionKindEnabled={
-                annotationKinds?.correction?.createAffordance?.surface === 'contextMenu'
-              }
+              annotationAffordances={contextMenuAnnotationAffordances}
             />
             <CorrectionPanelPlugin />
             {onSubstitutionDetected && (

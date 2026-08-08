@@ -1,8 +1,9 @@
 /**
  * Lexical plugin that shows a context menu when right-clicking a text selection.
  * Provides a "Chat about this..." action that passes the selected text and click
- * position to the host via callback, and a "Correction…" action that opens the
- * inline correction panel.
+ * position to the host via callback, plus one entry per configured
+ * `contextMenu`-surfaced annotation kind (ADR-077) — `correction` additionally
+ * opens the legacy inline correction panel.
  *
  * Follows the TableActionsPlugin pattern for attaching to the editor root element,
  * and the DiagramContextMenu pattern for the overlay menu UI.
@@ -19,10 +20,16 @@ export interface SelectionContextMenuEvent {
   selectedText: string;
 }
 
+/** One context-menu-surfaced annotation kind's affordance, plain data only (FR-004/FR-010). */
+export interface ContextMenuAnnotationAffordance {
+  kind: string;
+  label: string;
+}
+
 interface SelectionContextMenuPluginProps {
   onSelectionContextMenu?: (event: SelectionContextMenuEvent) => void;
-  /** True when the host configured a `correction` annotation kind (ADR-077). */
-  correctionKindEnabled?: boolean;
+  /** One entry per configured kind whose `createAffordance.surface` is `contextMenu` (ADR-077). */
+  annotationAffordances?: ContextMenuAnnotationAffordance[];
 }
 
 // --- Menu overlay component ---
@@ -53,12 +60,10 @@ interface SelectionContextMenuProps {
   y: number;
   selectedText: string;
   onChatAboutThis: (() => void) | null;
-  /**
-   * Routes the "Correction…" entry through the shared annotation create
-   * command when the host has configured a `correction` kind. Null when it
-   * hasn't, in which case the entry behaves exactly as it always has.
-   */
-  onCaptureCorrectionAnchor: (() => void) | null;
+  /** One entry per configured kind whose `createAffordance.surface` is `contextMenu`. */
+  annotationAffordances: ContextMenuAnnotationAffordance[];
+  /** Dispatches `OPEN_ANNOTATION_COMPOSER_COMMAND` for the given kind. */
+  onCreateAnnotation: (kind: string) => void;
   onClose: () => void;
 }
 
@@ -68,7 +73,8 @@ function SelectionContextMenu({
   y,
   selectedText,
   onChatAboutThis,
-  onCaptureCorrectionAnchor,
+  annotationAffordances,
+  onCreateAnnotation,
   onClose,
 }: SelectionContextMenuProps): JSX.Element | null {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -105,15 +111,18 @@ function SelectionContextMenu({
     (e.currentTarget as HTMLElement).style.background = entering ? hoverBg : 'transparent';
   };
 
-  const handleCorrection = () => {
-    // Corrections are a kind of the unified annotation mechanism (ADR-077):
-    // authoring one enters the same capture path comments use. The `correction`
-    // kind discards its transient mark, so nothing paints and the visible
-    // behaviour below is unchanged. A host that supplies no `onCreateAnnotation`
-    // (as liminis-app does not) has no handler registered for the command, so
-    // this is simply a no-op there.
-    onCaptureCorrectionAnchor?.();
-    useCorrectionStore.getState().open({ x, y }, selectedText);
+  const handleAnnotationClick = (kind: string) => {
+    // Every kind on this surface enters the same shared capture path
+    // (ADR-077). `correction` additionally opens the legacy, name-gated
+    // correction panel (Out-of-Scope: this generalizes only the dispatch, not
+    // the panel). The `correction` kind discards its transient mark, so
+    // nothing paints and the panel's visible behaviour is unchanged. A host
+    // that supplies no `onCreateAnnotation` (as liminis-app does not) has no
+    // handler registered for the command, so dispatch is simply a no-op there.
+    onCreateAnnotation(kind);
+    if (kind === 'correction') {
+      useCorrectionStore.getState().open({ x, y }, selectedText);
+    }
     onClose();
   };
 
@@ -154,17 +163,20 @@ function SelectionContextMenu({
           Chat about this…
         </button>
       )}
-      {onChatAboutThis && (
+      {onChatAboutThis && annotationAffordances.length > 0 && (
         <hr style={{ margin: '4px 0', border: 'none', borderTop: `1px solid ${borderColor}` }} />
       )}
-      <button
-        onClick={handleCorrection}
-        style={{ ...itemStyle, color: textColor }}
-        onMouseEnter={(e) => handleHover(e, true)}
-        onMouseLeave={(e) => handleHover(e, false)}
-      >
-        Correction…
-      </button>
+      {annotationAffordances.map(({ kind, label }) => (
+        <button
+          key={kind}
+          onClick={() => handleAnnotationClick(kind)}
+          style={{ ...itemStyle, color: textColor }}
+          onMouseEnter={(e) => handleHover(e, true)}
+          onMouseLeave={(e) => handleHover(e, false)}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -173,7 +185,7 @@ function SelectionContextMenu({
 
 export function SelectionContextMenuPlugin({
   onSelectionContextMenu,
-  correctionKindEnabled = false,
+  annotationAffordances = [],
 }: SelectionContextMenuPluginProps) {
   const [editor] = useLexicalComposerContext();
   const [menuState, setMenuState] = useState<{
@@ -220,9 +232,12 @@ export function SelectionContextMenuPlugin({
   // mechanism without pulling any annotation machinery into the default
   // (annotations-disabled) import graph. The listener lives in the lazily
   // loaded surface, and is simply absent when annotations are off.
-  const captureCorrectionAnchor = useCallback(() => {
-    editor.dispatchCommand(OPEN_ANNOTATION_COMPOSER_COMMAND, { kind: 'correction' });
-  }, [editor]);
+  const dispatchCreateAnnotation = useCallback(
+    (kind: string) => {
+      editor.dispatchCommand(OPEN_ANNOTATION_COMPOSER_COMMAND, { kind });
+    },
+    [editor]
+  );
 
   const handleChatAboutThis = useCallback(() => {
     if (onSelectionContextMenu && menuState.selectedText) {
@@ -240,7 +255,8 @@ export function SelectionContextMenuPlugin({
       y={menuState.y}
       selectedText={menuState.selectedText}
       onChatAboutThis={onSelectionContextMenu ? handleChatAboutThis : null}
-      onCaptureCorrectionAnchor={correctionKindEnabled ? captureCorrectionAnchor : null}
+      annotationAffordances={annotationAffordances}
+      onCreateAnnotation={dispatchCreateAnnotation}
       onClose={close}
     />
   );
