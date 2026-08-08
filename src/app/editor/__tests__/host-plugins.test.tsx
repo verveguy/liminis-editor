@@ -77,6 +77,13 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+/** Await N real animation frames, driving the plugin's rAF-based retry loop. */
+async function frames(count: number): Promise<void> {
+  for (let i = 0; i < count; i++) {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  }
+}
+
 describe('AnchorScrollPlugin over the injected onScrollToAnchor service', () => {
   it('scrolls the container to the matching heading when the host supplies the service', async () => {
     let emit: ((anchor: string) => void) | null = null
@@ -122,6 +129,240 @@ describe('AnchorScrollPlugin over the injected onScrollToAnchor service', () => 
       spy.mockRestore()
     }
     expect(errors).toEqual([])
+  })
+
+  it('resolves a GitHub-slug-form anchor against a heading containing punctuation GitHub strips', async () => {
+    let emit: ((anchor: string) => void) | null = null
+    const onScrollToAnchor = vi.fn((cb: (anchor: string) => void) => {
+      emit = cb
+      return vi.fn()
+    })
+
+    const { editor } = await mountPlugin({ onScrollToAnchor }, <AnchorScrollPlugin />)
+
+    await act(async () => {
+      editor.update(() => {
+        const heading = $createHeadingNode('h2')
+        // GitHub's slugger drops backticks and dots: this heading slugs to
+        // exactly "rebase-and-migration-from-envenc".
+        heading.append($createTextNode('Rebase and migration from `.env.enc`'))
+        $getRoot().clear().append(heading)
+      })
+    })
+
+    const scroller = editor.getRootElement()!.parentElement!
+    scroller.id = 'editor-scroll-container'
+    const scrollTo = vi.fn()
+    scroller.scrollTo = scrollTo
+
+    act(() => emit!('rebase-and-migration-from-envenc'))
+    expect(scrollTo).toHaveBeenCalledTimes(1)
+  })
+
+  it('resolves an anchor into a non-Latin-script heading instead of stripping it to empty', async () => {
+    let emit: ((anchor: string) => void) | null = null
+    const onScrollToAnchor = vi.fn((cb: (anchor: string) => void) => {
+      emit = cb
+      return vi.fn()
+    })
+
+    const { editor } = await mountPlugin({ onScrollToAnchor }, <AnchorScrollPlugin />)
+
+    await act(async () => {
+      editor.update(() => {
+        const heading = $createHeadingNode('h2')
+        // An ASCII-only normalizer would strip this to the empty string,
+        // making it indistinguishable from a punctuation-only heading and
+        // permanently unreachable.
+        heading.append($createTextNode('介绍'))
+        $getRoot().clear().append(heading)
+      })
+    })
+
+    const scroller = editor.getRootElement()!.parentElement!
+    scroller.id = 'editor-scroll-container'
+    const scrollTo = vi.fn()
+    scroller.scrollTo = scrollTo
+
+    act(() => emit!('介绍'))
+    expect(scrollTo).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries across animation frames until a heading rendered asynchronously appears', async () => {
+    let emit: ((anchor: string) => void) | null = null
+    const onScrollToAnchor = vi.fn((cb: (anchor: string) => void) => {
+      emit = cb
+      return vi.fn()
+    })
+
+    const { editor } = await mountPlugin({ onScrollToAnchor }, <AnchorScrollPlugin />)
+
+    const scroller = editor.getRootElement()!.parentElement!
+    scroller.id = 'editor-scroll-container'
+    const scrollTo = vi.fn()
+    scroller.scrollTo = scrollTo
+
+    // Emit before the heading exists, simulating a fragment that targets a
+    // heading below content (equations, diagrams, code highlighting) that
+    // hasn't finished rendering yet.
+    act(() => emit!('design notes'))
+    expect(scrollTo).not.toHaveBeenCalled()
+
+    await frames(3)
+    expect(scrollTo).not.toHaveBeenCalled()
+
+    await act(async () => {
+      editor.update(() => {
+        const heading = $createHeadingNode('h2')
+        heading.append($createTextNode('Design Notes'))
+        $getRoot().clear().append(heading)
+      })
+    })
+
+    await frames(5)
+    expect(scrollTo).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives up silently once the retry budget is exhausted for an unresolvable anchor', async () => {
+    let emit: ((anchor: string) => void) | null = null
+    const onScrollToAnchor = vi.fn((cb: (anchor: string) => void) => {
+      emit = cb
+      return vi.fn()
+    })
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const scrollIntoView = vi
+      .spyOn(HTMLElement.prototype, 'scrollIntoView')
+      .mockImplementation(() => {})
+
+    try {
+      const { editor } = await mountPlugin({ onScrollToAnchor }, <AnchorScrollPlugin />)
+
+      const scroller = editor.getRootElement()!.parentElement!
+      scroller.id = 'editor-scroll-container'
+      const scrollTo = vi.fn()
+      scroller.scrollTo = scrollTo
+
+      act(() => emit!('nothing-matches-this-anchor'))
+
+      // Budget is 30 retries; give it comfortably more frames than that.
+      await frames(40)
+
+      expect(scrollTo).not.toHaveBeenCalled()
+      expect(scrollIntoView).not.toHaveBeenCalled()
+      expect(errorSpy).not.toHaveBeenCalled()
+      expect(warnSpy).not.toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+      warnSpy.mockRestore()
+      scrollIntoView.mockRestore()
+    }
+  })
+
+  it('discovers a scrollable ancestor by walking up when no known container id is present', async () => {
+    let emit: ((anchor: string) => void) | null = null
+    const onScrollToAnchor = vi.fn((cb: (anchor: string) => void) => {
+      emit = cb
+      return vi.fn()
+    })
+
+    const { editor, container } = await mountPlugin({ onScrollToAnchor }, <AnchorScrollPlugin />)
+
+    await act(async () => {
+      editor.update(() => {
+        const heading = $createHeadingNode('h2')
+        heading.append($createTextNode('Design Notes'))
+        $getRoot().clear().append(heading)
+      })
+    })
+
+    // No known id anywhere in the ancestor chain, so the fast path must fail
+    // and the walk must be what finds this container. happy-dom doesn't
+    // populate overflow/scroll metrics from layout, so stub them explicitly.
+    const realGetComputedStyle = window.getComputedStyle.bind(window)
+    const getComputedStyleSpy = vi
+      .spyOn(window, 'getComputedStyle')
+      .mockImplementation((el, ...rest) =>
+        el === container
+          ? ({ overflowY: 'auto' } as CSSStyleDeclaration)
+          : realGetComputedStyle(el, ...rest)
+      )
+    Object.defineProperty(container, 'scrollHeight', { value: 2000, configurable: true })
+    Object.defineProperty(container, 'clientHeight', { value: 500, configurable: true })
+    const scrollTo = vi.fn()
+    container.scrollTo = scrollTo
+
+    try {
+      act(() => emit!('design notes'))
+      expect(scrollTo).toHaveBeenCalledTimes(1)
+    } finally {
+      getComputedStyleSpy.mockRestore()
+    }
+  })
+
+  it('positions the resolved heading near the top of the container rather than flush or via raw offsetTop', async () => {
+    let emit: ((anchor: string) => void) | null = null
+    const onScrollToAnchor = vi.fn((cb: (anchor: string) => void) => {
+      emit = cb
+      return vi.fn()
+    })
+
+    const { editor } = await mountPlugin({ onScrollToAnchor }, <AnchorScrollPlugin />)
+
+    await act(async () => {
+      editor.update(() => {
+        const heading = $createHeadingNode('h2')
+        heading.append($createTextNode('Design Notes'))
+        $getRoot().clear().append(heading)
+      })
+    })
+    const selector = ['.editor-heading-h1', '.editor-heading-h2'].join(',')
+    const headingEl: HTMLElement = editor.getRootElement()!.querySelector(selector)!
+
+    const scroller = editor.getRootElement()!.parentElement!
+    scroller.id = 'editor-scroll-container'
+    const scrollTo = vi.fn()
+    scroller.scrollTo = scrollTo
+    scroller.scrollTop = 100
+    scroller.getBoundingClientRect = () => ({ top: 0 }) as DOMRect
+    headingEl.getBoundingClientRect = () => ({ top: 916 }) as DOMRect
+
+    act(() => emit!('design notes'))
+
+    // top = heading.rect.top(916) - container.rect.top(0) + container.scrollTop(100) - MARGIN(16) = 1000
+    expect(scrollTo).toHaveBeenCalledTimes(1)
+    expect(scrollTo.mock.calls[0][0]).toMatchObject({ top: 1000, behavior: 'smooth' })
+  })
+
+  it('does not match an anchor that normalizes to an empty string against a heading that also normalizes to empty', async () => {
+    let emit: ((anchor: string) => void) | null = null
+    const onScrollToAnchor = vi.fn((cb: (anchor: string) => void) => {
+      emit = cb
+      return vi.fn()
+    })
+
+    const { editor } = await mountPlugin({ onScrollToAnchor }, <AnchorScrollPlugin />)
+
+    await act(async () => {
+      editor.update(() => {
+        // Punctuation-only heading text normalizes to the empty string.
+        const heading = $createHeadingNode('h2')
+        heading.append($createTextNode('!!!'))
+        $getRoot().clear().append(heading)
+      })
+    })
+
+    const scroller = editor.getRootElement()!.parentElement!
+    scroller.id = 'editor-scroll-container'
+    const scrollTo = vi.fn()
+    scroller.scrollTo = scrollTo
+
+    // This anchor also normalizes to the empty string.
+    act(() => emit!('???'))
+    await frames(3)
+
+    expect(scrollTo).not.toHaveBeenCalled()
   })
 })
 
