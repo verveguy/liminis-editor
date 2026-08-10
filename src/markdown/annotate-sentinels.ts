@@ -21,22 +21,32 @@ export const SENTINEL_CLOSE_START = '\u{E002}';
 export const SENTINEL_CLOSE_END = '\u{E003}';
 
 /**
- * Matches one whole sentinel token — an open or close delimiter pair with an
+ * Matches one whole sentinel token — an open pair or a close pair, with an
  * annotation id between them.
  *
- * The id is matched by a *negated character class* excluding all four
- * delimiters, which is what stops a stray unpaired delimiter in real content
- * from swallowing the text after it: the run cannot cross a delimiter, so the
- * match is forced to end at the first one it meets. Greediness is irrelevant
- * here for that reason — do not "simplify" this to `.*?`. A lazy dot matches
- * delimiters happily, so on `…␀b␀id␁…` it would span from the *stray* opener
- * to the first closer and delete the real text `b` along with the token.
+ * Two things keep this from eating real content, and both are load-bearing:
+ *
+ * 1. **The id is a negated character class** excluding all four delimiters, so
+ *    the run cannot cross a delimiter and the match is forced to end at the
+ *    first one it meets. Greediness is irrelevant for that reason — do not
+ *    "simplify" this to `.*?`. A lazy dot matches delimiters happily, so on
+ *    `…␀b␀id␁…` it would span from the *stray* opener to the first closer and
+ *    delete the real text `b` along with the token.
+ * 2. **Each alternative pairs its own delimiters** — open-with-open,
+ *    close-with-close. Choosing the two ends from independent classes would
+ *    also match an open *paired with a close*, which the emitters never
+ *    produce (see `openToken`/`closeToken` in `lexicalToMdast.ts`); on
+ *    `…␀real text␃…` that mismatched span would be deleted, taking the real
+ *    text with it. Only well-formed tokens should ever be removed, because
+ *    this function feeds *decisions* — the explicit task-marker test and the
+ *    ends-with-a-colon join rule — where a wrong strip silently changes
+ *    output.
  */
+const SENTINEL_ID_RUN = `[^${SENTINEL_OPEN_START}${SENTINEL_OPEN_END}${SENTINEL_CLOSE_START}${SENTINEL_CLOSE_END}]*`;
 const SENTINEL_TOKEN =
   new RegExp(
-    `[${SENTINEL_OPEN_START}${SENTINEL_CLOSE_START}]` +
-      `[^${SENTINEL_OPEN_START}${SENTINEL_OPEN_END}${SENTINEL_CLOSE_START}${SENTINEL_CLOSE_END}]*` +
-      `[${SENTINEL_OPEN_END}${SENTINEL_CLOSE_END}]`,
+    `${SENTINEL_OPEN_START}${SENTINEL_ID_RUN}${SENTINEL_OPEN_END}` +
+      `|${SENTINEL_CLOSE_START}${SENTINEL_ID_RUN}${SENTINEL_CLOSE_END}`,
     'gu',
   );
 
