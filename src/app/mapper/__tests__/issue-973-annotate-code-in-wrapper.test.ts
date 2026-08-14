@@ -88,7 +88,7 @@ function annotateLeaf(markdown: string, leafIndex: number): string {
 describe('#973: annotating inline code inside an emphasis/strong wrapper', () => {
   // Leaf index of the code span in each input, given the import shape
   // `[text, code|bold, bold]` (or its trailing/emphasis variants).
-  const cases: Array<{ name: string; input: string; leaf: number; expected: string }> = [
+  const cases: { name: string; input: string; leaf: number; expected: string }[] = [
     {
       name: 'strong wrapper, code leading',
       input: 'A note: **`--flag` sets the mode** for the run.\n',

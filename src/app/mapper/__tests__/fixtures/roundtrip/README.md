@@ -492,9 +492,9 @@ addressed, because it is unreachable from the export side. `convertDelete` in
 `mdastToLexical.ts` calls `setFormat('strikethrough')`, which overwrites the whole bitmask
 and erases the `code` bit on **import** — so no code+strikethrough node ever reaches the
 mapper. The behaviour is stable (it loses formatting, but idempotently), fixing it would
-change existing fixture output, and it is a genuinely separate defect. Tracked separately;
-code+bold and code+italic work, code+strikethrough does not, and the asymmetry is real
-rather than an oversight.
+change existing fixture output, and it is a genuinely separate defect. Tracked as
+[#989](https://github.com/verveguy/liminis/issues/989); code+bold and code+italic work,
+code+strikethrough does not, and the asymmetry is real rather than an oversight.
 
 ## Diagnosing a failure
 
