@@ -64,6 +64,13 @@ import type {
   Html,
 } from 'mdast';
 import type { DefListTermNode, DefListDescriptionNode } from 'mdast-util-definition-list';
+import {
+  SENTINEL_CLOSE_END,
+  SENTINEL_CLOSE_START,
+  SENTINEL_OPEN_END,
+  SENTINEL_OPEN_START,
+  stripAnnotateSentinels,
+} from '../../markdown/annotate-sentinels';
 
 /**
  * Whether an untitled relative link (a `.md` path, `.md` path with anchor, bare
@@ -117,10 +124,12 @@ export function exportLexicalToMdastInEditorState(options: ExportOptions = {}): 
   // the disk-write path (never sets a target) takes on zero overhead and zero
   // behavioral change.
   if (annotateTargetId) {
-    collectSentinelLeaves(annotateTargetId);
+    collectSentinelPlacements(annotateTargetId);
   } else {
     sentinelBefore = null;
     sentinelAfter = null;
+    hoistedBefore = null;
+    hoistedAfter = null;
   }
 
   const lexicalRoot = $getRoot();
@@ -178,26 +187,45 @@ function effectiveChildren(node: ElementNode): LexicalNode[] {
 // target annotation id is set via `setAnnotateTarget`, that id's live
 // MarkNode(s) — already transparent to markdown — additionally get their
 // content bracketed with a pair of Unicode Private-Use-Area sentinel tokens
-// carrying the id. Serializing with this mode on is byte-for-byte identical to
-// a normal export *except* for those inserted tokens (no other line of this
-// file's conversion logic branches on `annotateTargetId`), so a caller can find
-// the id's sentinel tokens in the resulting string and know that: the first
-// open token's own position is this mark's real start offset in the *plain*
-// export of the same state, and the (sentinel-stripped) text between the
-// outermost tokens is the exact raw markdown slice the mark covers — including
-// whatever markdown syntax the mark's boundary happens to fall on, which is
-// exactly what a search for the mark's *rendered* text could not reliably
-// locate. Never enabled on the disk-write path.
+// carrying the id (see `markdown/annotate-sentinels.ts`). Serializing with this
+// mode on is byte-for-byte identical to a normal export *except* for those
+// inserted tokens, so a caller can find the id's sentinel tokens in the
+// resulting string and know that: the first open token's own position is this
+// mark's real start offset in the *plain* export of the same state, and the
+// (sentinel-stripped) text between the outermost tokens is the exact raw
+// markdown slice the mark covers — including whatever markdown syntax the
+// mark's boundary happens to fall on, which is exactly what a search for the
+// mark's *rendered* text could not reliably locate. Never enabled on the
+// disk-write path.
+//
+// That "identical except for the tokens" property is load-bearing and is *not*
+// self-evident from the code: it holds only because no conversion decision
+// anywhere reads a text value the tokens have been spliced into. Two did, and
+// silently perturbed unrelated output until `annotated-serialize-corpus.test.ts`
+// pinned the property corpus-wide (Liminis #970); both now go through
+// `stripAnnotateSentinels` first. Any new decision made from a text value
+// carries the same obligation.
+//
+// Where a token *lands* is not simply "the boundary text leaf". A token spliced
+// into a leaf that sits inside an inline construct would put the recovered range
+// inside that construct's syntax — a mark over `it [rests](https://example.com)`
+// recovered as `it [rests`, a slice ending mid-link that a host then wrote back
+// as the annotation's stored target (#970, defect 2). So a boundary abutting an
+// inline construct whose whole content the mark covers is *hoisted* outside it
+// and emitted as its own mdast text node beside the construct. See
+// `collectSentinelPlacements` and `hoistTargetAt` for the exact rule, and why
+// partial coverage deliberately does not hoist.
 // ============================================================================
 
-const SENTINEL_OPEN_START = '\u{E000}';
-const SENTINEL_OPEN_END = '\u{E001}';
-const SENTINEL_CLOSE_START = '\u{E002}';
-const SENTINEL_CLOSE_END = '\u{E003}';
-
 let annotateTargetId: string | null = null;
+// Tokens spliced *into* a boundary text leaf's own value.
 let sentinelBefore: Map<LexicalNode, string> | null = null;
 let sentinelAfter: Map<LexicalNode, string> | null = null;
+// Tokens emitted as their own mdast text node *outside* a wholly-covered inline
+// construct — keyed on the node that begins (resp. ends) that construct. See
+// `collectSentinelPlacements`.
+let hoistedBefore: Map<LexicalNode, string> | null = null;
+let hoistedAfter: Map<LexicalNode, string> | null = null;
 
 // Set once per export pass by exportLexicalToMdastInEditorState (see its own
 // comment); read only by convertLinkNode's promotion check below.
@@ -279,25 +307,277 @@ function lastTextLeaf(nodes: readonly LexicalNode[]): TextNode | null {
 }
 
 /**
- * Populates `sentinelBefore`/`sentinelAfter` for every live mark carrying
- * `id`: its own first rendered-text leaf gets an open-token prefix, its own
- * last gets a close-token suffix. A multi-block/multi-mark annotation (several
- * sibling MarkNodes sharing `id`) gets one such pair per mark instance —
- * deliberately, so the caller can recover a per-mark boundary even when the
- * marks aren't textually adjacent.
+ * The mark-flattened phrasing run a mark's own children sit inside, plus where
+ * in it they sit — i.e. the list `convertInlinePhrasingList` will actually see,
+ * and the mark's index range within it.
+ *
+ * Null when the mark has no children, or when its (mark-transparent) parent is
+ * one whose inline content does *not* go through the shared phrasing path —
+ * see {@link canCarryHoistedTokens}.
  */
-function collectSentinelLeaves(id: string): void {
+function markPhrasingContext(mark: MarkNode): { flat: LexicalNode[]; first: number; last: number } | null {
+  let parent = mark.getParent();
+  while (parent && $isMarkNode(parent)) parent = parent.getParent();
+  if (!parent || !$isElementNode(parent) || !canCarryHoistedTokens(parent)) return null;
+
+  const kids = effectiveChildren(mark);
+  if (kids.length === 0) return null;
+  const flat = effectiveChildren(parent);
+  const first = flat.findIndex((node) => node.is(kids[0]));
+  const last = flat.findIndex((node) => node.is(kids[kids.length - 1]));
+  if (first === -1 || last === -1 || last < first) return null;
+  return { flat, first, last };
+}
+
+/**
+ * An inline node that emits markdown syntax of its own around (or instead of)
+ * text — a link, wiki link, image, inline equation, footnote reference or
+ * inline HTML. When one of these is a mark's own child it is *wholly* inside
+ * that mark by construction, so the mark's boundary token belongs outside the
+ * whole construct rather than inside its text.
+ *
+ * Line breaks are excluded deliberately: they carry no syntax a boundary can
+ * fall inside, and today's leaf walk skips straight past them.
+ */
+function isHoistableConstruct(node: LexicalNode): boolean {
+  return $isLinkNode(node) || $isImageNode(node) || $isEquationNode(node) || $isFootnoteNode(node) || $isHtmlNode(node);
+}
+
+/**
+ * Inclusive bounds of the maximal run of consecutive siblings in `flat` that
+ * will be emitted inside one shared delimiter pair with `flat[index]` — the
+ * same runs `convertInlinePhrasingList` merges (inline code, and
+ * strong/emphasis/delete). Null when `flat[index]` carries no such delimiters.
+ */
+function mergeableRunBounds(flat: readonly LexicalNode[], index: number): { start: number; end: number } | null {
+  const child = flat[index];
+  if (!$isTextNode(child)) return null;
+
+  if (child.hasFormat('code')) {
+    const isCode = (node: LexicalNode): boolean => $isTextNode(node) && node.hasFormat('code');
+    let start = index;
+    let end = index;
+    while (start > 0 && isCode(flat[start - 1])) start--;
+    while (end + 1 < flat.length && isCode(flat[end + 1])) end++;
+    return { start, end };
+  }
+
+  const format = getMergeableFormat(child);
+  if (!format) return null;
+  let start = index;
+  let end = index;
+  while (start > 0 && getMergeableFormat(flat[start - 1]) === format) start--;
+  while (end + 1 < flat.length && getMergeableFormat(flat[end + 1]) === format) end++;
+  return { start, end };
+}
+
+/**
+ * Whether `node` is the entirety of `parent`'s mark-flattened content — i.e.
+ * everything `parent` will emit comes from inside `node`.
+ */
+function coversAllOf(node: LexicalNode, parent: ElementNode): boolean {
+  const outer = effectiveChildren(parent);
+  const inner = $isMarkNode(node) ? effectiveChildren(node) : [node];
+  return outer.length === inner.length && outer.every((child, index) => child.is(inner[index]));
+}
+
+/**
+ * Walking *outward* from `mark`: the outermost inline construct whose whole
+ * text the mark covers, or null if the mark sits inside no such construct.
+ *
+ * This is the case where the mark is *inside* the construct rather than around
+ * it — a selection of exactly a link's own text, which is what every ordinary
+ * DOM capture over a link produces, and what a markdown-domain anchor over a
+ * whole link resolves to (both endpoints snap onto the link's text node). The
+ * mark covers the link's rendered content in full, so its raw-markdown range
+ * is the whole construct: `[project docs](…)`, not `project docs` (FR-011).
+ */
+function hoistTargetOutward(mark: MarkNode): LexicalNode | null {
+  let node: LexicalNode = mark;
+  let target: LexicalNode | null = null;
+
+  for (let parent = node.getParent(); parent; parent = node.getParent()) {
+    if ($isMarkNode(parent)) {
+      node = parent;
+      continue;
+    }
+    if (!isHoistableConstruct(parent) || !coversAllOf(node, parent)) break;
+    target = parent;
+    node = parent;
+  }
+
+  // The token is emitted as a sibling of `target`, so `target`'s own parent has
+  // to be one whose inline run can carry it — and that parent has to route
+  // `target` itself through that run rather than to the block dispatcher.
+  return target && canCarryHoistedTokens(target.getParent()) && hoistedTokenReachesOutput(target) ? target : null;
+}
+
+/**
+ * Whether a hoisted token emitted among `parent`'s inline children would
+ * actually reach the output.
+ *
+ * A fenced code block's content is concatenated raw text (`convertCodeNode`),
+ * and a link's own body has only text runs routed through the phrasing list —
+ * its wiki-link form has nothing but the alias slot to write into. A token
+ * emitted into either would simply be dropped, so those boundaries keep the
+ * leaf splice.
+ */
+function canCarryHoistedTokens(parent: LexicalNode | null): boolean {
+  let node = parent;
+  while (node && $isMarkNode(node)) node = node.getParent();
+  return !!node && $isElementNode(node) && !$isCodeNode(node) && !$isLinkNode(node);
+}
+
+/**
+ * The same question asked of the *construct* rather than its container, because
+ * one container routes its children unevenly.
+ *
+ * `convertListItemNode` sends only text runs, line breaks and links through the
+ * inline phrasing path; every other child goes to the block dispatcher, which
+ * has nowhere to put a phrasing token. Hoisting a boundary onto one of those
+ * would drop the token silently, and `locateLiveMarkdownRange` would then fail
+ * to find the mark at all.
+ *
+ * No document reaches that state today, which is why this is a guard rather
+ * than a fix: an image, inline equation, footnote reference or inline HTML
+ * inside a list item is *itself* block-promoted by that same dispatcher, so it
+ * does not survive a round trip inline (`- The value $x^2$ matters` exports as
+ * three blocks) and any range over it is already rejected by
+ * `locateLiveMarkdownRange`'s slice check. Repairing that unrelated,
+ * pre-existing round-trip defect must not silently regress annotation ranges as
+ * its side effect.
+ */
+function hoistedTokenReachesOutput(node: LexicalNode): boolean {
+  let parent = node.getParent();
+  while (parent && $isMarkNode(parent)) parent = parent.getParent();
+  return $isListItemNode(parent) ? $isLinkNode(node) : true;
+}
+
+/**
+ * The node a mark's boundary token should be emitted outside of, or null to
+ * keep today's splice into the boundary text leaf.
+ *
+ * The rule is structural: **hoist past every inline construct whose whole
+ * rendered content the mark covers and whose emitted syntax abuts this
+ * boundary.** Two shapes, checked in that order:
+ *
+ * 1. the mark sits *inside* one or more constructs and covers each one's
+ *    content entirely — {@link hoistTargetOutward}; the outermost wins, so
+ *    `[**rests**](url)` closes after the link rather than after the `**`;
+ * 2. the boundary child is itself a construct (a link the mark contains) or a
+ *    formatted text leaf whose maximal same-format run lies entirely inside the
+ *    mark — hoist past that construct's shared delimiters.
+ *
+ * Otherwise the mark covers only *part* of the construct, its delimiter is
+ * shared with text the mark doesn't cover, and the token stays where it is.
+ *
+ * That last case is deliberate, and is where this deviates from the spec's
+ * FR-014, which would widen a partial-coverage mark out to the construct's
+ * boundaries too. Widening there changes what the annotation *means*: a mark
+ * over `big` inside `**big world**` would recover as `**big world**`, so
+ * re-placing that anchor would highlight `big world` — a different span than
+ * the user selected, which FR-017's existing corpus
+ * (`annotation-marks.test.ts`'s `FORMATTING_CORPUS`) pins against. Whole
+ * coverage has no such problem: re-placing `[project docs](…)` snaps back
+ * inside the syntax and highlights `project docs` again. FR-014's first clause
+ * holds either way — a boundary always sits at a text-leaf edge, never
+ * strictly inside a delimiter run.
+ */
+function hoistTargetAt(mark: MarkNode, edge: 'start' | 'end'): LexicalNode | null {
+  const outward = hoistTargetOutward(mark);
+  if (outward) return outward;
+
+  const context = markPhrasingContext(mark);
+  if (!context) return null;
+  const { flat, first, last } = context;
+
+  // Skip line breaks the same way the leaf walk does, so a mark that opens or
+  // closes on one still looks past it to the real boundary content.
+  let index = edge === 'start' ? first : last;
+  const step = edge === 'start' ? 1 : -1;
+  while (index >= first && index <= last && $isLineBreakNode(flat[index])) index += step;
+  if (index < first || index > last) return null;
+
+  if (isHoistableConstruct(flat[index])) return hoistedTokenReachesOutput(flat[index]) ? flat[index] : null;
+
+  const run = mergeableRunBounds(flat, index);
+  if (run && run.start >= first && run.end <= last) return flat[edge === 'start' ? run.start : run.end];
+  return null;
+}
+
+/**
+ * Populates the four sentinel-placement maps for every live mark carrying `id`.
+ *
+ * Its own first rendered-text leaf gets an open-token prefix and its own last a
+ * close-token suffix — *unless* that boundary abuts an inline construct the
+ * mark wholly covers, in which case the token is hoisted out to the construct's
+ * own boundary instead (see {@link hoistTargetAt}). Without the hoist, a mark
+ * over `it [rests](https://example.com)` put its close token on the link's
+ * *text* leaf, so the recovered range read `it [rests` — a slice ending inside
+ * link syntax, which a host's refresh pass then wrote back as the annotation's
+ * stored target (Liminis #970, defect 2).
+ *
+ * A multi-block/multi-mark annotation (several sibling MarkNodes sharing `id`)
+ * gets one such pair per mark instance — deliberately, so the caller can
+ * recover a per-mark boundary even when the marks aren't textually adjacent.
+ */
+function collectSentinelPlacements(id: string): void {
   const before = new Map<LexicalNode, string>();
   const after = new Map<LexicalNode, string>();
+  const hoistBefore = new Map<LexicalNode, string>();
+  const hoistAfter = new Map<LexicalNode, string>();
+
   for (const mark of collectMarksWithId(id)) {
     const kids = effectiveChildren(mark);
-    const first = firstTextLeaf(kids);
-    const last = lastTextLeaf(kids);
-    if (first) before.set(first, id);
-    if (last) after.set(last, id);
+
+    const openAt = hoistTargetAt(mark, 'start');
+    if (openAt) {
+      hoistBefore.set(openAt, id);
+    } else {
+      const first = firstTextLeaf(kids);
+      if (first) before.set(first, id);
+    }
+
+    const closeAt = hoistTargetAt(mark, 'end');
+    if (closeAt) {
+      hoistAfter.set(closeAt, id);
+    } else {
+      const last = lastTextLeaf(kids);
+      if (last) after.set(last, id);
+    }
   }
+
   sentinelBefore = before;
   sentinelAfter = after;
+  hoistedBefore = hoistBefore;
+  hoistedAfter = hoistAfter;
+}
+
+/**
+ * The mdast text nodes carrying any hoisted tokens recorded for
+ * `kids[start..end)` at `edge` — emitted as siblings immediately before (resp.
+ * after) that slice's own converted output, which is what puts them outside the
+ * construct's syntax. Empty whenever annotate mode is off.
+ */
+function hoistedTokenNodes(
+  kids: readonly LexicalNode[],
+  start: number,
+  end: number,
+  edge: 'before' | 'after',
+): PhrasingContent[] {
+  const map = edge === 'before' ? hoistedBefore : hoistedAfter;
+  if (!map || map.size === 0) return [];
+  const result: PhrasingContent[] = [];
+  for (let i = start; i < end; i++) {
+    const id = map.get(kids[i]);
+    if (id) result.push({ type: 'text', value: edge === 'before' ? markOpenToken(id) : markCloseToken(id) });
+  }
+  return result;
+}
+
+/** {@link hoistedTokenNodes} for a single node. */
+function hoistedTokenNodesFor(node: LexicalNode, edge: 'before' | 'after'): PhrasingContent[] {
+  return hoistedTokenNodes([node], 0, 1, edge);
 }
 
 /** `node`'s own rendered text content, with an annotate-mode sentinel spliced in if this exact node instance is a live mark's boundary leaf. A no-op (returns `node.getTextContent()` verbatim) whenever annotate mode is off. */
@@ -457,6 +737,10 @@ function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[
       continue;
     }
     flushTextRun();
+    // A footnote definition's own inline children bypass
+    // convertInlinePhrasingList for everything but text runs, so any token
+    // hoisted outside one of these constructs has to be emitted here too.
+    contentChildren.push(...hoistedTokenNodesFor(child, 'before'));
     if ($isLineBreakNode(child)) {
       contentChildren.push({ type: 'break' });
     } else if ($isLinkNode(child)) {
@@ -478,6 +762,7 @@ function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[
         label: child.getFootnoteId(),
       } as unknown as PhrasingContent);
     }
+    contentChildren.push(...hoistedTokenNodesFor(child, 'after'));
     restIndex++;
     child = rest[restIndex] ?? null;
   }
@@ -661,7 +946,14 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean, spread: bool
       inlineChildren.push({ type: 'break' });
     } else if ($isLinkNode(child)) {
       flushTextRun();
-      inlineChildren.push(convertLinkNode(child));
+      // A list item's own inline children bypass convertInlinePhrasingList for
+      // everything but text runs, so any token hoisted outside this link has to
+      // be emitted here too.
+      inlineChildren.push(
+        ...hoistedTokenNodesFor(child, 'before'),
+        convertLinkNode(child),
+        ...hoistedTokenNodesFor(child, 'after'),
+      );
     } else {
       // Any other block-type child (ParagraphNode, CodeNode, TableNode,
       // QuoteNode, etc.) — flush accumulated inline text first, then delegate
@@ -675,11 +967,18 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean, spread: bool
   // Preserve explicit task markers in text to keep round-trip stable.
   // If a list item's first paragraph already starts with [ ] or [x], keep it
   // and avoid setting `checked` to prevent duplicate markers on stringify.
+  //
+  // The test runs against the sentinel-*free* text: in annotate mode the
+  // paragraph's first value is prefixed with an open token, so matching the raw
+  // value made this decision flip to false and the item got a `checked` flag on
+  // top of the literal marker it already carried — `1. [ ] [ ] Run the setup
+  // script`, i.e. annotate mode changing output outside its own tokens, which
+  // is exactly what `locateLiveMarkdownRange`'s offset math forbids (#970).
   let hasExplicitMarker = false;
   const firstChild = children[0];
   if (firstChild?.type === 'paragraph') {
     const firstPhrasing = firstChild.children[0];
-    if (firstPhrasing?.type === 'text' && /^\[( |x|X)\]\s+/.exec(firstPhrasing.value)) {
+    if (firstPhrasing?.type === 'text' && /^\[( |x|X)\]\s+/.exec(stripAnnotateSentinels(firstPhrasing.value))) {
       hasExplicitMarker = true;
     }
   }
@@ -1210,6 +1509,13 @@ function convertInlineChildren(node: ElementNode): PhrasingContentLike[] {
  * mark split apart. Shared by every call site that gathers a run of inline
  * content — paragraphs/headings/etc. (`convertInlineChildren`) and list-item
  * inline runs (`convertListItemNode`) — so both stay mark-transparent.
+ *
+ * Conversion proceeds in *units*: a merged run, or a single child. Any
+ * annotate-mode token hoisted out of a construct within a unit is emitted as
+ * its own sibling text node immediately before/after that unit's output, which
+ * is precisely what puts it outside the unit's delimiters (see
+ * `collectSentinelPlacements`). Off annotate mode the token lists are always
+ * empty and this is the same conversion as before.
  */
 function convertInlinePhrasingList(
   kids: readonly LexicalNode[],
@@ -1219,57 +1525,68 @@ function convertInlinePhrasingList(
 
   let i = 0;
   while (i < kids.length) {
-    const child = kids[i];
-
-    // A mark splitting an inline-code span leaves adjacent code-format text
-    // siblings, and mdast-util-to-markdown never merges adjacent inlineCode
-    // nodes back together (each gets its own backtick pair) — so the run has to
-    // be concatenated before conversion.
-    if ($isTextNode(child) && child.hasFormat('code')) {
-      let j = i + 1;
-      let runTouchesMark = marked.has(child);
-      while (j < kids.length && $isTextNode(kids[j]) && (kids[j] as TextNode).hasFormat('code')) {
-        if (marked.has(kids[j])) runTouchesMark = true;
-        j++;
-      }
-      if (runTouchesMark && j > i + 1) {
-        children.push(...convertCodeRun(kids.slice(i, j) as TextNode[]));
-        i = j;
-        continue;
-      }
-    }
-
-    const format = getMergeableFormat(child);
-
-    if (format) {
-      // Find the maximal run of consecutive siblings sharing this exact
-      // format, tracking whether it contains a non-text (math/footnote) node —
-      // only those runs need the merged wrapper; all-text runs keep the
-      // existing per-node path below (untouched, per FR-006) unless a mark
-      // split them, in which case merging is what preserves transparency.
-      let j = i + 1;
-      let hasNonTextMember = !$isTextNode(child);
-      let runTouchesMark = marked.has(child);
-      while (j < kids.length && getMergeableFormat(kids[j]) === format) {
-        if (!$isTextNode(kids[j])) {
-          hasNonTextMember = true;
-        }
-        if (marked.has(kids[j])) runTouchesMark = true;
-        j++;
-      }
-
-      if (hasNonTextMember || (runTouchesMark && j > i + 1)) {
-        children.push(convertFormattedRun(kids.slice(i, j), format));
-        i = j;
-        continue;
-      }
-    }
-
-    children.push(...convertSingleInlineChild(child));
-    i++;
+    const { content, next } = convertInlineUnit(kids, marked, i);
+    children.push(...hoistedTokenNodes(kids, i, next, 'before'));
+    children.push(...content);
+    children.push(...hoistedTokenNodes(kids, i, next, 'after'));
+    i = next;
   }
 
   return children;
+}
+
+/**
+ * One emission unit of {@link convertInlinePhrasingList}, starting at `i`:
+ * its converted content and the index the next unit starts at.
+ */
+function convertInlineUnit(
+  kids: readonly LexicalNode[],
+  marked: ReadonlySet<LexicalNode>,
+  i: number,
+): { content: PhrasingContentLike[]; next: number } {
+  const child = kids[i];
+
+  // A mark splitting an inline-code span leaves adjacent code-format text
+  // siblings, and mdast-util-to-markdown never merges adjacent inlineCode
+  // nodes back together (each gets its own backtick pair) — so the run has to
+  // be concatenated before conversion.
+  if ($isTextNode(child) && child.hasFormat('code')) {
+    let j = i + 1;
+    let runTouchesMark = marked.has(child);
+    while (j < kids.length && $isTextNode(kids[j]) && (kids[j] as TextNode).hasFormat('code')) {
+      if (marked.has(kids[j])) runTouchesMark = true;
+      j++;
+    }
+    if (runTouchesMark && j > i + 1) {
+      return { content: convertCodeRun(kids.slice(i, j) as TextNode[]), next: j };
+    }
+  }
+
+  const format = getMergeableFormat(child);
+
+  if (format) {
+    // Find the maximal run of consecutive siblings sharing this exact
+    // format, tracking whether it contains a non-text (math/footnote) node —
+    // only those runs need the merged wrapper; all-text runs keep the
+    // existing per-node path below (untouched, per FR-006) unless a mark
+    // split them, in which case merging is what preserves transparency.
+    let j = i + 1;
+    let hasNonTextMember = !$isTextNode(child);
+    let runTouchesMark = marked.has(child);
+    while (j < kids.length && getMergeableFormat(kids[j]) === format) {
+      if (!$isTextNode(kids[j])) {
+        hasNonTextMember = true;
+      }
+      if (marked.has(kids[j])) runTouchesMark = true;
+      j++;
+    }
+
+    if (hasNonTextMember || (runTouchesMark && j > i + 1)) {
+      return { content: [convertFormattedRun(kids.slice(i, j), format)], next: j };
+    }
+  }
+
+  return { content: convertSingleInlineChild(child), next: i + 1 };
 }
 
 /** Concatenates a run of inline-code TextNodes into a single mdast inlineCode node. */

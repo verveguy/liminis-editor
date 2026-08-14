@@ -18,6 +18,7 @@ import {
 } from './annotation-marks';
 import { AnnotationPlugin, type AnnotationCreateEvent } from './AnnotationPlugin';
 import { AnnotationMarkerPlugin } from './AnnotationMarkerPlugin';
+import { registerMarkOverlapResolver } from './mark-overlap-resolver';
 
 export interface AnnotationSurfaceProps {
   kinds: AnnotationKindConfigs;
@@ -110,6 +111,18 @@ function AnnotationMarkPlacementPlugin({
 }
 
 /**
+ * Keeps overlapping annotations on *shared* MarkNodes rather than nested ones
+ * — see `mark-overlap-resolver.ts`. Mounted here because it is only meaningful
+ * once annotation kinds are configured, and this whole module is lazily loaded
+ * on exactly that condition.
+ */
+function MarkOverlapResolverPlugin() {
+  const [editor] = useLexicalComposerContext();
+  useEffect(() => registerMarkOverlapResolver(editor), [editor]);
+  return null;
+}
+
+/**
  * Publishes the live-mark mechanism to the host via an imperative ref — the
  * host lives outside this LexicalComposer tree and has no other way to reach
  * the editor instance.
@@ -176,6 +189,9 @@ export default function AnnotationSurface({
 
   return (
     <>
+      {/* Registered before the placement plugin so an overlap created by the
+          very first placement pass is already un-nested by the transform. */}
+      <MarkOverlapResolverPlugin />
       {onCreateAnnotation && (
         <AnnotationPlugin
           kinds={kinds}
