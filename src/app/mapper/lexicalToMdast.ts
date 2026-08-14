@@ -1421,14 +1421,19 @@ function convertFormattedRun(runChildren: LexicalNode[], format: number): Phrasi
   for (const child of runChildren) {
     if ($isTextNode(child)) {
       const text = sentinelAugmentedText(child);
-      // Marker hints are read before the code branch so a run whose only styled
-      // member is code-formatted keeps its `__`/`*` rather than normalizing.
-      const style = child.getStyle() || '';
-      strongMarker = strongMarker ?? getMarkdownMarker(style, '--md-strong-marker');
-      emphasisMarker = emphasisMarker ?? getMarkdownMarker(style, '--md-emphasis-marker');
       if (text === '') {
         continue;
       }
+      // Marker hints are read before the code branch — but still *after* the
+      // empty-text continue above — so a run whose only styled member is
+      // code-formatted keeps its `__`/`*` rather than normalizing, without
+      // letting an empty node contribute a hint it never contributed before.
+      // Lexical creates empty format-carrying TextNodes as caret placeholders
+      // when a format is toggled before anything is typed; one of those
+      // carrying a stale marker style must not decide the whole run's marker.
+      const style = child.getStyle() || '';
+      strongMarker = strongMarker ?? getMarkdownMarker(style, '--md-strong-marker');
+      emphasisMarker = emphasisMarker ?? getMarkdownMarker(style, '--md-emphasis-marker');
       if (child.hasFormat('code')) {
         codeBuffer += text;
         continue;

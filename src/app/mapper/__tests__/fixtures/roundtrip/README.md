@@ -485,6 +485,27 @@ of that suite's marking strategies mark either every leaf or the whole phrasing 
 this needs a mark on a *single interior* code leaf with un-marked same-format siblings
 beside it. `issue-973-annotate-code-in-wrapper.test.ts` exists for exactly that gap.
 
+### A third subtlety: where the marker-hint read sits
+
+`convertFormattedRun` reads its `--md-strong-marker` / `--md-emphasis-marker` hints
+**above the code branch but below the `text === ''` early-continue**. Both halves of that
+position matter, and they pull in opposite directions:
+
+- *Above the code branch*, because a run whose every member is code-formatted would
+  otherwise never reach the read at all, and `__` would normalize to `**` (FR-004).
+- *Below the empty-text continue*, because the hints are captured with `??` — first
+  non-null wins — so an **empty** format-carrying node preceding the run's real content
+  would otherwise decide the marker for the whole wrapper. Lexical creates empty
+  format-carrying `TextNode`s as caret placeholders when a format is toggled before
+  anything is typed, and one can carry a stale marker style. Before #973 such nodes hit
+  the `continue` first and had no influence; that is preserved.
+
+`issue-973-empty-node-marker-hint.test.ts` pins both directions. Note it builds its states
+with `parseEditorState` rather than `editor.update()`: Lexical's normalization strips an
+empty `TextNode` during a live update, so an `update()`-built version of that test passes
+whether or not the code is correct. That is also why the shape is reachable in production —
+it is the path a persisted editor state takes on load.
+
 ### Not fixed here: strikethrough combined with inline code
 
 The spec's edge-case list mentions code combined with strikethrough, and it is *not*
