@@ -24,7 +24,14 @@
  * green with the guard reverted; these cases do not.
  */
 import { describe, it, expect } from 'vitest';
-import { $getRoot, $isElementNode, $isTextNode, type ElementNode, type LexicalNode } from 'lexical';
+import {
+  $getRoot,
+  $isElementNode,
+  $isTextNode,
+  type ElementNode,
+  type LexicalNode,
+  type TextNode,
+} from 'lexical';
 import { $createMarkNode } from '@lexical/mark';
 import { parseMarkdown } from '../../../markdown/parse';
 import { importMarkdownToLexicalInEditorState } from '../mdastToLexical';
@@ -68,6 +75,54 @@ function annotateLeaf(markdown: string, leafIndex: number): string {
         const mark = $createMarkNode([MARK_ID]);
         target.insertBefore(mark);
         mark.append(target);
+
+        setAnnotateTarget(MARK_ID);
+        try {
+          output = stringifyMarkdown(exportLexicalToMdastInEditorState());
+        } finally {
+          setAnnotateTarget(null);
+        }
+      },
+      { discrete: true },
+    );
+
+    return output.split(markOpenToken(MARK_ID)).join('‹').split(markCloseToken(MARK_ID)).join('›');
+  } finally {
+    dispose();
+  }
+}
+
+/**
+ * Imports `markdown`, splits the inline leaf at `leafIndex` at `offset`, wraps
+ * the *leading* piece in a `MarkNode`, and returns the annotate-mode export with
+ * the sentinels rewritten. Splitting is what produces two adjacent
+ * same-format code TextNodes — the shape {@link annotateLeaf} cannot build.
+ */
+function annotatePartialLeaf(markdown: string, leafIndex: number, offset: number): string {
+  const { editor, dispose } = createTestEditor();
+  try {
+    let output = '';
+    editor.update(
+      () => {
+        importMarkdownToLexicalInEditorState(parseMarkdown(markdown).root);
+
+        const leaves: LexicalNode[] = [];
+        const walk = (element: ElementNode): void => {
+          for (const child of element.getChildren()) {
+            if ($isElementNode(child)) walk(child);
+            else leaves.push(child);
+          }
+        };
+        walk($getRoot());
+
+        const target = leaves[leafIndex];
+        expect(target, `no inline leaf at index ${leafIndex}`).toBeDefined();
+        expect($isTextNode(target)).toBe(true);
+
+        const [head] = (target as TextNode).splitText(offset);
+        const mark = $createMarkNode([MARK_ID]);
+        head.insertBefore(mark);
+        mark.append(head);
 
         setAnnotateTarget(MARK_ID);
         try {
@@ -139,5 +194,38 @@ describe('#973: annotating inline code inside an emphasis/strong wrapper', () =>
     const output = annotateLeaf('A note: **the option `--flag`** is required.\n', 2);
     expect(output).not.toContain('‹**');
     expect(output).not.toContain('**›');
+  });
+
+  /**
+   * Pins the `!getMergeableFormat(...)` narrowing of `convertInlineUnit`'s
+   * *pure-inline-code* fast path — the fourth of the guards that look
+   * simplifiable and are not.
+   *
+   * That path concatenates a mark-split code run into one bare `inlineCode`,
+   * which is right for pure code and wrong for code that also carries a
+   * bold/italic bit: `convertCodeRun` emits no wrapper, so the `**` is dropped
+   * and #973 reappears. It only bites when the run has two or more members and
+   * one is marked, so it needs a mark over *part* of a code span — every case
+   * above marks whole leaves and stays green with the guard removed.
+   *
+   * Reachable in production from an annotation covering part of a bolded code
+   * span, which is an ordinary thing for a user to select.
+   */
+  describe('a mark splitting a code span inside a wrapper', () => {
+    it('keeps the strong wrapper', () => {
+      expect(annotatePartialLeaf('A **`hello world`** note.\n', 1, 5)).toBe(
+        'A **`‹hello› world`** note.\n',
+      );
+    });
+
+    it('keeps the emphasis wrapper and its marker style', () => {
+      expect(annotatePartialLeaf('A _`hello world`_ note.\n', 1, 5)).toBe(
+        'A _`‹hello› world`_ note.\n',
+      );
+    });
+
+    it('still concatenates the split run of a *pure* code span (unchanged path)', () => {
+      expect(annotatePartialLeaf('A `hello world` note.\n', 1, 5)).toBe('A `‹hello› world` note.\n');
+    });
   });
 });
