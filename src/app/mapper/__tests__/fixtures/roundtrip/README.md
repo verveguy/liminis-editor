@@ -458,9 +458,9 @@ Two more are not in FR-006 and are here deliberately:
   made flush against a backtick. This fixture makes "a real literal `**` still escapes
   stably" a red-able assertion rather than an argument.
 
-### Two changes here that look removable and are not
+### Three changes here that look removable and are not
 
-Both are Liminis-specific, with no counterpart in the reference implementation
+The first two are Liminis-specific, with no counterpart in the reference implementation
 ([verveguy/zusammen#72](https://github.com/verveguy/zusammen/pull/72), which never merged).
 
 **The `hasCodeMember` disjunct in `convertInlineUnit`'s formatted-run gate.** Zusammen's
@@ -485,7 +485,22 @@ of that suite's marking strategies mark either every leaf or the whole phrasing 
 this needs a mark on a *single interior* code leaf with un-marked same-format siblings
 beside it. `issue-973-annotate-code-in-wrapper.test.ts` exists for exactly that gap.
 
-### A third subtlety: where the marker-hint read sits
+**The `!getMergeableFormat(...)` narrowing of `convertInlineUnit`'s *pure-inline-code* fast
+path.** That path concatenates a mark-split code run into a single bare `inlineCode` via
+`convertCodeRun`, which emits no wrapper — correct for pure code, and a re-run of #973 for
+code that also carries a bold/italic bit. Without the narrowing, an annotation covering
+part of a bolded code span serializes `` A **`hello world`** note. `` as
+`` A `hello world` note. ``, dropping the `**`.
+
+It only bites when the run has two or more members and one of them is marked, so it needs a
+mark over *part* of a code span — the shape that leaves two adjacent same-format code
+`TextNode`s. Marking whole leaves never produces it, which is why every other case in the
+suite stays green with the guard reverted. The
+`a mark splitting a code span inside a wrapper` cases in
+`issue-973-annotate-code-in-wrapper.test.ts` are the guard; the pure-code case beside them
+is the complement, green either way, proving the unchanged path stayed unchanged.
+
+### A fourth subtlety: where the marker-hint read sits
 
 `convertFormattedRun` reads its `--md-strong-marker` / `--md-emphasis-marker` hints
 **above the code branch but below the `text === ''` early-continue**. Both halves of that

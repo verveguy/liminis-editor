@@ -70,7 +70,7 @@ const EXCLUSIONS: Record<string, string> = {
     'The first pass emits them bare and the second pass escapes them to `\\*\\*`, so the document ' +
     'is not a fixed point. That is a stringifier escaping concern, explicitly out of scope here ' +
     '(see the `## The 973-* fixture set` section of the fixture README). Tracked as #990; ' +
-    'when that lands, delete this entry — the suite then covers all 35 matching ADRs.',
+    'when that lands, delete this entry — the suite then covers all 32 matching ADRs.',
 };
 
 /** The floor the discovered set must clear, well under the 32 documents that match today. */
