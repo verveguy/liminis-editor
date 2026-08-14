@@ -353,8 +353,13 @@ function mergeableRunBounds(flat: readonly LexicalNode[], index: number): { star
   const child = flat[index];
   if (!$isTextNode(child)) return null;
 
-  if (child.hasFormat('code')) {
-    const isCode = (node: LexicalNode): boolean => $isTextNode(node) && node.hasFormat('code');
+  // Pure inline code only. A code-formatted node that also carries a
+  // bold/italic/strikethrough bit is emitted inside that wrapper (#973), so its
+  // delimiter run is the *formatted* run computed below, not the code run —
+  // getting this precedence wrong misplaces annotate-mode sentinel hoisting.
+  if (child.hasFormat('code') && !getMergeableFormat(child)) {
+    const isCode = (node: LexicalNode): boolean =>
+      $isTextNode(node) && node.hasFormat('code') && !getMergeableFormat(node);
     let start = index;
     let end = index;
     while (start > 0 && isCode(flat[start - 1])) start--;
@@ -1336,12 +1341,15 @@ const MERGEABLE_FORMAT_MASK = 1 | 2 | 4;
 
 // Returns the bold/italic/strikethrough bits a child can contribute to a shared
 // strong/emphasis/delete wrapper, or null if the child can't participate in one
-// (e.g. inline code, or a node type with no format bitmask like images/breaks).
+// (a node type with no format bitmask, like images/breaks).
+//
+// Code formatting is deliberately *not* a disqualifier (#973): a code-formatted
+// TextNode that also carries bold/italic/strikethrough belongs inside that
+// wrapper, as an `inlineCode` node. A code-formatted node carrying no other bit
+// yields 0, which still fails the `if (format)` guard at every call site, so
+// pure-inline-code behaviour is unchanged.
 function getMergeableFormat(child: LexicalNode): number | null {
   if ($isTextNode(child)) {
-    if (child.hasFormat('code')) {
-      return null;
-    }
     return child.getFormat() & MERGEABLE_FORMAT_MASK;
   }
   if ($isEquationNode(child) || $isFootnoteNode(child)) {
@@ -1399,21 +1407,41 @@ function convertFormattedRun(runChildren: LexicalNode[], format: number): Phrasi
   let strongMarker: '_' | '*' | null = null;
   let emphasisMarker: '_' | '*' | null = null;
 
+  // Consecutive code-formatted members accumulate here and flush as a single
+  // `inlineCode` node inside the wrapper (#973), mirroring convertCodeRun: a
+  // mark splitting a code span leaves adjacent code-format siblings, and
+  // mdast-util-to-markdown never merges adjacent inlineCode nodes back together.
+  let codeBuffer = '';
+  const flushCode = (): void => {
+    if (codeBuffer === '') return;
+    content.push({ type: 'inlineCode', value: codeBuffer });
+    codeBuffer = '';
+  };
+
   for (const child of runChildren) {
     if ($isTextNode(child)) {
       const text = sentinelAugmentedText(child);
-      if (text === '') {
-        continue;
-      }
-      content.push({ type: 'text', value: text });
+      // Marker hints are read before the code branch so a run whose only styled
+      // member is code-formatted keeps its `__`/`*` rather than normalizing.
       const style = child.getStyle() || '';
       strongMarker = strongMarker ?? getMarkdownMarker(style, '--md-strong-marker');
       emphasisMarker = emphasisMarker ?? getMarkdownMarker(style, '--md-emphasis-marker');
+      if (text === '') {
+        continue;
+      }
+      if (child.hasFormat('code')) {
+        codeBuffer += text;
+        continue;
+      }
+      flushCode();
+      content.push({ type: 'text', value: text });
     } else if ($isEquationNode(child)) {
+      flushCode();
       content.push({ type: 'inlineMath', value: child.getEquation() });
       strongMarker = strongMarker ?? child.getStrongMarker();
       emphasisMarker = emphasisMarker ?? child.getEmphasisMarker();
     } else if ($isFootnoteNode(child)) {
+      flushCode();
       strongMarker = strongMarker ?? child.getStrongMarker();
       emphasisMarker = emphasisMarker ?? child.getEmphasisMarker();
       content.push({
@@ -1423,6 +1451,7 @@ function convertFormattedRun(runChildren: LexicalNode[], format: number): Phrasi
       } as unknown as PhrasingContent);
     }
   }
+  flushCode();
 
   return wrapWithFormat(content, format, strongMarker, emphasisMarker);
 }
@@ -1550,10 +1579,19 @@ function convertInlineUnit(
   // siblings, and mdast-util-to-markdown never merges adjacent inlineCode
   // nodes back together (each gets its own backtick pair) — so the run has to
   // be concatenated before conversion.
-  if ($isTextNode(child) && child.hasFormat('code')) {
+  //
+  // Only *pure* inline code takes this path: a code-formatted node that also
+  // carries a bold/italic/strikethrough bit must stay available to the
+  // formatted-run path below, which nests it inside its wrapper (#973).
+  if ($isTextNode(child) && child.hasFormat('code') && !getMergeableFormat(child)) {
     let j = i + 1;
     let runTouchesMark = marked.has(child);
-    while (j < kids.length && $isTextNode(kids[j]) && (kids[j] as TextNode).hasFormat('code')) {
+    while (
+      j < kids.length &&
+      $isTextNode(kids[j]) &&
+      (kids[j] as TextNode).hasFormat('code') &&
+      !getMergeableFormat(kids[j])
+    ) {
       if (marked.has(kids[j])) runTouchesMark = true;
       j++;
     }
@@ -1570,18 +1608,32 @@ function convertInlineUnit(
     // only those runs need the merged wrapper; all-text runs keep the
     // existing per-node path below (untouched, per FR-006) unless a mark
     // split them, in which case merging is what preserves transparency.
+    const isCodeMember = (node: LexicalNode): boolean => $isTextNode(node) && node.hasFormat('code');
     let j = i + 1;
     let hasNonTextMember = !$isTextNode(child);
+    let hasCodeMember = isCodeMember(child);
     let runTouchesMark = marked.has(child);
     while (j < kids.length && getMergeableFormat(kids[j]) === format) {
       if (!$isTextNode(kids[j])) {
         hasNonTextMember = true;
       }
+      if (isCodeMember(kids[j])) hasCodeMember = true;
       if (marked.has(kids[j])) runTouchesMark = true;
       j++;
     }
 
-    if (hasNonTextMember || (runTouchesMark && j > i + 1)) {
+    // The `hasCodeMember` disjunct is Liminis-specific and has no counterpart in
+    // Zusammen's reference fix, whose gate merges any multi-member run
+    // unconditionally. Liminis narrowed the gate to `runTouchesMark` (#970/#977)
+    // so mark-free documents keep byte-identical output — but that narrowing
+    // would send a mark-free `**`code` more text**` down the per-node path,
+    // emitting two adjacent `strong` nodes that mdast-util-to-markdown will not
+    // join (`**`code`**** more text**`). Do not "simplify" this away.
+    //
+    // Safe under FR-009: a multi-member run containing a code member could not
+    // form before this issue, because getMergeableFormat returned null for code
+    // nodes and terminated the scan.
+    if (hasNonTextMember || (hasCodeMember && j > i + 1) || (runTouchesMark && j > i + 1)) {
       return { content: [convertFormattedRun(kids.slice(i, j), format)], next: j };
     }
   }
@@ -1610,7 +1662,11 @@ function convertTextNode(node: TextNode): PhrasingContent[] {
     return [];
   }
 
-  let result: PhrasingContent = { type: 'text', value: text };
+  // The base node is chosen first, then wrapped — a code-formatted node that
+  // also carries bold/italic/strikethrough keeps that wrapper (#973), where
+  // previously a trailing `format & 16` short-circuit discarded it.
+  let result: PhrasingContent =
+    format & 16 ? { type: 'inlineCode', value: text } : { type: 'text', value: text };
 
   // Apply formatting
   if (format & 1) {
@@ -1634,11 +1690,6 @@ function convertTextNode(node: TextNode): PhrasingContent[] {
   if (format & 4) {
     // Strikethrough
     result = { type: 'delete', children: [result] as PhrasingContent[] };
-  }
-
-  if (format & 16) {
-    // Code
-    return [{ type: 'inlineCode', value: text }];
   }
 
   return [result];
