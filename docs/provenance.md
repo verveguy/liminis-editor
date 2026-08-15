@@ -20,12 +20,22 @@ scripts/verify-package.mjs → scripts/verify-package.mjs
 scripts/run-demo.mjs       → scripts/run-demo.mjs
 ```
 
-The result is **real history, not a squashed import**: 140 commits on `main`,
-including the sequence of adoption defects that a second consumer found in the
-package during August 2026 (verveguy/liminis#951 through #954, #961 and #965).
-`git log` on any file under `src/` shows the commit that introduced it.
+The result is **real history, not a squashed import**: the filtered import
+contributed 140 commits, including the sequence of adoption defects that a second
+consumer found in the package during August 2026 (verveguy/liminis#951 through
+#954, #961 and #965). `git log` on any file under `src/` shows the commit that
+introduced it.
 
 The source repository was not rewritten. The clone was thrown away.
+
+### One branch arrived after the cut
+
+verveguy/liminis#973 — a serializer defect that corrupted `**bold**` abutting an
+inline-code span on every save — was still open upstream when the filter ran, so
+its work sat on `preserved/liminis-issue-973-in-flight` rather than on `main`. It
+merged upstream shortly afterwards and was merged here too. The branch is kept as
+a record of the cut; it is an ancestor of `main` and nothing needs to be taken
+from it.
 
 ### What did not come across
 
