@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 /**
- * Prove `@liminis/editor` is publishable, and keep it that way (#940 / FR-009, SC-005).
+ * Prove `@liminis/editor` is publishable, and keep it that way.
  *
  * Build → pack → install the tarball into an external-style consumer *outside*
  * the pnpm workspace → type-check it under two module-resolution modes → build
  * three measurement arms → assert the entry-graph boundaries the seven subpaths
  * exist to keep.
  *
- * Why a script rather than assertions in the unit suite: every assertion in
- * `liminis-app/src/shared/__tests__/editor-package-wiring.test.ts` reads source
- * and config *text*, deliberately, because the `unit-tests` CI job never runs a
- * build. Everything here needs a real built artifact, so it runs in its own job.
+ * Why a script rather than assertions in the unit suite: the unit suite reads
+ * source and config *text*, deliberately, because the unit-test CI job never
+ * runs a build. Everything here needs a real built artifact, so it runs in its
+ * own job.
+ *
+ * Originally verveguy/liminis#940; see `docs/provenance.md` for how bare
+ * `FR-NNN`/`SC-NNN`/`#NNN` references in this repository resolve.
  *
  * Usage: `pnpm verify:package` (or `node scripts/verify-package.mjs`).
  */
@@ -29,8 +32,13 @@ import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+// The package is the repository root here, so `REPO_ROOT` and `PACKAGE_DIR` are
+// the same directory. They are kept as separate names because the distinction is
+// real — `CONSUMER_DIR` hangs off the repository, not off the package — and
+// because collapsing them would make every path below read as though it were
+// relative to the package's own `src/`.
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const PACKAGE_DIR = join(REPO_ROOT, 'packages', 'editor')
+const PACKAGE_DIR = REPO_ROOT
 const CONSUMER_DIR = join(REPO_ROOT, 'examples', 'external-consumer')
 
 const ARMS = ['markdown-only', 'annotations-off', 'annotations-on']
@@ -81,7 +89,7 @@ function run(command, args, cwd, env = {}) {
 // ---------------------------------------------------------------------------
 
 step('Building @liminis/editor')
-run('pnpm', ['--filter', '@liminis/editor', 'run', 'build'], REPO_ROOT)
+run('pnpm', ['run', 'build'], PACKAGE_DIR)
 
 step('Packing the tarball')
 const packDir = tempDir('liminis-editor-pack-')
@@ -94,9 +102,10 @@ if (!existsSync(tarball)) {
 console.log(`  ${relative(REPO_ROOT, tarball) || tarball}`)
 
 // The packed manifest is what an external consumer actually resolves through.
-// The checked-in one still points at `src/`, so that `liminis-app`, the Tailwind
-// `@source` directive and the `externalizeDepsPlugin` exclusion stay valid —
-// `publishConfig` is what swaps them at pack time.
+// The checked-in one still points at `src/`, so that in-workspace consumers keep
+// resolving raw TypeScript (which is what makes a Tailwind `@source` directive
+// and a bundler's externalization exclusion able to name real files) —
+// `publishConfig` is what swaps them to `dist/` at pack time.
 step('Checking the packed manifest')
 const extractDir = tempDir('liminis-editor-extract-')
 run('tar', ['xzf', tarball, '-C', extractDir], REPO_ROOT)
@@ -251,9 +260,16 @@ check(
 // 3. Install the tarball into the external-style consumer
 // ---------------------------------------------------------------------------
 //
-// `--ignore-workspace` is what makes this external rather than theatre: without
-// it pnpm links `@liminis/editor` by symlink to `packages/editor` and the
-// tarball — the thing under test — is never resolved at all.
+// `--ignore-workspace` is what makes this external rather than theatre: under a
+// workspace, pnpm links `@liminis/editor` by symlink to the package directory
+// and the tarball — the thing under test — is never resolved at all.
+//
+// This repository has no `pnpm-workspace.yaml`, so `examples/*` are non-members
+// by construction and the flag is belt-and-braces rather than load-bearing. It
+// stays because the property it protects is the one this whole script exists to
+// prove, and a workspace file added later must not silently turn this into a
+// self-test. The `not a workspace symlink` check below is the assertion that
+// actually catches that.
 //
 // The fixture deliberately declares only `react`/`react-dom`, never `lexical`
 // or `@lexical/*`. That is not an oversight: peers arriving without being asked

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Build and pack `@liminis/editor`, install the tarball into `examples/demo`,
- * and start the demo (#940 / FR-008, SC-006).
+ * and start the demo.
  *
  * The demo installs the *packed tarball*, not the workspace path, and with
  * `--ignore-workspace` so pnpm cannot quietly substitute a symlink. That is
@@ -17,15 +17,17 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+// The package is the repository root here; see the same note in
+// `scripts/verify-package.mjs` for why the two names are kept distinct.
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const PACKAGE_DIR = join(REPO_ROOT, 'packages', 'editor')
+const PACKAGE_DIR = REPO_ROOT
 const DEMO_DIR = join(REPO_ROOT, 'examples', 'demo')
 
 const run = (cmd, args, cwd) =>
   execFileSync(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8' })
 
 console.log('▶ Building @liminis/editor')
-run('pnpm', ['--filter', '@liminis/editor', 'run', 'build'], REPO_ROOT)
+run('pnpm', ['run', 'build'], PACKAGE_DIR)
 
 console.log('▶ Packing the tarball')
 const packDir = mkdtempSync(join(tmpdir(), 'liminis-editor-demo-'))
