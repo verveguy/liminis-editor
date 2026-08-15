@@ -594,10 +594,13 @@ coverage: it enumerates every class `editorNodes.ts` exports and fails, naming t
 offending class, if any of them (outside its own documented exclusion list) has zero
 fixtures anywhere in this directory constructing it.
 
-Each group covers the same four shapes: a minimal instance, an instance nested inside a
+Each group targets the same four shapes: a minimal instance, an instance nested inside a
 list item (the one nesting context confirmed to round-trip correctly for all four — see
 below), an instance with or adjacent to inline-formatted text, and an empty/degenerate
-instance.
+instance. Callout, mermaid, and c4 each have all four as `.md` fixtures in their own
+directory; toggle has three — its nested-in-list-item shape is structurally unreachable
+(see below) and is instead documented as a `known-defects/` fixture rather than a fourth
+fixture in `toggle/`.
 
 - **`callout/`**: `minimal.md`, `nested-in-list-item.md`, `inline-formatting.md`,
   `empty.md`. All four round-trip byte-identical. `inline-formatting.md` deliberately

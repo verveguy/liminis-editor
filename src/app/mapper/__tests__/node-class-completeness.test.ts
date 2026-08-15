@@ -26,8 +26,9 @@ const FIXTURES_DIR = join(here, 'fixtures', 'roundtrip');
 /**
  * Node classes registered in `editorNodes.ts` so the *live* editor's plugins can
  * construct them during interactive editing, but which `importMarkdownToLexical`
- * itself never constructs (confirmed by inspecting `mdastToLexical.ts` — no reference
- * to any of the three exists there):
+ * itself never constructs (confirmed by inspecting `mdastToLexical.ts` — it never
+ * imports or instantiates any of the three; `MarkNode` appears only in a docstring
+ * describing the live annotation feature, not in constructed code):
  *
  * - `MarkNode`: created only by the live annotation feature.
  * - `AutoLinkNode`: created only by the live `LinkPlugin` autolink behavior.
