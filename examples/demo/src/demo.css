@@ -51,6 +51,44 @@ body {
 
 .demo-editor { flex: 1; min-width: 0; overflow-y: auto; background: #fff; }
 
+.demo-source {
+  margin: 0;
+  padding: 8px 20px;
+  font-size: 12px;
+  color: #888;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+.demo-source code { color: #555; }
+
+.demo-fixture-picker {
+  width: 240px;
+  flex: none;
+  padding: 16px;
+  overflow-y: auto;
+  border-right: 1px solid #e4e4e4;
+  background: #fff;
+  font-size: 13px;
+}
+.demo-fixture-picker h2 { margin-top: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; }
+.demo-fixture-picker h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: #aaa; margin: 16px 0 4px; }
+.demo-fixture-list { list-style: none; padding: 0; margin: 0; }
+.demo-fixture-list button {
+  all: unset;
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #333;
+  font-size: 12px;
+  word-break: break-word;
+}
+.demo-fixture-list button:hover { background: #f4f4f4; }
+.demo-fixture-list button.is-active { background: #fff7e0; color: #8a5a00; font-weight: 600; }
+.demo-fixture-list button:focus-visible { outline: 2px solid #f0b429; outline-offset: 2px; }
+
 /* Scoped to the demo shell's own controls — the direct-child chain matches the
    sidebar's standalone buttons and nothing else. A bare `button` selector would
    restyle the editor's own toolbar, defeating the point of a demo that is
