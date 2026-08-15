@@ -35,13 +35,36 @@ async function launchShell(extraArgs: string[] = []): Promise<{ app: ElectronApp
 }
 
 /**
- * A real double-click, driven at the OS/Chromium level by Playwright — not a
- * synthetic `Range` + dispatched event, which is what a jsdom/happy-dom unit
- * test has to construct in place of the browser behavior this test exists to
- * observe directly.
+ * Double-clicks the exact on-screen position of `word`, using a real
+ * `page.mouse` event dispatched by Playwright — the actual point of this
+ * suite, since Chromium's own word-selection algorithm decides what gets
+ * selected, not a synthetic `Range` the way a jsdom/happy-dom unit test has
+ * to construct one.
+ *
+ * A plain `locator.dblclick()` targets an element's bounding-box center,
+ * which for a paragraph is wherever the *paragraph* happens to center on —
+ * not the specific word inside it. A short, precisely-positioned `Range` is
+ * used only to compute *where* to click; the click itself, and everything it
+ * selects, is the browser's.
  */
 async function selectWordByDoubleClick(page: Page, word: string): Promise<void> {
-  await page.getByText(word, { exact: false }).first().dblclick();
+  const { x, y } = await page.evaluate((needle) => {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      const index = node.textContent?.indexOf(needle) ?? -1;
+      if (index !== -1) {
+        const range = document.createRange();
+        range.setStart(node, index);
+        range.setEnd(node, index + needle.length);
+        const rect = range.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      }
+    }
+    throw new Error(`no text node containing ${JSON.stringify(needle)}`);
+  }, word);
+
+  await page.mouse.dblclick(x, y);
 }
 
 test.describe('Electron shell — toolbar annotation affordance', () => {
