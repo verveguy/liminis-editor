@@ -15,19 +15,25 @@
  * that have nothing to do with this issue. Idempotence is the property #973 is
  * about, and the property ADR-076 guarantees.
  *
- * **Anti-vacuity.** Reading live repository files means the coverage can
- * silently evaporate — someone edits the ADRs, the pattern disappears, and the
- * assertions keep passing while testing nothing. So the suite proves its own
- * coverage before trusting it: the discovered set must be non-empty and at or
- * above a floor, and every document is re-checked for the pattern immediately
- * before its fixed point is asserted. Precedent: the corpus-wide anti-vacuity
- * counters in `annotated-serialize-corpus.test.ts`.
+ * **Anti-vacuity.** The coverage here can silently evaporate — someone edits the
+ * documents, the pattern disappears, and the assertions keep passing while
+ * testing nothing. So the suite proves its own coverage before trusting it: the
+ * discovered set must be non-empty and at or above a floor, and every document
+ * is re-checked for the pattern immediately before its fixed point is asserted.
+ * Precedent: the corpus-wide anti-vacuity counters in
+ * `annotated-serialize-corpus.test.ts`.
  *
- * This is a deliberate, test-only read outside the package boundary (ADR-075):
- * `@liminis/editor` ships without these documents, and the point of the
- * requirement is that they are *real*, not copies. The path is resolved from
- * `import.meta.url` rather than `process.cwd()` so it survives being run from
- * any directory.
+ * **The documents are vendored, not read live.** They are byte-identical copies
+ * of the ADRs, sitting in `fixtures/real-documents/` with their provenance
+ * recorded in that directory's README. An earlier version of this test walked
+ * six directories up and read `docs/project_notes/decisions/` in the application
+ * repository — the only test under `packages/editor/` reading outside the
+ * package. That would have broken when #949 extracts this package into
+ * `verveguy/liminis-editor`: either the suite fails on day one there, or the
+ * missing directory gets skipped and this test becomes permanently vacuous.
+ * Vendoring keeps the realistic-content property while letting the test travel
+ * with the package (ADR-075). The path is resolved from `import.meta.url` rather
+ * than `process.cwd()` so it survives being run from any directory.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -36,9 +42,7 @@ import { fileURLToPath } from 'node:url';
 import { roundTrip, formatUnifiedDiff } from './roundtrip-test-utils';
 
 const here = dirname(fileURLToPath(import.meta.url));
-// packages/editor/src/app/mapper/__tests__ -> repo root
-const REPO_ROOT = join(here, '..', '..', '..', '..', '..', '..');
-const ADR_DIR = join(REPO_ROOT, 'docs', 'project_notes', 'decisions');
+const ADR_DIR = join(here, 'fixtures', 'real-documents');
 
 /**
  * `**bold**` with an inline-code span *inside* it — the shape #973 breaks.
@@ -80,6 +84,8 @@ function discoverAdrs(): string[] {
   if (!existsSync(ADR_DIR)) return [];
   return readdirSync(ADR_DIR)
     .filter((name) => name.endsWith('.md'))
+    // The directory's own provenance README is documentation, not a subject.
+    .filter((name) => name !== 'README.md')
     .filter((name) => INTERIOR_MIXED.test(readFileSync(join(ADR_DIR, name), 'utf8')))
     .sort();
 }
@@ -87,17 +93,23 @@ function discoverAdrs(): string[] {
 const documents = discoverAdrs();
 
 describe('#973: real ADRs with bold abutting inline code round-trip to a fixed point', () => {
-  it('finds the ADR directory (guards against a moved or renamed path)', () => {
-    expect(existsSync(ADR_DIR), `ADR directory not found at ${ADR_DIR}`).toBe(true);
+  it('finds the vendored document directory (guards against a moved or renamed path)', () => {
+    expect(
+      existsSync(ADR_DIR),
+      `vendored real-document directory not found at ${ADR_DIR}. These documents ship with ` +
+        `the package by design (see that directory's README) — if it is missing, restore it ` +
+        `rather than making this guard skip.`,
+    ).toBe(true);
   });
 
   it('discovers documents exhibiting the pattern (guards against a silently empty suite)', () => {
     expect(documents.length).toBeGreaterThan(0);
     expect(
       documents.length,
-      `only ${documents.length} ADRs still contain the interior bold-around-code pattern ` +
-        `(expected at least ${MINIMUM_DOCUMENTS}). If the ADRs genuinely changed, lower the ` +
-        `floor deliberately — do not let this suite quietly stop covering the defect.`,
+      `only ${documents.length} vendored documents still contain the interior ` +
+        `bold-around-code pattern (expected at least ${MINIMUM_DOCUMENTS}). If they genuinely ` +
+        `changed, lower the floor deliberately — do not let this suite quietly stop covering ` +
+        `the defect.`,
     ).toBeGreaterThanOrEqual(MINIMUM_DOCUMENTS);
   });
 

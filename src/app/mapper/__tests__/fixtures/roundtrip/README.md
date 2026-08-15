@@ -458,6 +458,30 @@ Two more are not in FR-006 and are here deliberately:
   made flush against a backtick. This fixture makes "a real literal `**` still escapes
   stably" a red-able assertion rather than an argument.
 
+### The real-document companion suite
+
+The fixtures above are minimal by construction. `issue-973-adr-idempotence.test.ts` is the
+counterweight, asserting the same fixed point over 32 real, human-written ADRs full of
+tables, definition lists, nested lists and raw HTML. 16 of them were red before the fix.
+
+Those documents are **vendored** into `../real-documents/` as byte-identical copies, not
+read live from `docs/project_notes/decisions/`. The first version of that test walked six
+directories up into the application repository — the only test under `packages/editor/`
+reading outside the package. When [#949](https://github.com/verveguy/liminis/issues/949)
+extracts this package into `verveguy/liminis-editor`, a live read has two possible fates
+and both are bad: the suite fails on day one in the new repo, or someone makes the missing
+directory skip and the test goes permanently vacuous in the repo where the package actually
+lives. Vendoring keeps the realistic-content property and lets the test travel with the
+package.
+
+Keep it a **sibling** of `fixtures/roundtrip/`, never inside it: the five auto-discovering
+corpus suites all scan `fixtures/roundtrip` specifically, and 260 KB of ADRs would be
+dragged into every one of their runs.
+
+The suite asserts **second pass == first pass only** — never first pass == source bytes.
+Real ADRs hit unrelated, already-accepted normalizations recorded in `known-defects/`, so
+byte-identity with the source would fail for reasons that have nothing to do with #973.
+
 ### Three changes here that look removable and are not
 
 The first two are Liminis-specific, with no counterpart in the reference implementation
