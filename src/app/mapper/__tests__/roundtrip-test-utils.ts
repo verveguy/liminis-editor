@@ -7,7 +7,7 @@
  */
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
-import { createEditor, LexicalEditor } from 'lexical';
+import { createEditor, LexicalEditor, LexicalNode, $getRoot, $isElementNode } from 'lexical';
 import { registerList } from '@lexical/list';
 import { parseMarkdown } from '../../../markdown/parse';
 import { stringifyMarkdown } from '../../../markdown/stringify';
@@ -94,6 +94,72 @@ export function roundTrip(
               const mdast = exportLexicalToMdast(editor, options.exportOptions);
               const output = stringifyMarkdown(mdast);
               settleResolve({ mdast, output });
+            } catch (error) {
+              settleReject(error);
+            }
+          },
+        },
+      );
+    } catch (error) {
+      settleReject(error);
+    }
+  });
+}
+
+function walkNodeTypes(node: LexicalNode, types: Set<string>): void {
+  types.add(node.getType());
+  if ($isElementNode(node)) {
+    for (const child of node.getChildren()) {
+      walkNodeTypes(child, types);
+    }
+  }
+}
+
+/**
+ * Imports `markdown` through the real production pipeline (parseMarkdown ->
+ * importMarkdownToLexical) and returns the set of Lexical node-type strings
+ * (`getType()`) constructed anywhere in the resulting tree. Used by the node-class
+ * completeness test to determine which editor node classes the fixture corpus
+ * actually exercises — this deliberately inspects the imported Lexical tree rather
+ * than the exported mdast/markdown, since two distinct node classes (e.g.
+ * CalloutNode and QuoteNode) can export to the same mdast shape.
+ */
+export function collectImportedNodeTypes(markdown: string): Promise<Set<string>> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let dispose: () => void = () => {};
+    const settleResolve = (value: Set<string>) => {
+      if (settled) return;
+      settled = true;
+      dispose();
+      resolve(value);
+    };
+    const settleReject = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      dispose();
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
+
+    try {
+      const created = createTestEditor((error) => settleReject(error));
+      const editor = created.editor;
+      dispose = created.dispose;
+      const parsed = parseMarkdown(markdown);
+
+      editor.update(
+        () => {
+          importMarkdownToLexical(editor, parsed.root);
+        },
+        {
+          discrete: true,
+          onUpdate: () => {
+            try {
+              const types = new Set<string>();
+              editor.getEditorState().read(() => {
+                walkNodeTypes($getRoot(), types);
+              });
+              settleResolve(types);
             } catch (error) {
               settleReject(error);
             }
