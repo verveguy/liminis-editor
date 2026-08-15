@@ -2,7 +2,10 @@ name: CI
 
 # This repository stands on its own. Nothing here checks out, fetches, or
 # authenticates against another repository — that independence is the point of
-# the extraction (verveguy/liminis#995), and it is cheap to lose by accident.
+# the extraction, and it is cheap to lose by accident. Deliberately no reference
+# to the repository this package came from appears in this file at all, not even
+# in a comment, so that "does CI reach outward?" stays a one-line grep.
+# The extraction itself is recorded in docs/provenance.md.
 
 on:
   pull_request:
