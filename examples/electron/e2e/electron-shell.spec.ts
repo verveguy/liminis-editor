@@ -31,6 +31,16 @@ async function launchShell(extraArgs: string[] = []): Promise<{ app: ElectronApp
   const app = await electron.launch({ args: [APP_DIR, ...extraArgs] })
   const page = await app.firstWindow()
   await page.waitForSelector(EDITOR)
+  // `AnnotationPlugin` — the piece that registers the create-affordance
+  // command handler — is mounted inside a `React.lazy()` boundary
+  // (`Editor.tsx`'s `LazyAnnotationSurface`), while `Toolbar` (which renders
+  // the "Note" button) is not. The button can therefore be visible and
+  // clickable before its own command handler has finished loading; clicking
+  // in that window is indistinguishable from #961's defect (a rendered
+  // button that does nothing) even though nothing is actually broken.
+  // Waiting for the network to settle after the shell first paints ensures
+  // the lazily-loaded chunk has arrived before any test interacts with it.
+  await page.waitForLoadState('networkidle')
   return { app, page }
 }
 
