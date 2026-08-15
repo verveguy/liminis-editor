@@ -157,9 +157,11 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
       }
     };
 
-    // The MCP stdio invoker rejects concurrent calls to the same server (ADR-042).
-    // Serialize the two knowledge suggestion calls while keeping the corrections
-    // read concurrent. The host relies on this ordering — do not parallelise.
+    // Hosts back these services with an MCP stdio transport, which multiplexes
+    // nothing: a second concurrent call to the same server is rejected rather
+    // than queued. So serialize the two knowledge suggestion calls, while
+    // keeping the corrections read concurrent (it is a different service).
+    // The host relies on this ordering — do not parallelise.
     const loadKnowledgeSuggestions = async () => {
       await loadEntities();
       if (cancelled) return;

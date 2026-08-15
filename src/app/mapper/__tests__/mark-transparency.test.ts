@@ -257,8 +257,13 @@ describe('MarkNode transparency on export (#43)', () => {
  * etc.). Those passes were written for real markdown content; this proves
  * they neither corrupt/strip the sentinel tokens nor get confused by their
  * presence into mangling the *real* content around them, and that disabling
- * annotate mode again afterward leaves the disk-write path exactly as before
- * (annotate mode must never leak into it — ADR-003/FR-003).
+ * annotate mode again afterward leaves the disk-write path exactly as before.
+ *
+ * Annotate mode must never leak into the disk-write path. It exists only so a
+ * caller can locate a live range inside markdown it is about to be handed; the
+ * bytes written to a user's file must be identical whether or not the document
+ * has ever been annotated. A sentinel surviving into a save is silent document
+ * corruption, which is the whole reason this suite is byte-exact.
  */
 describe('annotated-serialize sentinel survival under stringify post-processing (#47)', () => {
   async function exportAnnotated(markdown: string, id: string, wrap: (root: ReturnType<typeof $getRoot>) => void): Promise<string> {

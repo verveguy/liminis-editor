@@ -277,7 +277,8 @@ describe('overlapping annotation placement (#970 defect 1)', () => {
     expect(updates).toBe(1);
   });
 
-  // FR-008/SC-005: marks stay invisible to content (ADR-003).
+  // Marks stay invisible to content: annotating a document, however densely,
+  // must not change a single byte of the markdown it serializes back to.
   it('serializes byte-identically after placing overlapping marks', () => {
     const { editor, spans } = mount(REFERENCE);
     placeMarksForAnchors(editor, spans, REFERENCE, [

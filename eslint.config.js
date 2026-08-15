@@ -4,13 +4,34 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import globals from 'globals'
 
-// Port of liminis-app/eslint.config.js, narrowed to the editor package.
-// The React-hooks and ADR-024 no-browser-dialog rule blocks that used to be
-// keyed to `src/editor/**` in liminis-app apply to all of `src/**` here.
+// Originally a port of the host application's config, narrowed to this package
+// (verveguy/liminis#995). The React-hooks and no-browser-dialog rule blocks that
+// used to be keyed to an `src/editor/**` subtree there apply to all of `src/**`
+// here, because all of `src/**` *is* the editor now.
 export default tseslint.config(
   // The config files themselves are outside the tsconfig project, so the
   // type-aware parser can't handle them.
-  { ignores: ['node_modules/**', 'coverage/**', 'eslint.config.js', 'vitest.config.ts'] },
+  //
+  // `dist/**` is ignored for the same reason and it matters more than it looks:
+  // the emitted `.d.ts` files are not in any tsconfig project, so a type-aware
+  // lint over them fails with a parser error rather than a lint error. The
+  // package script only ever passes `src/`, but a bare `eslint .` — a developer
+  // exploring, or a future CI step that lints after building — would otherwise
+  // hit it. `examples/**` are separate installs with their own toolchains.
+  {
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'coverage/**',
+      'examples/**',
+      // Plain Node ESM build tooling, deliberately outside the TypeScript
+      // project. The type-aware parser cannot resolve them to a tsconfig, so
+      // linting them is a parser error rather than a finding.
+      'scripts/**',
+      'eslint.config.js',
+      'vitest.config.ts',
+    ],
+  },
 
   js.configs.recommended,
 
@@ -26,9 +47,12 @@ export default tseslint.config(
         ...globals.es2021,
       },
       parserOptions: {
-        projectService: {
-          allowDefaultProject: ['tests/*.ts'],
-        },
+        // No `allowDefaultProject` here. `tsconfig.json` already includes
+        // `tests/**/*`, and listing a file in both is an error the project
+        // service reports as "included by allowDefaultProject but also was
+        // found in the project service" — a parser failure, not a lint finding.
+        // It stayed latent while the lint script only ever passed `src/`.
+        projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -47,7 +71,14 @@ export default tseslint.config(
     },
   },
 
-  // Prevent usage of browser dialogs - use a host-supplied dialog/toast instead (ADR-024)
+  // Prevent usage of browser dialogs — use a host-supplied dialog/toast instead.
+  //
+  // `confirm`, `alert` and `prompt` are banned outright rather than discouraged.
+  // They synchronously block the host event loop, they cannot be styled or
+  // driven from a test, and they simply do not exist in some of the shells this
+  // package is embedded in (an Electron renderer with them disabled, a headless
+  // environment). A component that reaches for one is unusable in at least one
+  // supported host, and fails there in a way no unit test would catch.
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
@@ -55,15 +86,15 @@ export default tseslint.config(
         'warn',
         {
           name: 'confirm',
-          message: 'Use a dialog component instead of confirm(). See ADR-024.',
+          message: 'Use a dialog component instead of confirm(). Native dialogs block the host event loop, cannot be styled or tested, and are not available in every shell this package runs in.',
         },
         {
           name: 'alert',
-          message: 'Use the injected host notifyError() instead of alert(). See ADR-024.',
+          message: 'Use the injected host notifyError() instead of alert(). Native dialogs block the host event loop, cannot be styled or tested, and are not available in every shell this package runs in.',
         },
         {
           name: 'prompt',
-          message: 'Use a dialog with an input component instead of prompt(). See ADR-024.',
+          message: 'Use a dialog with an input component instead of prompt(). Native dialogs block the host event loop, cannot be styled or tested, and are not available in every shell this package runs in.',
         },
       ],
       'no-restricted-properties': [
@@ -71,35 +102,39 @@ export default tseslint.config(
         {
           object: 'window',
           property: 'confirm',
-          message: 'Use a dialog component instead of window.confirm(). See ADR-024.',
+          message: 'Use a dialog component instead of window.confirm(). Native dialogs block the host event loop, cannot be styled or tested, and are not available in every shell this package runs in.',
         },
         {
           object: 'window',
           property: 'alert',
-          message: 'Use the injected host notifyError() instead of window.alert(). See ADR-024.',
+          message: 'Use the injected host notifyError() instead of window.alert(). Native dialogs block the host event loop, cannot be styled or tested, and are not available in every shell this package runs in.',
         },
         {
           object: 'window',
           property: 'prompt',
-          message: 'Use a dialog with an input component instead of window.prompt(). See ADR-024.',
+          message: 'Use a dialog with an input component instead of window.prompt(). Native dialogs block the host event loop, cannot be styled or tested, and are not available in every shell this package runs in.',
         },
         {
           object: 'globalThis',
           property: 'confirm',
-          message: 'Use a dialog component instead of globalThis.confirm(). See ADR-024.',
+          message: 'Use a dialog component instead of globalThis.confirm(). Native dialogs block the host event loop, cannot be styled or tested, and are not available in every shell this package runs in.',
         },
         {
           object: 'globalThis',
           property: 'alert',
-          message: 'Use the injected host notifyError() instead of globalThis.alert(). See ADR-024.',
+          message: 'Use the injected host notifyError() instead of globalThis.alert(). Native dialogs block the host event loop, cannot be styled or tested, and are not available in every shell this package runs in.',
         },
         {
           object: 'globalThis',
           property: 'prompt',
-          message: 'Use a dialog with an input component instead of globalThis.prompt(). See ADR-024.',
+          message: 'Use a dialog with an input component instead of globalThis.prompt(). Native dialogs block the host event loop, cannot be styled or tested, and are not available in every shell this package runs in.',
         },
       ],
-      // FR-008 / SC-004: the package must never reach back into its host.
+      // The package must never reach back into its host. Every host capability
+      // arrives by injection, which is what lets this package build, test and
+      // ship with no host present at all. The patterns name hosts this package
+      // has actually been embedded in; a path match is the cheap way to catch a
+      // relative import that has escaped the package boundary.
       'no-restricted-imports': [
         'error',
         {
@@ -107,17 +142,18 @@ export default tseslint.config(
             {
               group: ['**/liminis-app/**', '**/messaging-electron*'],
               message:
-                '@liminis/editor must not import from liminis-app. Inject the capability via EditorHostServices instead.',
+                '@liminis/editor must not import from a host application. Inject the capability via EditorHostServices (src/host/types.ts) instead.',
             },
           ],
         },
       ],
-      // The other half of FR-008 / SC-004. `no-restricted-imports` only covers
-      // module paths; the preload API is reached through a global, so it needs a
-      // syntax rule. Uses `no-restricted-syntax` rather than another
-      // `no-restricted-properties` entry because a second declaration of that
-      // rule would replace the ADR-024 dialog entries above wholesale, and
-      // because this is an error where those are warnings.
+      // The other half of the host-independence rule above.
+      // `no-restricted-imports` only covers module paths; the preload API is
+      // reached through a global, so it needs a syntax rule. Uses
+      // `no-restricted-syntax` rather than another `no-restricted-properties`
+      // entry because a second declaration of that rule would replace the
+      // browser-dialog entries above wholesale, and because this is an error
+      // where those are warnings.
       //
       // Three selectors, because one AST shape does not cover the ways this
       // reach-in can be spelled:

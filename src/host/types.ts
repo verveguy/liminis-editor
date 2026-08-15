@@ -40,9 +40,11 @@ export interface EditorHostBridge {
 /**
  * Persistence and knowledge-graph services backing the correction feature.
  *
- * The in-editor correction UI is package-side; reading and writing
- * `.liminis/knowledge-corrections.yaml` and driving the MCP knowledge tools
- * stays host-side (FR-006, and see ADR-057).
+ * The in-editor correction UI is package-side; reading and writing the
+ * corrections document and driving the knowledge tools stays host-side. That
+ * split is the package boundary drawn at persistence (`docs/decisions/adr-075.md`):
+ * this package renders and edits, and never decides where bytes live or which
+ * knowledge pipeline consumes them.
  */
 export interface CorrectionHostServices {
   /** Raw YAML text of the corrections file, or `null` when it does not exist. */

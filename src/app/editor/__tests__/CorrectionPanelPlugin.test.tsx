@@ -7,8 +7,9 @@
  * here rather than left to a manual click-through:
  *
  *  - **Call ordering.** `suggestEntities` must be awaited *before*
- *    `suggestPassages` — the MCP stdio invoker rejects concurrent calls to one
- *    server (ADR-042). Parallelising them would still render correctly.
+ *    `suggestPassages` — hosts back these services with an MCP stdio transport,
+ *    which rejects rather than queues a second concurrent call to one server.
+ *    Parallelising them would still render correctly.
  *  - **Re-read before write.** Confirm re-reads the corrections document, merges
  *    into *that*, and writes the merge, so a correction added elsewhere while the
  *    panel was open is not clobbered.
@@ -203,7 +204,7 @@ describe('CorrectionPanelPlugin over injected CorrectionHostServices', () => {
     await waitFor(() => expect(screen.queryByPlaceholderText('Enter correct name…')).toBeNull())
   })
 
-  it('does not start the passage lookup until the entity lookup has resolved (ADR-042)', async () => {
+  it('does not start the passage lookup until the entity lookup has resolved', async () => {
     // A pending suggestEntities is the only way to distinguish "awaited in
     // sequence" from "both kicked off, results ordered by chance". The MCP stdio
     // invoker rejects a second concurrent call to the same server, so this is the
