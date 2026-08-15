@@ -16,10 +16,11 @@ directory, and opens the demo at <http://localhost:5178>.
 If you would rather do it by hand:
 
 ```bash
-pnpm --filter @liminis/editor run build
+# From the repository root, which is the package itself.
+pnpm build
 # `pnpm pack` prints the absolute path of the tarball it wrote — capture it
 # rather than hard-coding a version that goes stale on the next bump.
-TARBALL=$(cd packages/editor && pnpm pack --pack-destination /tmp | tail -1)
+TARBALL=$(pnpm pack --pack-destination /tmp | tail -1)
 cd examples/demo
 pnpm install --ignore-workspace
 pnpm add --ignore-workspace "$TARBALL"
@@ -46,9 +47,13 @@ the steps by hand, `git checkout examples/demo/package.json` afterwards.
 
 This demo is deliberately **not** a pnpm workspace member and installs the
 packed package with `--ignore-workspace`. A workspace symlink would resolve
-`@liminis/editor` to `packages/editor/src` and the demo would keep working even
-if the built artifact were broken — exactly the drift FR-008's
-"public entry points only" constraint exists to prevent.
+`@liminis/editor` to the package's raw `src/`, and the demo would keep working
+even if the built artifact were broken — exactly the drift the "public entry
+points only" constraint exists to prevent.
+
+This repository has no `pnpm-workspace.yaml` at all, so that is true by
+construction here rather than by convention. The flag stays anyway: it is what
+keeps this honest if a workspace file is ever added.
 
 For the same reason, every import in `src/App.jsx` is one of the package's
 public entries (`@liminis/editor`, `@liminis/editor/markdown`,

@@ -5,7 +5,10 @@ host-injection seam so it can be embedded in an Electron app, a browser app, or
 anything else that can supply a message channel.
 
 It is the editor from [Liminis](https://github.com/verveguy/liminis), extracted
-so other applications can use it. MIT-licensed.
+into this repository so it can stand on its own. MIT-licensed.
+
+Its history, and how to read the `ADR-0NNN`, `FR-NNN` and `#NNN` references that
+travelled with the code, are recorded in [`docs/provenance.md`](./docs/provenance.md).
 
 ## What you get
 
@@ -25,9 +28,10 @@ so other applications can use it. MIT-licensed.
 
 ## Install
 
-```bash
-pnpm add @liminis/editor
-```
+> **This package is not published.** It is `private: true` and `@liminis/editor`
+> does not exist on the npm registry, so `pnpm add @liminis/editor` will fail.
+> That is deliberate — see [Consuming it](#consuming-it) below for the mechanism
+> that actually works, and `docs/decisions/adr-078.md` for why.
 
 React and Lexical are **peer dependencies**, so your app resolves exactly one
 copy of each. Two React copies produce `Invalid hook call`; two Lexical copies
@@ -217,11 +221,69 @@ inert).
 - [`docs/annotations.md`](./docs/annotations.md) — kinds, anchors, resolution,
   and marker styling.
 
+## Consuming it
+
+Because the package is unpublished, consumers install a **packed tarball** rather
+than a registry version:
+
+```bash
+# in this repository
+pnpm build && pnpm pack --pack-destination /tmp
+
+# in the consuming application
+pnpm add /tmp/liminis-editor-0.1.0.tgz
+```
+
+Applications that do this commit the tarball into their own tree (typically under
+`vendor/`) and pin it by filename, so the install is reproducible and needs no
+credentials for this private repository. `pnpm pack` works on a private package;
+only `npm publish` is blocked, which is exactly the guard intended.
+
+A git dependency on this repository does **not** work, and the reasons are
+measured rather than assumed: `files` excludes the directory `main` points at, so
+a git install lands only the manifest and docs; the build runs from `prepack`,
+which a git install never invokes; and pnpm does not apply `publishConfig` for git
+installs. Adding a `prepare` script to work around this would change what an
+eventual npm tarball ships, so it has been deliberately avoided.
+
 ## Demo
 
-A runnable demo lives in the Liminis repository under `examples/demo/`. It
-installs the packed package and imports only the public entries. See its README
-for run instructions.
+```bash
+pnpm demo
+```
+
+Builds the package, packs it, installs the tarball into `examples/demo/` outside
+any workspace, and starts the Vite dev server. The demo imports only the public
+entry points, so it breaks when an adopter would break. See
+[`examples/demo/README.md`](./examples/demo/README.md).
+
+## Development
+
+This repository stands alone. It has no `pnpm-workspace.yaml` and no dependency
+on any other checkout — the `examples/` directories are external consumers by
+construction, not workspace members.
+
+```bash
+pnpm install
+pnpm build          # tsc emit + tsc-alias + asset copy → dist/
+pnpm typecheck      # tsc --noEmit
+pnpm lint           # eslint src/ tests/
+pnpm test           # vitest run
+```
+
+That sequence is what CI runs, in that order. One further gate needs a real built
+artifact and so runs separately:
+
+```bash
+pnpm verify:package
+```
+
+This builds, packs, installs the tarball into `examples/external-consumer/` with
+`--ignore-workspace`, type-checks it under `bundler` and `nodenext` module
+resolution, builds three measurement arms, and asserts the entry-graph boundaries
+the seven export subpaths exist to keep — that `./markdown` pulls in no MathJax,
+no Lexical and no react-dom, and that annotations stay behind a lazy boundary.
+It is the check that proves the package is publishable without publishing it.
 
 ## License
 
