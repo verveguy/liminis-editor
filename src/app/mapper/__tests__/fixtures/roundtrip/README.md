@@ -404,6 +404,158 @@ successfully round-tripping fixture in this corpus, gets its output round-trippe
 second time to confirm the opt-out configuration is idempotent too (see "Idempotence"
 below) — the `.export-options.json` sidecar applies to both passes.
 
+## The `973-*` fixture set
+
+Added by [#973](https://github.com/verveguy/liminis/issues/973). A code-formatted Lexical
+`TextNode` that *also* carried a bold/italic/strikethrough bit was treated as **pure**
+inline code and pulled out of its enclosing wrapper, so `` **`code` more text** `` lost
+its `**` on the first pass and drifted to `\*\*` on the second. A dozen-plus of this
+repository's own ADRs contain that shape, so merely opening and saving one destroyed its
+formatting, a bit more with each save.
+
+**Interior-mixed, not standalone adjacency.** Every fixture here puts the code span
+*inside* the wrapper. A separate `**bold**` merely sitting next to a separate `` `code` ``
+span was never broken and is already stable, so a fixture of that shape would have no
+regression value. The same distinction governs which documents
+`issue-973-adr-idempotence.test.ts` selects.
+
+Six of the eight fixtures are the shapes named by the spec's FR-006, all byte-identical to
+their input (no `.expected.md`):
+
+- **`973-strong-code-only.md`** (`` **`--flag`** ``): a wrapper whose entire content is
+  code. Run length 1, so it bypasses all the run-merging machinery and is fixed by the
+  `convertTextNode` change alone.
+- **`973-strong-code-leading.md`**, **`973-strong-code-trailing.md`**: the code span at
+  either end of the wrapper.
+- **`973-strong-two-code-spans.md`** (`` **`--in` then `--out`** ``): two code spans under
+  one wrapper, pinning that they stay two `inlineCode` nodes inside a *single* wrapper
+  rather than splitting it apart.
+- **`973-emphasis-code-leading.md`** (`*`), **`973-strong-underscore-code-leading.md`**
+  (`__`): the marker-style guard. A run whose only styled member is code-formatted must
+  keep its original marker, which is why `convertFormattedRun` reads its
+  `--md-strong-marker` / `--md-emphasis-marker` hints *above* the code branch, not after
+  it. Without that, `__` normalizes to `*`.
+
+Two more are not in FR-006 and are here deliberately:
+
+- **`973-strong-emphasis-code.md`** + `.expected.md`: bold **and** italic **and** code on
+  one node. This shape is *newly reachable* — before the fix the code short-circuit
+  discarded both wrappers — so it is new behaviour and needs pinning. Its first pass
+  canonicalizes the nesting order (`` **_`x`_** `` → `` _**`x`**_ ``), because both wrapper
+  builders apply **bold innermost, then italic, then strikethrough outermost**; the second
+  pass re-imports to the identical bitmask and is a fixed point. That one-time
+  canonicalization is legitimate under ADR-076. The `.expected.md` content is recorded from
+  actual output, not predicted.
+
+  Do **not** align this nesting order with `formatAliasWithMarkers` in
+  `lexicalToMdast.ts`, which is deliberately inverted and scoped to wiki-link aliases.
+
+- **`973-literal-asterisks-near-code.md`**: a genuinely bare `\*\*` beside a code span.
+  This one is green both before and after the fix, by design. The issue described the
+  second-pass `**` → `\*\*` drift, and it would be easy to conclude the fix merely *hides*
+  an escaping defect. It does not: `stringify.ts` applies no custom asterisk handling, and
+  the drift was a consequence of a wrapper the mapper should never have emitted bare being
+  made flush against a backtick. This fixture makes "a real literal `**` still escapes
+  stably" a red-able assertion rather than an argument.
+
+### The real-document companion suite
+
+The fixtures above are minimal by construction. `issue-973-adr-idempotence.test.ts` is the
+counterweight, asserting the same fixed point over 32 real, human-written ADRs full of
+tables, definition lists, nested lists and raw HTML. 16 of them were red before the fix.
+
+Those documents are **vendored** into `../real-documents/` as byte-identical copies, not
+read live from `docs/project_notes/decisions/`. The first version of that test walked six
+directories up into the application repository — the only test under `packages/editor/`
+reading outside the package. When [#949](https://github.com/verveguy/liminis/issues/949)
+extracts this package into `verveguy/liminis-editor`, a live read has two possible fates
+and both are bad: the suite fails on day one in the new repo, or someone makes the missing
+directory skip and the test goes permanently vacuous in the repo where the package actually
+lives. Vendoring keeps the realistic-content property and lets the test travel with the
+package.
+
+Keep it a **sibling** of `fixtures/roundtrip/`, never inside it: the five auto-discovering
+corpus suites all scan `fixtures/roundtrip` specifically, and 260 KB of ADRs would be
+dragged into every one of their runs.
+
+The suite asserts **second pass == first pass only** — never first pass == source bytes.
+Real ADRs hit unrelated, already-accepted normalizations recorded in `known-defects/`, so
+byte-identity with the source would fail for reasons that have nothing to do with #973.
+
+### Three changes here that look removable and are not
+
+The first two are Liminis-specific, with no counterpart in the reference implementation
+([verveguy/zusammen#72](https://github.com/verveguy/zusammen/pull/72), which never merged).
+
+**The `hasCodeMember` disjunct in `convertInlineUnit`'s formatted-run gate.** Zusammen's
+gate merges any multi-member same-format run unconditionally; Liminis narrowed it to
+`runTouchesMark` (#970/#977) so mark-free documents keep byte-identical output. That
+narrowing means a mark-free `` **`code` more text** `` would otherwise fall through to the
+per-node path and emit two adjacent `strong` nodes, which `mdast-util-to-markdown` will not
+join — `` **`--flag`**** sets the mode** ``, a different corruption. Simplifying the gate
+back toward Zusammen's shape reintroduces it; `973-strong-code-leading.md` is the guard.
+
+**The `!getMergeableFormat(...)` guard in `mergeableRunBounds`.** That function reports the
+delimiter run a boundary leaf sits in, which `hoistTargetAt` uses to place annotate-mode
+sentinels. Its code branch is consulted *before* `getMergeableFormat`, so without the guard
+a code+bold node's run is computed as a *code* run — no longer the run the emitter
+produces. The symptom is not a malformed document but a **wrong recovered annotation
+range**: an annotation on just `--flag` inside `` **the option `--flag`** `` has both
+sentinels hoisted out to the whole wrapper, and a host's refresh pass then stores *that*
+as the annotation's target, widening it on every pass.
+
+Neither `annotated-serialize-corpus.test.ts` nor any other corpus suite catches this — both
+of that suite's marking strategies mark either every leaf or the whole phrasing run, and
+this needs a mark on a *single interior* code leaf with un-marked same-format siblings
+beside it. `issue-973-annotate-code-in-wrapper.test.ts` exists for exactly that gap.
+
+**The `!getMergeableFormat(...)` narrowing of `convertInlineUnit`'s *pure-inline-code* fast
+path.** That path concatenates a mark-split code run into a single bare `inlineCode` via
+`convertCodeRun`, which emits no wrapper — correct for pure code, and a re-run of #973 for
+code that also carries a bold/italic bit. Without the narrowing, an annotation covering
+part of a bolded code span serializes `` A **`hello world`** note. `` as
+`` A `hello world` note. ``, dropping the `**`.
+
+It only bites when the run has two or more members and one of them is marked, so it needs a
+mark over *part* of a code span — the shape that leaves two adjacent same-format code
+`TextNode`s. Marking whole leaves never produces it, which is why every other case in the
+suite stays green with the guard reverted. The
+`a mark splitting a code span inside a wrapper` cases in
+`issue-973-annotate-code-in-wrapper.test.ts` are the guard; the pure-code case beside them
+is the complement, green either way, proving the unchanged path stayed unchanged.
+
+### A fourth subtlety: where the marker-hint read sits
+
+`convertFormattedRun` reads its `--md-strong-marker` / `--md-emphasis-marker` hints
+**above the code branch but below the `text === ''` early-continue**. Both halves of that
+position matter, and they pull in opposite directions:
+
+- *Above the code branch*, because a run whose every member is code-formatted would
+  otherwise never reach the read at all, and `__` would normalize to `**` (FR-004).
+- *Below the empty-text continue*, because the hints are captured with `??` — first
+  non-null wins — so an **empty** format-carrying node preceding the run's real content
+  would otherwise decide the marker for the whole wrapper. Lexical creates empty
+  format-carrying `TextNode`s as caret placeholders when a format is toggled before
+  anything is typed, and one can carry a stale marker style. Before #973 such nodes hit
+  the `continue` first and had no influence; that is preserved.
+
+`issue-973-empty-node-marker-hint.test.ts` pins both directions. Note it builds its states
+with `parseEditorState` rather than `editor.update()`: Lexical's normalization strips an
+empty `TextNode` during a live update, so an `update()`-built version of that test passes
+whether or not the code is correct. That is also why the shape is reachable in production —
+it is the path a persisted editor state takes on load.
+
+### Not fixed here: strikethrough combined with inline code
+
+The spec's edge-case list mentions code combined with strikethrough, and it is *not*
+addressed, because it is unreachable from the export side. `convertDelete` in
+`mdastToLexical.ts` calls `setFormat('strikethrough')`, which overwrites the whole bitmask
+and erases the `code` bit on **import** — so no code+strikethrough node ever reaches the
+mapper. The behaviour is stable (it loses formatting, but idempotently), fixing it would
+change existing fixture output, and it is a genuinely separate defect. Tracked as
+[#989](https://github.com/verveguy/liminis/issues/989); code+bold and code+italic work,
+code+strikethrough does not, and the asymmetry is real rather than an oversight.
+
 ## Diagnosing a failure
 
 On mismatch, the test throws with a unified diff between expected and actual content
