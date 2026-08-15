@@ -71,6 +71,9 @@ try {
   else rmSync(demoLockPath, { force: true })
 }
 
+console.log('▶ Generating demo fixture data from the round-trip corpus')
+run('node', ['scripts/generate-demo-fixtures.mjs'], REPO_ROOT)
+
 console.log('▶ Starting the demo — http://localhost:5178\n')
 const dev = spawnSync('pnpm', ['run', 'dev'], { cwd: DEMO_DIR, stdio: 'inherit' })
 process.exit(dev.status ?? 0)
