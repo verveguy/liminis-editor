@@ -8,7 +8,7 @@
  * host-application ADR numbers that are cited there but deliberately not
  * imported into this repository.
  *
- * See `docs/provenance.md` for how `ADR-0NNN` references are meant to be read
+ * See `docs/provenance.md` for how `ADR-0NN` references are meant to be read
  * in this extracted repository.
  */
 import { describe, it, expect } from 'vitest';

@@ -85,6 +85,6 @@ As a maintainer preparing to make this repository public (or maintaining it afte
 ## Source References
 
 - `docs/decisions/README.md` — documents the host-application ADR numbers that are deliberately cited but absent, and why.
-- `docs/provenance.md` — explains how `ADR-0NNN` references should be read in this extracted repository.
+- `docs/provenance.md` — explains how `ADR-0NN` references should be read in this extracted repository.
 - `package.json` (`files` field) — defines what actually ships in the published package.
 - Prior commits `4f7101f` and `d836f52` — the cleanup that already resolved the content-level portion of this issue.
