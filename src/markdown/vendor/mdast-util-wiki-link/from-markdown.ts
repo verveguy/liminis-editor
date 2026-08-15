@@ -4,13 +4,13 @@
  *
  * Why vendored rather than depended-upon-and-patched: the upstream behaviour we
  * need was only reachable through a `pnpm` `patchedDependencies` entry, which
- * does not travel outside this monorepo. An external consumer of the published
+ * does not travel outside the workspace that declares it. An external consumer of the published
  * package would silently get different — and wrong — wiki-link behaviour inside
  * markdown tables (#347). Vendoring makes the package self-contained.
  *
  * Four deliberate divergences from upstream:
  *   1. The trailing-backslash strip (see `exitWikiLink`), previously carried as
- *      `liminis-app/patches/mdast-util-wiki-link@0.1.2.patch`.
+ *      `liminis-app/patches/mdast-util-wiki-link@0.1.2.patch` in `verveguy/liminis`.
  *   2. Real types instead of `any` on the public option and node shapes.
  *   3. `exitWikiLink` reads the node off `this.stack` rather than off a
  *      closure variable shared by every handler in one `fromMarkdown()` call.

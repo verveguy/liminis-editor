@@ -9,13 +9,14 @@
  * carrying the workaround, it type-checks cleanly whether or not an adopter
  * would — so the friction is invisible to CI and has to be closed by
  * documentation instead. It is: see "TypeScript needs to be told CSS imports
- * exist" in `packages/editor/README.md`. Keep the two in sync; if this shim
+ * exist" in the repository's `README.md`. Keep the two in sync; if this shim
  * ever stops being necessary, that section is stale.
  *
  * Deleting this file is a legitimate way to re-measure: `pnpm run
  * typecheck:bundler` from this directory then reports exactly the error a bare
- * adopter sees. (Run it from here, not with `--filter` from the root — this
- * fixture sits outside the `packages/*` workspace glob on purpose, so that it
- * installs the packed tarball rather than a symlink.)
+ * adopter sees. (Run it from here, against the tarball this fixture installs —
+ * the repository has no `pnpm-workspace.yaml`, so `examples/*` are external
+ * consumers by construction and resolve the packed tarball rather than a
+ * symlink.)
  */
 declare module '*.css'
