@@ -42,3 +42,31 @@ make the reconciliation pass above a manual read instead of a `diff`. Where one
 of those application decisions was cited *by this package's own code*, the
 citation was removed and its reasoning inlined at the call site instead — see
 `docs/provenance.md`.
+
+## Cross-references to records that stayed behind
+
+These records were extracted from a larger decision log. Where one of them cites
+an ADR that is **not** in this directory, that record is a Liminis *application*
+decision — about the Electron shell, IPC, agent integration, the knowledge graph
+or settings persistence — which deliberately did not travel, because it does not
+govern this package.
+
+Currently referenced but not present:
+
+| cited | what it is | cited by |
+|---|---|---|
+| ADR-003 | Claude Agent SDK for AI integration | `adr-080` |
+| ADR-008 | MCP server integration with per-chat permissions | `adr-077`, `adr-080` |
+| ADR-012 | Component/BOM system for workspace tracking | `adr-077`, `adr-080` |
+| ADR-032 | Main process owns all state; renderer is reactive | `adr-080` |
+| ADR-034 | Claude Code configuration strategy | `adr-075` |
+| ADR-042 | Context graph concurrent read/write architecture | `adr-075`, `adr-077` |
+| ADR-055 | Atomic, serialized settings persistence | `adr-057` |
+
+Chasing these to closure would import most of an 81-record log describing an
+application this package does not depend on. The citations are left intact
+rather than edited out, so the records stay verbatim copies and the reasoning
+remains traceable for anyone who does have access to the Liminis repository.
+
+**No document outside `docs/decisions/` cites a missing record** — the package's
+own documentation (`README.md`, `docs/*.md`) is self-contained.
