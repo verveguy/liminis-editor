@@ -1,0 +1,89 @@
+name: CI
+
+# This repository stands on its own. Nothing here checks out, fetches, or
+# authenticates against another repository — that independence is the point of
+# the extraction (verveguy/liminis#995), and it is cheap to lose by accident.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  # Everything that needs no built artifact. Fast, and the job that fails first
+  # when something ordinary is wrong.
+  checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      # The build runs here as well as in `package-build` below. It is a few
+      # seconds, and having it in the fast job means a broken emit is reported
+      # alongside the type error that usually caused it rather than only after
+      # the slower pack-and-install cycle.
+      - name: Build
+        run: pnpm build
+
+      - name: Test with coverage
+        run: pnpm test:coverage
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: false
+
+  # Proves the package is still publishable, without publishing it.
+  #
+  # Its own job rather than a step above for two reasons: it is the only thing in
+  # CI that packs the package and installs the tarball into a real external
+  # consumer, and it runs `pnpm install` over a fixture whose peers are resolved
+  # by auto-install — so it executes noticeably more third-party code than the
+  # checks job does.
+  package-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # This job packs a tarball and installs an external fixture, so it runs
+      # more third-party code than the other job. It needs no git auth after
+      # checkout, so do not leave the token in .git/config for that code to read.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Build → pack → install the tarball into examples/external-consumer with
+      # --ignore-workspace → type-check under "bundler" and "nodenext" → build the
+      # three measurement arms → assert the entry-graph boundaries.
+      # `verify:package` builds the package itself as its first step, so there is
+      # no separate build step here — adding one would just pay for a second
+      # `tsc` + `tsc-alias` pass on every run.
+      - name: Verify publishability
+        run: pnpm verify:package
