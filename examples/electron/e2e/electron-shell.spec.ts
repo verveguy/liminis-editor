@@ -18,19 +18,19 @@
  * `_electron.launch()` manages the CDP connection itself, satisfying FR-002
  * without a manual attach step.
  */
-import { _electron as electron, test, expect, type ElectronApplication, type Page } from '@playwright/test'
-import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { _electron as electron, test, expect, type ElectronApplication, type Page } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
-const APP_DIR = join(dirname(fileURLToPath(import.meta.url)), '..')
+const APP_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const EDITOR = '[aria-label="Markdown editor"]'
-const MARKER = `${EDITOR} mark`
+const EDITOR = '[aria-label="Markdown editor"]';
+const MARKER = `${EDITOR} mark`;
 
 async function launchShell(extraArgs: string[] = []): Promise<{ app: ElectronApplication; page: Page }> {
-  const app = await electron.launch({ args: [APP_DIR, ...extraArgs] })
-  const page = await app.firstWindow()
-  await page.waitForSelector(EDITOR)
+  const app = await electron.launch({ args: [APP_DIR, ...extraArgs] });
+  const page = await app.firstWindow();
+  await page.waitForSelector(EDITOR);
   // `AnnotationPlugin` — the piece that registers the create-affordance
   // command handler — is mounted inside a `React.lazy()` boundary
   // (`Editor.tsx`'s `LazyAnnotationSurface`), while `Toolbar` (which renders
@@ -40,8 +40,8 @@ async function launchShell(extraArgs: string[] = []): Promise<{ app: ElectronApp
   // button that does nothing) even though nothing is actually broken.
   // Waiting for the network to settle after the shell first paints ensures
   // the lazily-loaded chunk has arrived before any test interacts with it.
-  await page.waitForLoadState('networkidle')
-  return { app, page }
+  await page.waitForLoadState('networkidle');
+  return { app, page };
 }
 
 /**
