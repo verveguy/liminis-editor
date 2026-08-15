@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Local npm/pnpm registry override (contains personal registry/auth choices)
+.npmrc
+
+# Build outputs
+dist/
+*.tgz
+
+# The examples deliberately install outside any workspace, against a packed
+# tarball. Their install artifacts are per-machine and must never be committed —
+# `pnpm add <tarball>` writes an absolute temp path into the manifest, which the
+# scripts snapshot and restore for exactly this reason.
+examples/*/node_modules/
+examples/*/pnpm-lock.yaml
+
+# Test output
+coverage/
+*.lcov
+
+# IDE and OS
+.DS_Store
+*.log
+*.tmp
+*.swp
+*~
+.vscode/settings.json
+
+# Environment files
+.env
+.env.local
+*.local
