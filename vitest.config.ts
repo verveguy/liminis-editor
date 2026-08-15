@@ -6,7 +6,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom',
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // `tests/` holds suites about the package as a shipped artifact — its
+    // manifest, its publish guard — rather than about a module under `src/`.
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'tests/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['**/node_modules/**'],
     // A hung test must never block the whole suite (or a Fabrik stage).
     testTimeout: 30_000,
