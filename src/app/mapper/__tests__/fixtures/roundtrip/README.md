@@ -107,6 +107,30 @@ result and the fixture starts enforcing it).
   corpus previously pinned that behavior down.
   These are not tracked by a specific issue yet; if one is filed, rename the fixture to
   match the `NNN-*` convention above.
+- **`other-callout-first-line-inline-formatting-space-lost`**: discovered while adding
+  feature coverage for `CalloutNode` ([#1](https://github.com/verveguy/liminis-editor/issues/1)).
+  `convertBlockquote`'s callout detection in `mdastToLexical.ts` computes the callout's
+  first line of body text as `firstText.value.slice(calloutMatch[0].length).trim()` —
+  the trailing `.trim()` is meant to strip the newline between `[!WARNING]` and the body
+  text, but when that body text is itself immediately followed by another inline node
+  (e.g. `This has **bold**`), the same `.trim()` also eats the significant trailing space
+  before that node, corrupting `This has **bold**` into `This has**bold**`. The bold/
+  italic/code node itself and its content survive intact — only the one space is lost.
+  Not fixed here: the corpus addition for #1 is scope-limited to test fixtures (see its
+  spec's Out of Scope section); `callout/inline-formatting.md` covers the same
+  bold/italic/code shapes without tripping this defect by placing them in the callout's
+  *second* paragraph, which takes a different, unaffected code path.
+- **`other-toggle-nested-in-list-item`**: discovered while adding feature coverage for
+  `ToggleContainerNode`/`ToggleTitleNode`/`ToggleContentNode` ([#1](https://github.com/verveguy/liminis-editor/issues/1)).
+  `preprocessDetailsBlocks` in `mdastToLexical.ts` scans only the top-level
+  `root.children` once, before the main per-node dispatch loop runs — no other code path
+  recognizes a `<details>`/`<summary>` block. A `<details>` block nested inside a list
+  item can therefore never construct a real `ToggleContainerNode` regardless of its
+  content; it falls through to the generic `convertHtml` handling and becomes an opaque
+  `HtmlNode` instead. The raw bytes still round-trip byte-identical (verbatim HTML
+  pass-through), so this is not data corruption, but it does mean the toggle construct's
+  "nested inside a list item" shape has no real structural coverage — this fixture
+  documents that gap rather than silently omitting the shape.
 - **`other-titled-link-wikilink-url`**: originally reproduced
   [#919](https://github.com/verveguy/liminis/issues/919) — a titled standard link whose
   URL is classified as a wiki-link by `isWikiLinkUrl` in `lexicalToMdast.ts` (relative
@@ -555,6 +579,58 @@ mapper. The behaviour is stable (it loses formatting, but idempotently), fixing 
 change existing fixture output, and it is a genuinely separate defect. Tracked as
 [#989](https://github.com/verveguy/liminis/issues/989); code+bold and code+italic work,
 code+strikethrough does not, and the asymmetry is real rather than an oversight.
+
+## The `callout/`, `toggle/`, `mermaid/`, and `c4/` fixture groups
+
+Added by [#1](https://github.com/verveguy/liminis-editor/issues/1). Every fixture group
+above is regression-shaped — named for the issue that produced it, added only after a
+construct broke in front of a user. These four are the opposite: **feature-shaped**
+coverage, organized by construct rather than by incident, for the four bespoke node
+classes `editorNodes.ts` exports that had never had a single fixture exercising them —
+`CalloutNode`, `ToggleContainerNode`/`ToggleTitleNode`/`ToggleContentNode`,
+`MermaidNode`, and `C4Node`. `node-class-completeness.test.ts` (a sibling test file, not
+part of this corpus) is the mechanism that keeps this from regressing back toward zero
+coverage: it enumerates every class `editorNodes.ts` exports and fails, naming the
+offending class, if any of them (outside its own documented exclusion list) has zero
+fixtures anywhere in this directory constructing it.
+
+Each group covers the same four shapes: a minimal instance, an instance nested inside a
+list item (the one nesting context confirmed to round-trip correctly for all four — see
+below), an instance with or adjacent to inline-formatted text, and an empty/degenerate
+instance.
+
+- **`callout/`**: `minimal.md`, `nested-in-list-item.md`, `inline-formatting.md`,
+  `empty.md`. All four round-trip byte-identical. `inline-formatting.md` deliberately
+  places its bold/italic/inline-code content in the callout's *second* paragraph, not
+  its first line — see `known-defects/other-callout-first-line-inline-formatting-space-
+  lost` above for why the first-line shape currently loses a space.
+- **`toggle/`**: `minimal.md`, `inline-formatting.md`, `empty.md`, each with an
+  `.expected.md` sidecar — `convertToggleContainerNode`'s export
+  (`lexicalToMdast.ts`) always emits a blank line before the closing `</details>` tag
+  regardless of whether the source had one, and its content is normalized to a single
+  synthesized empty paragraph when content is absent. Both are stable, one-time
+  canonicalizations (confirmed by the idempotence assertion), not data loss.
+  `nested-in-list-item` is *not* one of the four fixtures in this group — see
+  `known-defects/other-toggle-nested-in-list-item` above; a `<details>` block nested in
+  a list item can never construct a real `ToggleContainerNode`, so covering that shape
+  as if it worked would misrepresent the construct's actual support.
+- **`mermaid/`**: `minimal.md`, `nested-in-list-item.md`, `adjacent-inline-formatting.md`
+  (a paragraph with bold/italic/inline-code immediately before the diagram — the
+  diagram's own body is opaque source text, not markdown prose, so inline formatting
+  isn't meaningful *inside* it), `empty.md` (with `.expected.md`: a fenced block whose
+  body is a single blank line normalizes to zero lines between the fences, a stable
+  canonicalization).
+- **`c4/`**: same four shapes as `mermaid/`, same empty-body canonicalization.
+
+**Why "nested inside a list item," not a blockquote, for all four.** `convertQuoteNode`
+(export, `lexicalToMdast.ts`) only converts a `QuoteNode`'s *inline* children — it has no
+block-level dispatch fallback. Nesting a callout, toggle, mermaid, or C4 diagram directly
+inside a blockquote would silently drop it, the same mechanism already documented at
+`known-defects/other-blockquote-list-content-lost` above. `convertListItemNode`, by
+contrast, has a full block-dispatch fallback and round-trips all four constructs
+correctly when nested in a list item — confirmed for callout, mermaid, and c4 above;
+toggle is the one exception, for the separate root-level-only detection reason described
+in its own known-defects entry.
 
 ## Diagnosing a failure
 
