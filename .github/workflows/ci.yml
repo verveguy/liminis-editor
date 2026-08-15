@@ -90,3 +90,68 @@ jobs:
       # `tsc` + `tsc-alias` pass on every run.
       - name: Verify publishability
         run: pnpm verify:package
+
+  # Builds both example shells — the web demo (examples/demo) and the
+  # Electron e2e host (examples/electron) — against the packed tarball, the
+  # same way a real external adopter installs the package (FR-009).
+  examples-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Builds and packs @liminis/editor once, generates the demo's fixture
+      # data from the round-trip corpus (docs/decisions/adr-081.md), then
+      # installs the tarball into examples/demo and examples/electron and
+      # builds each — see scripts/build-examples.mjs.
+      - name: Build example shells
+        run: pnpm build:examples
+
+  # Runs the Electron e2e suite (FR-010): the tests that reproduce the
+  # read-only create-affordance defect and the toolbar-surfaced-kind defect
+  # named in this package's own issue tracker, against real Electron/Chromium.
+  #
+  # Its own job rather than a step in examples-build: a real Electron launch
+  # is slower and less deterministic than a plain `vite build`, and it needs
+  # its own retry budget (below) without slowing the fast build job down.
+  electron-shell-e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build example shells
+        run: pnpm build:examples
+
+      # A real BrowserWindow needs a display even on a "headless" Linux
+      # runner. Electron ships its own Chromium, so there is no
+      # `playwright install` browser-download step to run here.
+      - name: Install a virtual display
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Run the Electron e2e suite
+        run: xvfb-run -a pnpm --dir examples/electron run test:e2e

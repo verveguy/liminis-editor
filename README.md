@@ -254,8 +254,25 @@ pnpm demo
 
 Builds the package, packs it, installs the tarball into `examples/demo/` outside
 any workspace, and starts the Vite dev server. The demo imports only the public
-entry points, so it breaks when an adopter would break. See
+entry points, so it breaks when an adopter would break. Its content is a picker
+over the same round-trip fixture corpus the package's own test suite uses, so
+every fixture-representable node class renders somewhere in it. See
 [`examples/demo/README.md`](./examples/demo/README.md).
+
+## Electron e2e shell
+
+`examples/electron/` is a minimal Electron host for the package — a window, the
+editor, and stubbed host services, no more — that a Playwright e2e suite drives
+over CDP against real Chromium/Electron rather than a jsdom-class test
+environment. It exists so package-level e2e can catch defects that only ever
+surface in a real browser without needing `liminis-app`, or any other downstream
+application, to exist. See
+[`examples/electron/README.md`](./examples/electron/README.md).
+
+```bash
+pnpm build:examples   # builds and packs the package once, then builds both
+                       # examples/demo and examples/electron against it
+```
 
 ## Development
 

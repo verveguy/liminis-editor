@@ -1,6 +1,10 @@
 # `@liminis/editor` demo
 
-A small React app that renders the editor and one configured annotation kind.
+A React app that renders the editor with one configured annotation kind,
+loaded from a picker over the shared round-trip fixture corpus
+(`src/app/mapper/__tests__/fixtures/roundtrip/`, verveguy/liminis-editor#1) —
+every fixture-representable node class the package exports gets exercised
+this way (verveguy/liminis-editor#2).
 
 ## Run it
 
@@ -33,8 +37,17 @@ the steps by hand, `git checkout examples/demo/package.json` afterwards.
 
 ## What to try
 
+- Pick a fixture from the **Fixtures** panel on the far left, grouped by the
+  corpus subdirectory it comes from (`callout/`, `toggle/`, `mermaid/`, `c4/`,
+  `known-defects/`, and more). The strip under the toolbar shows exactly which
+  file in the corpus is loaded — every document on screen traces back to one
+  fixture, never to hand-written demo prose.
+- The `callout`, `toggle`, `mermaid`, `c4` groups are the constructs
+  verveguy/liminis-editor#1 found at zero fixture coverage before adding this
+  corpus; `known-defects/` fixtures render as-is and reproduce genuine,
+  documented round-trip fidelity gaps rather than being hidden from the shell.
 - Type. Make a heading, a table, a task list, a fenced code block.
-- Watch the **Outline** panel on the left. It is built with
+- Watch the **Outline** panel on the right. It is built with
   `@liminis/editor/markdown` — the pure-mdast entry, with no editor involved.
 - Select a passage and click **Note** in the toolbar. A highlight marker
   appears and the annotation shows up in the sidebar.
@@ -42,6 +55,17 @@ the steps by hand, `git checkout examples/demo/package.json` afterwards.
   anchors**. The anchor is found again at its new offset — that is the point of
   the anchor model, and it is `resolveAnchors` from
   `@liminis/editor/annotations` doing it.
+- Switching fixtures resets the editor and clears any annotations you made —
+  each fixture is its own document, not a shared scratch pad.
+
+## Where the fixture content comes from
+
+`src/fixtures.generated.js` is not checked in. `scripts/generate-demo-fixtures.mjs`
+(run by `pnpm demo` and by `pnpm build:examples`, from the repository root)
+reads the round-trip corpus and writes it fresh before every run — see
+`docs/decisions/adr-081.md` for why generation, rather than a direct import
+into `src/`, is how this demo stays inside the "public entries only" rule
+(FR-008) while still being fixture-driven.
 
 ## Why it installs a tarball
 
