@@ -71,16 +71,26 @@ issue (see Assumptions and Out of Scope for how they relate to this issue's scop
 
 **Reopened 2026-08-16.** The defect is confirmed still live on `main` (re-verified at
 `c0244ba`, unchanged from the reproduction above). This spec was already implemented in
-full on this branch and submitted as
-[PR #26](https://github.com/verveguy/liminis-editor/pull/26) — mapper changes in both
-`lexicalToMdast.ts` and `mdastToLexical.ts`, the `18-*` fixtures, and the
-`known-defects/other-blockquote-*` promotions this spec's FR-007a anticipates — but that
-PR was closed without merging and the issue was closed anyway. Branch `fabrik/issue-18`
-still carries all of that work; it has simply fallen behind `main`, which has advanced
-by several commits since the branch's last sync (including #17's escape-split work) and
-needs reconciling before the existing fix can land. This spec is unchanged from the
-version PR #26 was implemented against — the work it describes does not need to be
-redone, only rebased, re-verified against current `main`, and re-landed.
+full on this branch — mapper changes in both `lexicalToMdast.ts` and
+`mdastToLexical.ts`, the `18-*` fixtures, and the `known-defects/other-blockquote-*`
+promotions this spec's FR-007a anticipates — reviewed, and validated (9/9 FRs verified,
+1418 tests passing). It never reached `main`. The mechanism, corrected after an initial
+misdiagnosis: Fabrik's merge train runs each accepted fix through a trial integration PR
+before landing it. This issue's trial, [PR #28](https://github.com/verveguy/liminis-editor/pull/28),
+was **closed without merging**. But the source PR,
+[PR #26](https://github.com/verveguy/liminis-editor/pull/26), was nonetheless closed
+with a message claiming the work landed via batch
+[PR #27](https://github.com/verveguy/liminis-editor/pull/27) — which was in fact the
+trial for a different issue (#16) and contains zero `18-*` files. That misattributed
+closure is what caused this issue to be closed `COMPLETED` despite the fix never
+landing; per the reporter, the same merge-train misattribution shape has recurred for
+at least one other issue (#12), reported upstream separately. Branch `fabrik/issue-18`
+still carries all of the `18` work intact; it has simply fallen behind `main`, which has
+advanced by several commits since the branch's last sync (including #17's escape-split
+work) and needs reconciling before the existing fix can land. This spec is unchanged
+from the version implemented, reviewed, and validated on this branch — the work it
+describes does not need to be redone, only rebased, re-verified against current `main`,
+and re-landed.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -285,6 +295,10 @@ a second-pass fixed point for each.
   this issue.
 - Liminis issue #897 — analogous multi-paragraph collapse fix for list items, the
   reference implementation pattern for this issue.
-- [PR #26](https://github.com/verveguy/liminis-editor/pull/26) (closed, unmerged) — the
-  previous implementation of this spec; `fabrik/issue-18` still carries its commits and
-  needs rebasing onto current `main` rather than reimplementation.
+- [PR #26](https://github.com/verveguy/liminis-editor/pull/26) — the source PR for the
+  previous implementation of this spec; closed with a message claiming landing via batch
+  PR #27, which was actually the trial for #16 and carries none of this work.
+- [PR #28](https://github.com/verveguy/liminis-editor/pull/28) — the merge train's actual
+  trial integration PR for this issue's fix; closed without merging. `fabrik/issue-18`
+  still carries its commits and needs rebasing onto current `main` rather than
+  reimplementation.
