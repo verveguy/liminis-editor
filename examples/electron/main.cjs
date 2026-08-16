@@ -16,11 +16,30 @@
  */
 const { app, BrowserWindow } = require('electron')
 const path = require('node:path')
+const fs = require('node:fs')
 
 // The read-only e2e scenario (verveguy/liminis#965's shape) is selected by
 // launching with `--readonly` rather than by a second renderer entry point —
 // one minimal shell, one query param, both FR-004 scenarios.
 const READONLY = process.argv.includes('--readonly')
+
+// `--content-file <path>` (#12) loads a real fixture as the shell's initial
+// document, rather than hand-duplicating markdown into this shell — read
+// here (the main process has filesystem access) and passed to the renderer
+// as a base64 query param, since there is no preload/IPC bridge to send it
+// through directly (see this file's own header comment on why).
+const contentFileIndex = process.argv.indexOf('--content-file')
+const CONTENT_FILE = contentFileIndex !== -1 ? process.argv[contentFileIndex + 1] : null
+
+function buildSearch() {
+  const params = new URLSearchParams()
+  if (READONLY) params.set('readonly', '1')
+  if (CONTENT_FILE) {
+    const content = fs.readFileSync(CONTENT_FILE, 'utf-8')
+    params.set('content', Buffer.from(content, 'utf-8').toString('base64'))
+  }
+  return params.toString()
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -34,7 +53,7 @@ function createWindow() {
   })
 
   win.loadFile(path.join(__dirname, 'dist', 'renderer', 'index.html'), {
-    search: READONLY ? 'readonly=1' : '',
+    search: buildSearch(),
   })
 }
 
