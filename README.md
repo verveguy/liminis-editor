@@ -78,15 +78,15 @@ to.
 Seven, and they are not stylistic. Each keeps a specific dependency graph out of
 a specific consumer, and importing the wrong one is measured in megabytes.
 
-| Entry | Contains | Import it when |
-|---|---|---|
-| `@liminis/editor` | Everything: `<Editor>`, `<App>`, the host seam, the markdown pipeline, the mappers | You are rendering an editor |
-| `@liminis/editor/markdown` | `parseMarkdown`, mdast type guards, `getFileType`, the wiki-link mdast extension. Pure mdast/micromark | You only need to *read* markdown — a search snippet, a table of contents, a chunker |
-| `@liminis/editor/annotations` | The anchor model, resolver, block structure, and annotation types. DOM-, React- and Lexical-free | You are resolving or storing annotations outside a rendered editor |
-| `@liminis/editor/headless` | The C4 subsystem, server-side SVG rendering, MathJax lite adaptor | You are rendering diagrams or equations with no DOM (a server, a worker, an Electron main process) |
-| `@liminis/editor/contract` | The host-message shapes, as types | You are writing a boundary that must not pull renderer code in — an Electron preload script. Use `import type` |
-| `@liminis/editor/nodes` | `editorNodes` (the exact Lexical node array `<Editor>` configures itself with), plus `importMarkdownToLexical` / `exportLexicalToMdast` | You are building your own headless Lexical `createEditor` — for example, to test the markdown↔Lexical mapper without mounting `<Editor>` |
-| `@liminis/editor/styles.css` | The stylesheet | Always, once, in your app |
+| Entry | Contains | Import it when | Lexical-free |
+|---|---|---|---|
+| `@liminis/editor` | Everything: `<Editor>`, `<App>`, the host seam, the markdown pipeline, the mappers | You are rendering an editor | No |
+| `@liminis/editor/markdown` | `parseMarkdown`, mdast type guards, `getFileType`, the wiki-link mdast extension. Pure mdast/micromark | You only need to *read* markdown — a search snippet, a table of contents, a chunker | Yes |
+| `@liminis/editor/annotations` | The anchor model, resolver, block structure, and annotation types. DOM-, React- and Lexical-free | You are resolving or storing annotations outside a rendered editor | Yes |
+| `@liminis/editor/headless` | The C4 subsystem, server-side SVG rendering, MathJax lite adaptor | You are rendering diagrams or equations with no DOM (a server, a worker, an Electron main process) | Yes |
+| `@liminis/editor/contract` | The host-message shapes, as types | You are writing a boundary that must not pull renderer code in — an Electron preload script. Use `import type` | Yes (type-only) |
+| `@liminis/editor/nodes` | `editorNodes` (the exact Lexical node array `<Editor>` configures itself with), plus `importMarkdownToLexical` / `exportLexicalToMdast` | You are building your own headless Lexical `createEditor` — for example, to test the markdown↔Lexical mapper without mounting `<Editor>` | No |
+| `@liminis/editor/styles.css` | The stylesheet | Always, once, in your app | N/A (not JS) |
 
 Three of these are load-bearing in ways that are easy to undo by accident:
 
@@ -106,6 +106,42 @@ Three of these are load-bearing in ways that are easy to undo by accident:
 
 Do not deep-import into `dist/`. Everything intended for consumers is on one of
 the seven entries above; anything else is internal and will move.
+
+### Why there's no `sideEffects` field
+
+`package.json` deliberately does not declare `sideEffects`. If your bundler's
+tree-shaking pass ever runs against this package's own graph and you're
+tempted to add one to prune it further, don't — the field is permanently
+prohibited (ADR-075 §4), not merely undeclared for now.
+
+The failure it would cause is a transitive one: marking this package's modules
+side-effect-free changes how a whole-graph bundler like rolldown chunks
+everything reachable from it, including third-party code the package merely
+imports. `prismjs`, pulled in via `@lexical/code-prism`, has its core chunk
+separated from `prism-clike.js`, a companion module that mutates a bare
+`Prism` global at import time. Once the two are split into different chunks,
+`prism-clike.js` runs before `Prism` exists:
+
+```
+ReferenceError: Prism is not defined
+```
+
+The app that hits this doesn't fail to build — it fails to *render*, since the
+error is thrown by code Prism's own language-grammar files depend on running
+first. This can't be fixed from inside this package: the hazard lives in
+`prismjs`'s own module structure, three levels removed, so no `sideEffects`
+value this package could declare about *its own* files changes how the bundler
+chunks `prismjs`.
+
+## Versioning policy
+
+This package is `0.x`. While it stays there:
+
+- **Minor versions may break.** `0.1.0` → `0.2.0` is not guaranteed compatible.
+- **Patch versions may not.** `0.1.0` → `0.1.1` is a bug fix only.
+- **The seven subpaths above are the supported API.** Anything reachable only
+  by a deeper import path — `@liminis/editor/dist/...` or a relative path into
+  `src/` — is private. It can move or disappear in a patch release.
 
 ## Styling
 
@@ -259,6 +295,13 @@ over the same round-trip fixture corpus the package's own test suite uses, so
 every fixture-representable node class renders somewhere in it. See
 [`examples/demo/README.md`](./examples/demo/README.md).
 
+`examples/demo` is also the source of the public GitHub Pages site: a
+`release`-triggered (not merge-triggered) build of this same shell, showing a
+visible version badge for the published release it represents and a
+Documentation tab rendering this README. Between releases the deployed site
+stays on the last published version even as `main` keeps moving — that
+staleness is intentional, not a bug (see `docs/decisions/adr-082.md`).
+
 ## Electron e2e shell
 
 `examples/electron/` is a minimal Electron host for the package — a window, the
@@ -272,6 +315,8 @@ application, to exist. See
 ```bash
 pnpm build:examples   # builds and packs the package once, then builds both
                        # examples/demo and examples/electron against it
+pnpm build:site       # builds examples/demo only — what the release-triggered
+                       # Pages deploy runs (see the Demo section above)
 ```
 
 ## Development
