@@ -695,6 +695,34 @@ function groupFootnoteChildren(footnoteChildren: LexicalNode[]): Content[] {
   return results;
 }
 
+// Removes one leading space character from `value`, skipping past any
+// complete leading sentinel token(s) first so annotate mode's boundary
+// markers keep their position (Liminis #970's invariant: a decision made
+// from a text value must be made against its sentinel-stripped form, and any
+// mutation must not perturb where the tokens land).
+function stripLeadingSpaceKeepingSentinels(value: string): string {
+  let i = 0;
+  while (i < value.length) {
+    if (value[i] === SENTINEL_OPEN_START) {
+      const endIdx = value.indexOf(SENTINEL_OPEN_END, i + 1);
+      if (endIdx === -1) break;
+      i = endIdx + 1;
+      continue;
+    }
+    if (value[i] === SENTINEL_CLOSE_START) {
+      const endIdx = value.indexOf(SENTINEL_CLOSE_END, i + 1);
+      if (endIdx === -1) break;
+      i = endIdx + 1;
+      continue;
+    }
+    break;
+  }
+  if (value[i] === ' ') {
+    return value.slice(0, i) + value.slice(i + 1);
+  }
+  return value;
+}
+
 // Convert inline children of a footnote definition's first paragraph,
 // skipping the leading FootnoteNode label and its trailing space separator.
 function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[] {
@@ -711,12 +739,7 @@ function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[
   // annotation over part of the footnote's own content doesn't hide it.
   const { nodes: siblings, marked } = effectiveChildrenWithMarkMembership(parent);
   const labelIndex = siblings.findIndex((n) => n.is(labelNode));
-  let rest: LexicalNode[] = labelIndex === -1 ? [] : siblings.slice(labelIndex + 1);
-
-  // Skip the space TextNode that follows the label
-  if (rest[0] && $isTextNode(rest[0]) && rest[0].getTextContent() === ' ') {
-    rest = rest.slice(1);
-  }
+  const rest: LexicalNode[] = labelIndex === -1 ? [] : siblings.slice(labelIndex + 1);
 
   let restIndex = 0;
   let child: LexicalNode | null = rest[restIndex] ?? null;
@@ -772,6 +795,29 @@ function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[
     child = rest[restIndex] ?? null;
   }
   flushTextRun();
+
+  // The label is followed on import by a synthetic single-space separator
+  // TextNode. If the definition body starts with plain text, Lexical's
+  // reconciliation merges that separator into the body's own TextNode
+  // (' ' + 'The body.' -> ' The body.') rather than leaving it as a
+  // distinct sibling, so it can't be skipped above by identity. Strip
+  // exactly one leading space from the first text child here instead, which
+  // handles both the merged and unmerged cases identically. The decision is
+  // made against the sentinel-stripped form (annotate mode may have spliced
+  // boundary tokens into this same node) and the removal keeps those tokens
+  // in place — see `stripLeadingSpaceKeepingSentinels`.
+  const first = contentChildren[0];
+  if (first?.type === 'text' && stripAnnotateSentinels(first.value).startsWith(' ')) {
+    const value = stripLeadingSpaceKeepingSentinels(first.value);
+    // Keep the node even if stripping the space left no real text — it may
+    // still carry sentinel tokens that must not be dropped (Liminis #970).
+    // Only an entirely empty string means there's nothing left to emit.
+    if (value.length > 0) {
+      contentChildren[0] = { ...first, value };
+    } else {
+      contentChildren.shift();
+    }
+  }
 
   return contentChildren;
 }
