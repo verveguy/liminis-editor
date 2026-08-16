@@ -32,6 +32,9 @@ const tarball = buildAndPackPackage(PACKAGE_DIR, REPO_ROOT, 'liminis-editor-exam
 console.log('▶ Generating demo fixture data from the round-trip corpus')
 run('node', ['scripts/generate-demo-fixtures.mjs'], REPO_ROOT)
 
+console.log('▶ Generating demo documentation content from README.md')
+run('node', ['scripts/generate-demo-docs.mjs'], REPO_ROOT)
+
 for (const { name, dir } of SHELLS) {
   console.log(`\n▶ Installing the tarball into examples/${name}`)
   installTarballIntoShell(dir, tarball)
