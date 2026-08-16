@@ -5,7 +5,7 @@ import { defListToMarkdown } from 'mdast-util-definition-list';
 import { gfmFootnoteToMarkdown } from 'mdast-util-gfm-footnote';
 import { frontmatterToMarkdown } from 'mdast-util-frontmatter';
 import type { Root } from 'mdast';
-import { stripAnnotateSentinels } from './annotate-sentinels';
+import { stripAnnotateSentinels, splitOnSentinelTokens } from './annotate-sentinels';
 
 export interface StringifyOptions {
   wrapWidth?: number;
@@ -153,6 +153,77 @@ function addCheckboxTextToOrderedLists(root: any): any {
   return processNode(root);
 }
 
+// Transient placeholder codepoint wrapping a force-escaped character during
+// stringification (#17). Distinct from `annotate-sentinels.ts`'s E000-E003
+// range, module-local to this file, and never exported: it exists only
+// between `convertForceEscapeTextNodes` (below) and the final
+// placeholder-restoration post-process at the end of `stringifyMarkdown`, on
+// a mdast tree reconstructed fresh from Lexical at export time and discarded
+// immediately after — it never touches Lexical or live document state. Being
+// backslash-free, it is provably invisible to the existing intraword-
+// underscore and bracket-preservation post-processes below, so neither one
+// needs to change to account for it.
+const FORCE_ESCAPE_PLACEHOLDER = '\u{E004}';
+
+// The character class the placeholder-restoration post-process (below) is
+// allowed to wrap in a backslash. Kept narrow — rather than matching any
+// character between two placeholder codepoints — so that if the placeholder
+// codepoint itself ever showed up in real content (e.g. pasted from
+// somewhere, or inside a code span the pre-process didn't anticipate), this
+// step can't misfire and inject a backslash in front of arbitrary text (#17).
+const FORCE_ESCAPE_RESTORE_CHAR_CLASS = '*_`\\[\\]#\\\\';
+
+/**
+ * Convert any `{type: 'text', data: {_forceEscape: true}}` node (produced by
+ * `splitEscapedPunctuation` in `parse.ts` and carried through Lexical via the
+ * `--md-force-escape` style hint) into a dedicated `escapedChar` node, so its
+ * default `toMarkdown` handler can emit a backslash-free placeholder instead
+ * of running through the normal text-escaping logic that the two blind-strip
+ * post-processes below (intraword underscore, bracket preservation) operate
+ * on (#17).
+ */
+function convertForceEscapeTextNodes(node: any): any {
+  if (!node || typeof node !== 'object') {
+    return node;
+  }
+
+  if (node.children && Array.isArray(node.children)) {
+    const children: any[] = [];
+    for (const child of node.children) {
+      if (child?.type === 'text' && child.data?._forceEscape === true) {
+        // Lexical's own reconciliation merges adjacent TextNodes that share
+        // identical format/style (see mdastToLexical.ts's setForceEscape),
+        // so two force-escaped characters that were adjacent in the source
+        // (e.g. "\*\*") can arrive here fused into one multi-character node.
+        // Only single-character force-escaped nodes are ever produced
+        // upstream, so every character of a fused node was independently
+        // force-escaped — expand back into one escapedChar node per
+        // character rather than assuming the node is already length 1.
+        //
+        // An annotate-serialize sentinel token (see annotate-sentinels.ts)
+        // can also be spliced onto this exact node's text by
+        // `sentinelAugmentedText` in lexicalToMdast.ts before this data is
+        // read, so the value isn't always pure escaped content — split those
+        // parts out first and leave them as plain, unescaped text (#970).
+        for (const part of splitOnSentinelTokens(child.value as string)) {
+          if (part.isSentinel) {
+            children.push({ type: 'text', value: part.text });
+            continue;
+          }
+          for (const ch of part.text) {
+            children.push({ type: 'escapedChar', value: ch });
+          }
+        }
+      } else {
+        children.push(convertForceEscapeTextNodes(child));
+      }
+    }
+    return { ...node, children };
+  }
+
+  return node;
+}
+
 /**
  * Normalize wiki-link nodes for stringification
  *
@@ -188,9 +259,13 @@ function normalizeWikiLinkNodes(node: any): any {
 export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): string {
   // Pre-process: add checkbox text to ordered list items (GFM only outputs for unordered)
   let processedRoot = addCheckboxTextToOrderedLists(root);
-  
+
   // Normalize wiki-link nodes before stringifying
   processedRoot = normalizeWikiLinkNodes(processedRoot) as Root;
+
+  // Pre-process: isolate force-escaped characters into their own node type
+  // so the existing blind-strip post-processes below never see them (#17)
+  processedRoot = convertForceEscapeTextNodes(processedRoot) as Root;
 
   // Compute real spread values for lists/list items (loose vs. tight)
   processedRoot = computeListSpread(processedRoot) as Root;
@@ -222,6 +297,7 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
             const content = state.containerPhrasing(node, { before: marker, after: marker });
             return marker + content + marker;
           },
+          escapedChar: (node: any) => `${FORCE_ESCAPE_PLACEHOLDER}${node.value}${FORCE_ESCAPE_PLACEHOLDER}`,
           wikiLink: (node: any) => {
             const value = node.value ?? '';
             const data = node.data && typeof node.data === 'object' ? node.data : {};
@@ -400,6 +476,15 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   result = result.replace(
     /^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[ \t]*$|(`+)[^\n]*?\2|\$\$[\s\S]*?\$\$|\$[^\n$]*?\$|((?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}]))/gmu,
     (match, _fenceRun, _inlineOpen, underscore) => (underscore === undefined ? match : '_')
+  );
+
+  // Post-process: restore the real backslash for every force-escaped
+  // character (#17), now that every other post-process above — which only
+  // ever strips backslashes, never adds them — has already run and had no
+  // chance to see (or strip) a backslash that wasn't there yet.
+  result = result.replace(
+    new RegExp(`${FORCE_ESCAPE_PLACEHOLDER}([${FORCE_ESCAPE_RESTORE_CHAR_CLASS}])${FORCE_ESCAPE_PLACEHOLDER}`, 'gu'),
+    '\\$1'
   );
 
   return result;
