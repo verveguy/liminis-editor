@@ -739,7 +739,7 @@ function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[
   // annotation over part of the footnote's own content doesn't hide it.
   const { nodes: siblings, marked } = effectiveChildrenWithMarkMembership(parent);
   const labelIndex = siblings.findIndex((n) => n.is(labelNode));
-  let rest: LexicalNode[] = labelIndex === -1 ? [] : siblings.slice(labelIndex + 1);
+  const rest: LexicalNode[] = labelIndex === -1 ? [] : siblings.slice(labelIndex + 1);
 
   let restIndex = 0;
   let child: LexicalNode | null = rest[restIndex] ?? null;
@@ -807,7 +807,7 @@ function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[
   // boundary tokens into this same node) and the removal keeps those tokens
   // in place — see `stripLeadingSpaceKeepingSentinels`.
   const first = contentChildren[0];
-  if (first && first.type === 'text' && stripAnnotateSentinels(first.value).startsWith(' ')) {
+  if (first?.type === 'text' && stripAnnotateSentinels(first.value).startsWith(' ')) {
     const value = stripLeadingSpaceKeepingSentinels(first.value);
     if (stripAnnotateSentinels(value).length > 0) {
       contentChildren[0] = { ...first, value };
