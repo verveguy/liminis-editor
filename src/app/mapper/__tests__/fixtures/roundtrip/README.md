@@ -200,14 +200,14 @@ result and the fixture starts enforcing it).
   `getFormat`/`hasFormat`/`setFormat`/`toggleFormat` on both node classes), and
   `convertInlineChildren` in `lexicalToMdast.ts` merges a run of consecutive siblings
   sharing the same non-zero format into a single wrapper when the run contains a
-  non-text member. `other-strong-inline-math-not-wrapped` and
-  `other-delete-inline-math-not-wrapped` now round-trip byte-identical (no `.expected.md`
-  sidecar, so they're a permanent regression gate). `other-emphasis-footnote-not-wrapped`
-  keeps an `.expected.md` sidecar, but only to capture an unrelated, pre-existing
-  footnote-*definition* spacing normalization (`[^1]: A note.` → `[^1]:  A note.`, an
-  extra space already present on `footnotes.md` and `link-with-footnote-reference.md`,
-  neither of which this issue touches) — the marker-wrapping defect itself is fixed.
-  Additional coverage for this fix (italic wrapping math, a bare math-only span, math at
+  non-text member. `other-strong-inline-math-not-wrapped`,
+  `other-delete-inline-math-not-wrapped` and `other-emphasis-footnote-not-wrapped` now all
+  round-trip byte-identical (no `.expected.md` sidecar, so they're a permanent regression
+  gate). `other-emphasis-footnote-not-wrapped` used to keep an `.expected.md` sidecar
+  solely to capture an unrelated, pre-existing footnote-*definition* spacing
+  normalization (`[^1]: A note.` → `[^1]:  A note.`); that defect is fixed by
+  [#20](https://github.com/verveguy/liminis-editor/issues/20) — see "The `20-*` fixture
+  set" below — so the sidecar is gone. Additional coverage for this fix (italic wrapping math, a bare math-only span, math at
   the end of a span, and a single span mixing text + math + footnote) lives directly
   under `fixtures/roundtrip/`: `emphasis-inline-math.md`, `strong-inline-math-only.md`,
   `strong-inline-math-trailing.md`, `strong-mixed-text-math-footnote.md`.
@@ -222,7 +222,8 @@ result and the fixture starts enforcing it).
   `setEmphasisMarker` pair (set on import in `convertStrong`/`convertEmphasis`, read on
   export in `convertFormattedRun`), mirroring the existing `TextNode` style-based
   mechanism. Covered by `emphasis-inline-math-only.md`, `emphasis-footnote-only.md`
-  (footnote-definition case, same pre-existing spacing sidecar as above), and
+  (footnote-definition case — used to carry the same pre-existing spacing sidecar as
+  above, fixed by [#20](https://github.com/verveguy/liminis-editor/issues/20)), and
   `strong-inline-math-only-underscore.md`.
 
 ## The `19-*` fixture set
@@ -660,6 +661,71 @@ contrast, has a full block-dispatch fallback and round-trips all four constructs
 correctly when nested in a list item — confirmed for callout, mermaid, and c4 above;
 toggle is the one exception, for the separate root-level-only detection reason described
 in its own known-defects entry.
+
+## The `20-*` fixture set
+
+Fixed [#20](https://github.com/verveguy/liminis-editor/issues/20): a footnote
+definition's colon-to-body separator doubled on every round trip — `[^1]: The note.`
+became `[^1]:  The note.` On import, `convertBlockNode`'s `footnoteDefinition` case
+(`mdastToLexical.ts`) inserts the label and its separator as two nodes: a `FootnoteNode`
+and a standalone single-space `TextNode`. When the definition's body starts with plain
+text, Lexical's reconciliation merges that separator into the body's own `TextNode`
+(`' '` + `'The note.'` → `' The note.'`) rather than leaving it as a distinct sibling, so
+export's old identity check (`rest[0].getTextContent() === ' '`) no longer matched it —
+the merged space survived into the exported content, and `mdast-util-gfm-footnote` then
+added its own separator space on top. All five existing fixtures that carried this
+defect's `.expected.md` sidecar (`footnotes.md`, `link-with-footnote-reference.md`,
+`known-defects/other-emphasis-footnote-not-wrapped.md`, `emphasis-footnote-only.md`,
+`strong-mixed-text-math-footnote.md`) had a definition body starting with plain text —
+exactly the shape that triggers the merge.
+
+Fixed in `convertFootnoteInlineChildren` (`lexicalToMdast.ts`) by operating on the mdast
+output instead of trying to detect whether the separator survived as a distinct Lexical
+node: after building a definition's inline content, strip exactly one leading space
+character from the first text child (dropping the node if it becomes empty), which
+handles the merged and unmerged cases identically. The removal is sentinel-aware — it
+skips past any annotate-mode boundary token spliced into the same node before looking
+for the space — so it doesn't perturb where those tokens land (the invariant
+`annotated-serialize-corpus.test.ts` pins for #970).
+
+- **`20-footnote-multiple-definitions.md`**: two numeric footnote definitions, both
+  already at the document's true end. Byte-identical, fixed point.
+- **`20-footnote-named-label.md`**: a named (`[^note]:`) definition alongside a numeric
+  one, both at the document's true end. Byte-identical, fixed point.
+
+A second, previously unconfirmed behaviour was reported alongside the spacing defect:
+round-tripping a document that groups its footnote definitions under a heading
+partway through the document (rather than at the very end) moves those definitions to
+the end. This is now confirmed, not hypothetical, and traced to two pieces of existing,
+intentional machinery working together rather than to any accidental interaction with
+the spacing fix above:
+
+- On import, `preprocessFootnoteDefinitions` (`mdastToLexical.ts`) unconditionally
+  extracts *every* `footnoteDefinition` node from wherever it's found in the source tree
+  and appends it at the absolute end of the document — already exercised by
+  `footnote-collection.test.ts`'s blockquote- and list-nesting assertions.
+- On export, `splitFootnoteSection` (`lexicalToMdast.ts`) only ever reconstructs a
+  footnote section from the document's *trailing* contiguous run — it has no way to
+  place a definition back in the middle of a document.
+
+Together, any footnote definition that isn't already the very last content in the source
+is unconditionally relocated to the end on round-trip. Rewriting both sides to preserve
+a definition's original position would be a materially larger structural change, and the
+issue explicitly frames relocation as "a defensible normalisation on its own" as long as
+it isn't silent — so the fix here is to document and pin the behaviour, not prevent it:
+
+- **`20-footnote-definition-relocation.md`** + `.expected.md`: a footnote reference, a
+  `## Footnotes` heading, the definition, a `## More` heading, and trailing prose. Pins
+  that the definition moves past both headings to the very end of the document (leaving
+  `## Footnotes` with nothing beneath it — the exact edge case the issue calls out), that
+  no synthesized `---` separator appears in the emitted markdown (the internal
+  `HorizontalRuleNode` used to mark the footnote section in Lexical is stripped by
+  `splitFootnoteSection` before export, per `footnote-collection.test.ts`'s "should not
+  produce a thematicBreak in MDAST output"), that the relocated definition carries only a
+  single space after its colon (the two defects don't compound), and that the relocated
+  output is itself a stable fixed point on a second pass. The `.expected.md` content is
+  generated from the actual pipeline output, not hand-predicted, per this corpus's own
+  convention.
 
 ## Diagnosing a failure
 
