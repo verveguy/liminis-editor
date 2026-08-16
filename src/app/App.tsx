@@ -54,6 +54,11 @@ function computeMinimalEdits(oldText: string, newText: string): TextEdit[] {
 interface AppProps {
   /** When false, the editor is read-only */
   editable?: boolean;
+  /**
+   * Whether the editor takes focus shortly after mounting. Defaults to
+   * `false`; see `Editor`'s own prop for when to opt in.
+   */
+  autoFocus?: boolean;
   /** Content to display - when provided, used instead of IPC */
   content?: string;
   /** Called when content changes */
@@ -93,7 +98,7 @@ interface AppProps {
   className?: string;
 }
 
-export function App({ editable = true, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, wikiLinkPromotion, onSelectionContextMenu, onSubstitutionDetected, sweepRef, annotationKinds, annotations, activeAnnotationId, scrollToAnnotation, onCreateAnnotation, onActivateAnnotation, annotationEditorHandleRef, annotationLogger, className = 'min-h-screen p-0' }: AppProps) {
+export function App({ editable = true, autoFocus = false, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, wikiLinkPromotion, onSelectionContextMenu, onSubstitutionDetected, sweepRef, annotationKinds, annotations, activeAnnotationId, scrollToAnnotation, onCreateAnnotation, onActivateAnnotation, annotationEditorHandleRef, annotationLogger, className = 'min-h-screen p-0' }: AppProps) {
   const { bridge, logger } = useEditorHost();
   const log = useMemo(() => logger('slashmd/App'), [logger]);
   const { requestInit, applyTextEdits } = useHostMessages();
@@ -274,6 +279,7 @@ export function App({ editable = true, content: propContent, onChange: propOnCha
       )}
       <Editor
         initialContent={content}
+        autoFocus={autoFocus}
         contentVersion={contentVersion}
         cursorToRestoreRef={cursorStateRef}
         onChange={handleChange}
