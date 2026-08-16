@@ -220,7 +220,7 @@ result and the fixture starts enforcing it).
   correct, but the marker character silently flipped. Fixed by giving `EquationNode`/
   `FootnoteNode` their own `getStrongMarker`/`setStrongMarker`/`getEmphasisMarker`/
   `setEmphasisMarker` pair (set on import in `convertStrong`/`convertEmphasis`, read on
-  export in `convertFormattedRun`), mirroring the existing `TextNode` style-based
+  export in `resolveMarkers`), mirroring the existing `TextNode` style-based
   mechanism. Covered by `emphasis-inline-math-only.md`, `emphasis-footnote-only.md`
   (footnote-definition case — used to carry the same pre-existing spacing sidecar as
   above, fixed by [#20](https://github.com/verveguy/liminis-editor/issues/20)), and
@@ -482,7 +482,7 @@ their input (no `.expected.md`):
   rather than splitting it apart.
 - **`973-emphasis-code-leading.md`** (`*`), **`973-strong-underscore-code-leading.md`**
   (`__`): the marker-style guard. A run whose only styled member is code-formatted must
-  keep its original marker, which is why `convertFormattedRun` reads its
+  keep its original marker, which is why `resolveMarkers` reads its
   `--md-strong-marker` / `--md-emphasis-marker` hints *above* the code branch, not after
   it. Without that, `__` normalizes to `*`.
 
@@ -576,12 +576,17 @@ is the complement, green either way, proving the unchanged path stayed unchanged
 
 ### A fourth subtlety: where the marker-hint read sits
 
-`convertFormattedRun` reads its `--md-strong-marker` / `--md-emphasis-marker` hints
-**above the code branch but below the `text === ''` early-continue**. Both halves of that
-position matter, and they pull in opposite directions:
+`resolveMarkers` reads its `--md-strong-marker` / `--md-emphasis-marker` hints from every
+non-empty text node in the run it's given, **regardless of that node's own code
+formatting, but below the `text === ''` early-continue**. (Originally this was one
+constraint on where the read sat inside `convertFormattedRun`'s single loop, which also
+did code-buffering; the #16 nested-run fix split that loop into `resolveMarkers` and
+`convertLeavesRaw`, so the marker read no longer shares a branch with the code check at
+all — it simply never skips a code-formatted member.) Both halves of the original
+constraint still hold:
 
-- *Above the code branch*, because a run whose every member is code-formatted would
-  otherwise never reach the read at all, and `__` would normalize to `**` (FR-004).
+- *Regardless of code formatting*, because a run whose every member is code-formatted
+  would otherwise never contribute a hint, and `__` would normalize to `**` (FR-004).
 - *Below the empty-text continue*, because the hints are captured with `??` — first
   non-null wins — so an **empty** format-carrying node preceding the run's real content
   would otherwise decide the marker for the whole wrapper. Lexical creates empty
