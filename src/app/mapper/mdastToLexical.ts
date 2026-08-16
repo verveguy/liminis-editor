@@ -687,7 +687,9 @@ function convertList(node: List): ListNode {
 function convertListItem(node: ListItem, parentList: List): CustomListItemNode {
   // Support checkboxes in both ordered and unordered lists.
   // For unordered lists, we use Lexical's checklist rendering (listType = 'check').
-  // For ordered lists, Lexical doesn't render checklists, so we preserve [ ] text.
+  // For ordered lists, Lexical's stock rendering can't be checklist-typed (it
+  // would lose numbering), so CustomListItemNode.createDOM/updateDOM renders
+  // the checkbox itself, driven by __taskChecked rather than useChecked/listType.
   const useChecked = parentList.ordered ? undefined : node.checked !== null ? node.checked : undefined;
   const listItem = $createCustomListItemNode(useChecked);
   // mdast's own tri-state `checked` is the true per-item source of truth,
@@ -697,11 +699,6 @@ function convertListItem(node: ListItem, parentList: List): CustomListItemNode {
   // CustomListItemNode's docstring for why this must not be derived from
   // Lexical's own checkbox state.
   listItem.setTaskChecked(node.checked ?? null);
-
-  // For ordered task lists, prefix the text with [ ] or [x] so it round-trips.
-  // Only the item's first paragraph gets the marker.
-  const shouldPrefixTaskMarker = parentList.ordered && node.checked !== null;
-  let isFirstParagraph = true;
 
   for (let i = 0; i < node.children.length; i++) {
     const child = node.children[i];
@@ -720,26 +717,12 @@ function convertListItem(node: ListItem, parentList: List): CustomListItemNode {
         listItem.append($createListItemParagraphBreakNode());
       }
 
-      const shouldPrefixThisParagraph = isFirstParagraph && shouldPrefixTaskMarker;
-
-      // Prepend the marker as its own TextNode before any inline content,
-      // rather than splicing it into the first TextNode found — the first
-      // inline child isn't always a TextNode (e.g. a link or emphasis run),
-      // and splicing into whichever TextNode appears first misplaces the
-      // marker mid-paragraph instead of at its start.
-      if (shouldPrefixThisParagraph) {
-        const marker = node.checked ? '[x] ' : '[ ] ';
-        listItem.append($createTextNode(marker));
-      }
-
       for (const inlineChild of child.children) {
         const nodes = convertInlineNode(inlineChild);
         for (const n of nodes) {
           listItem.append(n);
         }
       }
-
-      isFirstParagraph = false;
     } else if (child.type === 'list') {
       // Nested list
       const nestedList = convertList(child);
