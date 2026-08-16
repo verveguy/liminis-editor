@@ -12,8 +12,8 @@ and use **Note** in the toolbar to anchor an annotation to it.
 ## Inline formatting
 
 Plain text, **bold**, _italic_, ~~strikethrough~~, and `inline code`.
-Combined: **bold with _nested italic_**, and **`code inside bold`** — the shape
-that verveguy/liminis#973 fixed.
+Combined: **bold with _nested italic_**, and **`code inside bold`** — emphasis
+and strong nested, and strong wrapped directly around an inline-code span.
 
 Escapes stay escaped: a literal \*\* beside `code`, and a backslash\_underscore.
 
@@ -185,7 +185,7 @@ With alignment:
 
 ## Images
 
-A remote image, which must render without `crossOrigin` — verveguy/liminis#952:
+A remote image, loaded cross-origin:
 
 ![build badge](https://img.shields.io/badge/build-passing-brightgreen)
 

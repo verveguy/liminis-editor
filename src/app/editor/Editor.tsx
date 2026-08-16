@@ -87,6 +87,23 @@ const EMPTY_ANNOTATIONS: Annotation[] = [];
 
 interface EditorProps {
   initialContent: string;
+  /**
+   * Whether the editor takes focus shortly after mounting. Defaults to
+   * `false`: an embedded editor does not know whether it is the surface the
+   * user is working in, and the host does.
+   *
+   * Opt in where opening the editor *is* the user's action — clicking a
+   * document to edit it. Do not opt in for an editor that mounts beside
+   * something else the user may be typing in, renders in a preview or a list,
+   * or remounts while focus belongs elsewhere.
+   *
+   * This defaulted to on until it was found to steal the caret out of
+   * whatever the user was actually using. Focus is taken on a timer after
+   * mount, so a host cannot reliably take it back afterwards — it has to be
+   * declined up front, which is why this is a prop and not something to work
+   * around at the call site.
+   */
+  autoFocus?: boolean;
   contentVersion?: number;
   /** Ref to cursor state - read inside effects, not during render */
   cursorToRestoreRef?: React.RefObject<CursorState | null>;
@@ -616,6 +633,7 @@ const POST_LOAD_SUPPRESS_MS = 500;
 
 export function Editor({
   initialContent,
+  autoFocus = false,
   contentVersion = 0,
   cursorToRestoreRef,
   onChange,
@@ -818,7 +836,7 @@ export function Editor({
               onOffsets={handleOffsets}
             />
             <EditablePlugin editable={editable} />
-            <AutoFocusPlugin />
+            {autoFocus && <AutoFocusPlugin />}
             <CursorTrackingPlugin onCursorChange={onCursorChange} />
             <CursorRestorePlugin
               contentVersion={contentVersion}
