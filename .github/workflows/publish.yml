@@ -1,0 +1,92 @@
+# Publish to npm with provenance.
+#
+# Publishing happens here rather than from a laptop for two reasons:
+#
+#   - **Provenance.** npm's attestation links the published tarball to this
+#     repository, this workflow and the exact commit it was built from. It can
+#     only be produced by a CI publish from a public repo, so a local `npm
+#     publish` cannot carry it however careful the operator is.
+#   - **2FA.** An interactive publish prompts for a one-time code, which makes
+#     it unattended-hostile. A granular automation token does not.
+#
+# Triggered by publishing a GitHub Release, so the tag, the release notes and
+# the npm version are decided in one place and the audit trail is a real
+# artifact rather than shell history.
+name: publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  # Required for provenance: lets the job mint the OIDC token npm uses to
+  # attest what built the package. Without it, `--provenance` fails.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          # Points npm at the public registry and wires NODE_AUTH_TOKEN.
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The package is built by `prepack` during publish, but the full suite is
+      # run first so a release cannot ship something that does not pass. This
+      # duplicates ci.yml deliberately: ci.yml gates merges, this gates
+      # releases, and a release can be cut from a commit whose CI has expired.
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Verify the package is publishable
+        run: pnpm verify:package
+
+      # Refuse a release whose version does not match the tag it was cut from.
+      # Without this, publishing from a stale branch quietly ships the wrong
+      # version under the right tag.
+      - name: Check the tag matches package.json
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG" ]; then
+            echo "tag $GITHUB_REF_NAME implies version $TAG, package.json says $PKG" >&2
+            exit 1
+          fi
+          echo "tag and package.json agree on $PKG"
+
+      # A prerelease must not become `latest`, or `npm install @liminis/editor`
+      # starts handing an rc to anyone who asks for the package.
+      - name: Determine the dist-tag
+        id: tag
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          case "$VERSION" in
+            *-*) echo "dist=next" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "dist=latest" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Publish
+        run: npm publish --provenance --access public --tag "${{ steps.tag.outputs.dist }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # The publish guard's deliberate opt-in. Scoped to this step, so no
+          # other job in this repository can publish as a side effect.
+          LIMINIS_ALLOW_PUBLISH: '1'
