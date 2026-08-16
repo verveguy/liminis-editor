@@ -165,6 +165,14 @@ function addCheckboxTextToOrderedLists(root: any): any {
 // needs to change to account for it.
 const FORCE_ESCAPE_PLACEHOLDER = '\u{E004}';
 
+// The character class the placeholder-restoration post-process (below) is
+// allowed to wrap in a backslash. Kept narrow — rather than matching any
+// character between two placeholder codepoints — so that if the placeholder
+// codepoint itself ever showed up in real content (e.g. pasted from
+// somewhere, or inside a code span the pre-process didn't anticipate), this
+// step can't misfire and inject a backslash in front of arbitrary text (#17).
+const FORCE_ESCAPE_RESTORE_CHAR_CLASS = '*_`\\[\\]#\\\\';
+
 /**
  * Convert any `{type: 'text', data: {_forceEscape: true}}` node (produced by
  * `splitEscapedPunctuation` in `parse.ts` and carried through Lexical via the
@@ -474,7 +482,10 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
   // character (#17), now that every other post-process above — which only
   // ever strips backslashes, never adds them — has already run and had no
   // chance to see (or strip) a backslash that wasn't there yet.
-  result = result.replace(new RegExp(`${FORCE_ESCAPE_PLACEHOLDER}(.)${FORCE_ESCAPE_PLACEHOLDER}`, 'gu'), '\\$1');
+  result = result.replace(
+    new RegExp(`${FORCE_ESCAPE_PLACEHOLDER}([${FORCE_ESCAPE_RESTORE_CHAR_CLASS}])${FORCE_ESCAPE_PLACEHOLDER}`, 'gu'),
+    '\\$1'
+  );
 
   return result;
 }
