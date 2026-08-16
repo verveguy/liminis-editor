@@ -20,11 +20,14 @@
  * is how both apps consume this package today — is unaffected.
  */
 if (process.env.LIMINIS_ALLOW_PUBLISH !== '1') {
+  // Describes the policy, not the current state of the package or repository:
+  // this guard outlives `private: true` and the repository being private, and
+  // a message asserting either would start lying the moment they change.
   console.error(`
   Refusing to publish.
 
-  This package is not ready to be published: it is still marked private, the
-  repository is private, and publishing is a deliberate, gated step.
+  Publishing this package is a deliberate, opted-in step rather than something
+  that can happen as a side effect of another command.
 
   If you mean it:
 
@@ -36,4 +39,6 @@ if (process.env.LIMINIS_ALLOW_PUBLISH !== '1') {
   process.exit(1)
 }
 
-console.error('LIMINIS_ALLOW_PUBLISH=1 — publish guard bypassed deliberately.')
+// stdout, not stderr: publishing proceeds from here, and a CI log parser
+// treating this as an error would be reporting a failure that did not happen.
+console.log('LIMINIS_ALLOW_PUBLISH=1 — publish guard bypassed deliberately.')
