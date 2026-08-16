@@ -109,17 +109,22 @@ result and the fixture starts enforcing it).
   match the `NNN-*` convention above.
 - **`other-callout-first-line-inline-formatting-space-lost`**: discovered while adding
   feature coverage for `CalloutNode` ([#1](https://github.com/verveguy/liminis-editor/issues/1)).
-  `convertBlockquote`'s callout detection in `mdastToLexical.ts` computes the callout's
+  `convertBlockquote`'s callout detection in `mdastToLexical.ts` computed the callout's
   first line of body text as `firstText.value.slice(calloutMatch[0].length).trim()` —
-  the trailing `.trim()` is meant to strip the newline between `[!WARNING]` and the body
-  text, but when that body text is itself immediately followed by another inline node
-  (e.g. `This has **bold**`), the same `.trim()` also eats the significant trailing space
+  the trailing `.trim()` was meant to strip the newline between `[!WARNING]` and the body
+  text, but when that body text was itself immediately followed by another inline node
+  (e.g. `This has **bold**`), the same `.trim()` also ate the significant trailing space
   before that node, corrupting `This has **bold**` into `This has**bold**`. The bold/
-  italic/code node itself and its content survive intact — only the one space is lost.
-  Not fixed here: the corpus addition for #1 is scope-limited to test fixtures (see its
-  spec's Out of Scope section); `callout/inline-formatting.md` covers the same
-  bold/italic/code shapes without tripping this defect by placing them in the callout's
-  *second* paragraph, which takes a different, unaffected code path.
+  italic/code node itself and its content survived intact — only the one space was lost.
+  Fixed by [#19](https://github.com/verveguy/liminis-editor/issues/19): `.trim()` →
+  `.trimStart()`, which still strips the separating newline but leaves the trailing
+  space — which belongs to the next inline sibling — untouched. This now round-trips
+  byte-identical to its input (no `.expected.md` sidecar), so it's become a permanent
+  regression gate rather than a documented defect. Left under `known-defects/` rather
+  than moved, per the `897-*` precedent above. Additional coverage (all three affected
+  callout kinds, plus italic/inline-code/strikethrough/link shapes, plus a formatted
+  span with no preceding text) lives directly under `fixtures/roundtrip/` as the
+  `19-callout-*` fixtures.
 - **`other-toggle-nested-in-list-item`**: discovered while adding feature coverage for
   `ToggleContainerNode`/`ToggleTitleNode`/`ToggleContentNode` ([#1](https://github.com/verveguy/liminis-editor/issues/1)).
   `preprocessDetailsBlocks` in `mdastToLexical.ts` scans only the top-level
@@ -219,6 +224,26 @@ result and the fixture starts enforcing it).
   mechanism. Covered by `emphasis-inline-math-only.md`, `emphasis-footnote-only.md`
   (footnote-definition case, same pre-existing spacing sidecar as above), and
   `strong-inline-math-only-underscore.md`.
+
+## The `19-*` fixture set
+
+Fixed [#19](https://github.com/verveguy/liminis-editor/issues/19), the callout
+first-line space-loss defect described under `known-defects/other-callout-first-line-
+inline-formatting-space-lost` above. Eight fixtures, one shape per file:
+
+- **`19-callout-note-bold.md`**, **`19-callout-tip-bold.md`**,
+  **`19-callout-warning-bold.md`**: the original issue repro (`This has **bold** in
+  it.`) in each of the three callout kinds this issue covers, confirming the fix is
+  independent of which `[!TYPE]` marker precedes the body text.
+- **`19-callout-italic.md`**, **`19-callout-inline-code.md`**,
+  **`19-callout-strikethrough.md`**, **`19-callout-link.md`**: the same
+  text-immediately-before-a-formatted-span shape in a `NOTE` callout, for each of the
+  remaining inline-formatting constructs the issue's acceptance criteria name.
+- **`19-callout-leading-formatted-span.md`** (`**bold** text.`, no preceding prose):
+  the edge case where there is no preceding space to lose, confirming `.trimStart()`
+  doesn't introduce a new defect in that shape.
+
+All eight round-trip byte-identical to their input (no `.expected.md` sidecar).
 
 ## The `902-list-item-double-hard-break*` fixture set
 
@@ -603,10 +628,11 @@ directory; toggle has three — its nested-in-list-item shape is structurally un
 fixture in `toggle/`.
 
 - **`callout/`**: `minimal.md`, `nested-in-list-item.md`, `inline-formatting.md`,
-  `empty.md`. All four round-trip byte-identical. `inline-formatting.md` deliberately
-  places its bold/italic/inline-code content in the callout's *second* paragraph, not
-  its first line — see `known-defects/other-callout-first-line-inline-formatting-space-
-  lost` above for why the first-line shape currently loses a space.
+  `empty.md`. All four round-trip byte-identical. `inline-formatting.md` places its
+  bold/italic/inline-code content in the callout's *second* paragraph rather than its
+  first line; the first-line shape (bold/italic/inline-code/strikethrough/link
+  immediately preceded by text) is covered separately by the `19-callout-*` fixtures —
+  see `known-defects/other-callout-first-line-inline-formatting-space-lost` above.
 - **`toggle/`**: `minimal.md`, `inline-formatting.md`, `empty.md`, each with an
   `.expected.md` sidecar — `convertToggleContainerNode`'s export
   (`lexicalToMdast.ts`) always emits a blank line before the closing `</details>` tag
