@@ -42,6 +42,7 @@ import { TogglePlugin } from './TogglePlugin';
 import { ImagePlugin } from './ImagePlugin';
 import { BlockClickPlugin } from './BlockClickPlugin';
 import { LinkClickPlugin } from './LinkClickPlugin';
+import { OrderedTaskListPlugin } from './OrderedTaskListPlugin';
 import { SearchPlugin } from './SearchPlugin';
 import { FrontmatterPlugin } from './FrontmatterPlugin';
 import { WikiLinkExistencePlugin } from './WikiLinkExistencePlugin';
@@ -806,6 +807,7 @@ export function Editor({
             <HistoryPlugin />
             <ListPlugin />
             <CheckListPlugin />
+            <OrderedTaskListPlugin />
             <TabIndentationPlugin />
             <LinkPlugin />
             <TablePlugin />
