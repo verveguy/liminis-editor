@@ -372,34 +372,45 @@ function mergeableRunBounds(flat: readonly LexicalNode[], index: number): { star
   const format = getMergeableFormat(child);
   if (!format) return null;
 
-  // Bidirectional counterpart of `convertInlineUnit`'s shrinking-intersection
-  // scan: `common` starts at `flat[index]`'s own format and only ever loses
-  // bits as the run grows, so a boundary between differing-but-overlapping
-  // formats (e.g. the bold/bold+italic/bold split produced by a nested
-  // `**bold _and italic_**`) is still recognized as one run. Extension
-  // alternates left/right around a single shared `common` (rather than two
-  // independent one-directional scans) so the result doesn't depend on which
-  // side is checked first.
-  let start = index;
-  let end = index;
-  let common = format;
-  let extended = true;
-  while (extended) {
-    extended = false;
-    const rightFormat = end + 1 < flat.length ? getMergeableFormat(flat[end + 1]) : null;
-    if (rightFormat !== null && (rightFormat & common) !== 0) {
-      common &= rightFormat;
-      end++;
-      extended = true;
+  // Replays `convertInlineUnit`'s own shrinking-intersection scan, left to
+  // right from the start of `flat`, and returns the bounds of whichever
+  // partition segment contains `index`.
+  //
+  // A symmetric/bidirectional scan centered on `index` (the original version
+  // of this code) is only equivalent to that forward partition for a
+  // *uniform* run — one where every member's format is exactly equal, so the
+  // running intersection never actually shrinks and boundary order can't
+  // matter. Once a run's members can differ-but-overlap (the bold/bold+italic
+  // /bold split produced by a nested `**bold _and italic_**`), the partition
+  // becomes direction-sensitive: which run a node belongs to depends on where
+  // that run *started* scanning forward, which a scan centered on `index`
+  // cannot recover just by looking at `index`'s own neighbors. A prior version
+  // of this function got this wrong for an asymmetric transition like
+  // italic(2)/bold+italic(3)/bold(1): querying the last (bold) node walked
+  // left into the middle node and returned a run of the last two nodes, while
+  // `convertInlineUnit`'s actual forward-computed unit for that same middle
+  // node is the *first* two — a fictitious run that happened to still satisfy
+  // `hoistTargetAt`'s "wholly inside the mark" gate, hoisting an annotation
+  // sentinel out past content the mark never covered (PR #16 review).
+  let i = 0;
+  while (i <= index) {
+    const startFormat = getMergeableFormat(flat[i]);
+    if (startFormat === null || startFormat === 0) {
+      i++;
+      continue;
     }
-    const leftFormat = start > 0 ? getMergeableFormat(flat[start - 1]) : null;
-    if (leftFormat !== null && (leftFormat & common) !== 0) {
-      common &= leftFormat;
-      start--;
-      extended = true;
+    let common = startFormat;
+    let j = i + 1;
+    while (j < flat.length) {
+      const nextFormat = getMergeableFormat(flat[j]);
+      if (nextFormat === null || (nextFormat & common) === 0) break;
+      common &= nextFormat;
+      j++;
     }
+    if (index < j) return { start: i, end: j - 1 };
+    i = j;
   }
-  return { start, end };
+  return { start: index, end: index };
 }
 
 /**
