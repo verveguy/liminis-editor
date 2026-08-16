@@ -953,15 +953,78 @@ function convertHeadingNode(node: ElementNode): Heading {
   };
 }
 
+/**
+ * True for children that must be dispatched as their own block, rather than
+ * folded into the surrounding inline run. Deliberately excludes
+ * Image/Equation/Footnote/Html — those stay inline-eligible and are handled by
+ * `convertInlinePhrasingList` (see `isInlineDelimitedNode`-adjacent dispatch).
+ */
+function isQuoteBlockChild(node: LexicalNode): boolean {
+  return (
+    $isParagraphNode(node) ||
+    $isHeadingNode(node) ||
+    $isListNode(node) ||
+    $isFrontmatterNode(node) ||
+    $isCodeNode(node) ||
+    $isHorizontalRuleNode(node) ||
+    $isTableNode(node) ||
+    $isCalloutNode(node) ||
+    $isToggleContainerNode(node) ||
+    $isMermaidNode(node) ||
+    $isC4Node(node) ||
+    $isDefinitionListNode(node) ||
+    $isQuoteNode(node)
+  );
+}
+
+/**
+ * QuoteNode is reachable via two structurally different shapes: markdown
+ * import (`convertBlockquote` in mdastToLexical.ts gives it real ParagraphNode
+ * — and other block-node — children, one per mdast paragraph, so consecutive
+ * paragraphs survive as separate blocks) and live typing (Lexical's own
+ * `registerRichText` never wraps typed content in a ParagraphNode, so a
+ * live-typed quote's children are flat TextNode/LineBreakNode runs). This
+ * buffer-and-flush loop handles both: block-type children (paragraphs and
+ * other block content) are dispatched individually through the shared block
+ * dispatcher, while everything else is buffered and flushed through the same
+ * `convertInlinePhrasingList` call `convertInlineChildren` uses elsewhere, so
+ * Image/Equation/Footnote/Html/mark-transparency handling stays exactly as it
+ * is for a flat, non-block quote. See #18.
+ */
 function convertQuoteNode(node: ElementNode): Blockquote {
-  const paragraph: Paragraph = {
-    type: 'paragraph',
-    children: convertInlineChildren(node) as PhrasingContent[],
+  const { nodes, marked } = effectiveChildrenWithMarkMembership(node);
+
+  const children: Content[] = [];
+  let buffer: LexicalNode[] = [];
+
+  const flushBuffer = (): void => {
+    if (buffer.length > 0) {
+      const paragraph: Paragraph = {
+        type: 'paragraph',
+        children: convertInlinePhrasingList(buffer, marked) as PhrasingContent[],
+      };
+      children.push(paragraph);
+      buffer = [];
+    }
   };
+
+  for (const child of nodes) {
+    if (isQuoteBlockChild(child)) {
+      flushBuffer();
+      children.push(...convertLexicalNode(child));
+    } else {
+      buffer.push(child);
+    }
+  }
+  flushBuffer();
+
+  if (children.length === 0) {
+    children.push({ type: 'paragraph', children: [{ type: 'text', value: '' }] });
+  }
 
   return {
     type: 'blockquote',
-    children: [paragraph],
+    children: children as Blockquote['children'],
   };
 }
 
