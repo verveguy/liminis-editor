@@ -74,10 +74,11 @@ function discoverFixtures(dir) {
 
 const fixtures = discoverFixtures(FIXTURES_DIR)
 
-// Shared sample documents lead the list — they are what a first-time reader
-// should see, ahead of several dozen narrow regression fixtures.
+// Shared sample documents lead the list under the `all` group — they are
+// what a first-time reader should see, ahead of several dozen narrow
+// regression fixtures.
 if (existsSync(SHARED_DIR)) {
-  fixtures.unshift(...discoverFixtures(SHARED_DIR).map((entry) => ({ ...entry, group: 'sample' })))
+  fixtures.unshift(...discoverFixtures(SHARED_DIR).map((entry) => ({ ...entry, group: 'all' })))
 }
 
 if (fixtures.length === 0) {
