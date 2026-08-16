@@ -67,6 +67,11 @@ async function selectWordByDoubleClick(page: Page, word: string): Promise<void> 
         const range = document.createRange();
         range.setStart(node, index);
         range.setEnd(node, index + needle.length);
+        // Bring the match into view before measuring. The shell loads a long
+        // sample document, so a match can sit far below the fold — and a
+        // click at an off-screen coordinate silently lands on whatever is
+        // actually at that point in the viewport, rather than failing.
+        node.parentElement?.scrollIntoView({ block: 'center' });
         const rect = range.getBoundingClientRect();
         return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
       }
