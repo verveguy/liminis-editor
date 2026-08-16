@@ -287,6 +287,141 @@ function stripEscapedPipeFromWikiLinks(root: Root): Root {
   return walk(root);
 }
 
+// CommonMark's escapable ASCII punctuation set: a backslash followed by one
+// of these is a genuine escape (consumed to the literal character); a
+// backslash followed by anything else is a literal backslash.
+const ESCAPABLE_PUNCTUATION = new Set('!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'.split(''));
+
+// The subset of escapable punctuation this issue (#17) covers: characters
+// whose escape must survive the round trip so it isn't reinterpreted on the
+// next parse (see spec's "Assumptions" for why this list stops at seven).
+const FORCE_ESCAPE_CHARS = new Set(['*', '_', '`', '[', ']', '#', '\\']);
+
+interface DecodedPart {
+  char: string;
+  srcStart: number;
+  srcEnd: number;
+  escaped: boolean;
+}
+
+/**
+ * Replay CommonMark's own backslash-escape decoding over a text node's raw
+ * source span, character by character, so each decoded character can be
+ * traced back to the exact source offset(s) it came from.
+ */
+function replayDecodeEscapes(source: string): { decoded: string; parts: DecodedPart[] } {
+  const parts: DecodedPart[] = [];
+  let decoded = '';
+  let i = 0;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === '\\' && i + 1 < source.length && ESCAPABLE_PUNCTUATION.has(source[i + 1])) {
+      const escaped = source[i + 1];
+      parts.push({ char: escaped, srcStart: i, srcEnd: i + 2, escaped: true });
+      decoded += escaped;
+      i += 2;
+    } else {
+      parts.push({ char: ch, srcStart: i, srcEnd: i + 1, escaped: false });
+      decoded += ch;
+      i += 1;
+    }
+  }
+  return { decoded, parts };
+}
+
+/**
+ * Split a single `text` node into siblings wherever it contains a
+ * backslash-escaped instance of one of the seven target characters, tagging
+ * only that single-character node with `data._forceEscape = true`.
+ *
+ * Returns `[node]` unchanged whenever nothing needs protecting, or whenever
+ * the source span's replayed decoding doesn't exactly reproduce `node.value`
+ * (e.g. a character reference like `&amp;` in the span) — the latter is a
+ * conservative bail-out, mirroring `recordOffsetSpan`'s own width-mismatch
+ * guard in `mdastToLexical.ts`: a missed protection reproduces today's
+ * existing defect, but a wrong split would corrupt text. Because
+ * `fromMarkdown` merges a character reference and any surrounding literal
+ * text (including an escaped target character) into one text node, a
+ * character reference anywhere in the same run also suppresses protection
+ * for an escape elsewhere in that run — a narrow, pre-existing-defect-shaped
+ * limitation, not a new one.
+ */
+function splitTextNodeEscapes(node: any, normalizedText: string): any[] {
+  const start = node.position?.start?.offset;
+  const end = node.position?.end?.offset;
+  if (start == null || end == null) {
+    return [node];
+  }
+
+  const source = normalizedText.slice(start, end);
+  const { decoded, parts } = replayDecodeEscapes(source);
+  if (decoded !== node.value) {
+    return [node];
+  }
+
+  if (!parts.some((p) => p.escaped && FORCE_ESCAPE_CHARS.has(p.char))) {
+    return [node];
+  }
+
+  const result: any[] = [];
+  const startPos = node.position.start;
+  const makeTextNode = (value: string, srcStart: number, srcEnd: number, forceEscape: boolean): any => ({
+    type: 'text',
+    value,
+    ...(forceEscape ? { data: { _forceEscape: true } } : {}),
+    position: {
+      start: { ...startPos, offset: srcStart },
+      end: { ...startPos, offset: srcEnd },
+    },
+  });
+
+  let runStart = 0;
+  const flushRun = (from: number, to: number): void => {
+    if (to <= from) return;
+    const value = parts.slice(from, to).map((p) => p.char).join('');
+    result.push(makeTextNode(value, start + parts[from].srcStart, start + parts[to - 1].srcEnd, false));
+  };
+
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i].escaped && FORCE_ESCAPE_CHARS.has(parts[i].char)) {
+      flushRun(runStart, i);
+      result.push(makeTextNode(parts[i].char, start + parts[i].srcStart, start + parts[i].srcEnd, true));
+      runStart = i + 1;
+    }
+  }
+  flushRun(runStart, parts.length);
+
+  return result;
+}
+
+/**
+ * Walk the tree and split every `text` node containing a force-escaped
+ * character (see `splitTextNodeEscapes`) into siblings. Run last, after all
+ * other parse post-processing, so nothing downstream needs to reason about
+ * multi-node text runs that used to be a single node.
+ */
+function splitEscapedPunctuation(root: Root, normalizedText: string): Root {
+  function walk(node: any): any {
+    if (!node || typeof node !== 'object') return node;
+
+    if (node.children && Array.isArray(node.children)) {
+      const children: any[] = [];
+      for (const child of node.children) {
+        if (child && child.type === 'text') {
+          children.push(...splitTextNodeEscapes(child, normalizedText));
+        } else {
+          children.push(walk(child));
+        }
+      }
+      return { ...node, children };
+    }
+
+    return node;
+  }
+
+  return walk(root);
+}
+
 /**
  * Post-process mdast tree to support checkboxes in ordered lists.
  * 
@@ -386,6 +521,10 @@ export function parseMarkdown(text: string, _options: ParseOptions = {}): ParseR
 
   // Post-process: annotate emphasis/strong marker characters from original source
   root = annotateEmphasisMarkers(root, text, replacements);
+
+  // Post-process: split out backslash-escaped punctuation so its escape can
+  // be carried through Lexical and restored at stringify time (#17)
+  root = splitEscapedPunctuation(root, normalizedText);
 
   return { root };
 }

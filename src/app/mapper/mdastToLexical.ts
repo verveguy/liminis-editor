@@ -1098,6 +1098,9 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageN
 function convertText(node: Text): TextNode {
   const textNode = $createTextNode(node.value);
   recordOffsetSpan(node.position, textNode);
+  if ((node as any).data?._forceEscape === true) {
+    setForceEscape(textNode);
+  }
   return textNode;
 }
 
@@ -1203,6 +1206,22 @@ function setMarkdownMarker(node: TextNode, kind: 'emphasis' | 'strong', marker: 
     : style.length > 0 && !style.trim().endsWith(';')
       ? `${style};${entry}`
       : `${style}${entry}`;
+  node.setStyle(nextStyle);
+}
+
+// Marks a single-character TextNode as carrying a source-level backslash
+// escape that must survive stringification, mirroring the
+// `--md-emphasis-marker`/`--md-strong-marker` style-hint precedent above
+// (see `setMarkdownMarker`) rather than embedding anything in the editable
+// text content itself (#17).
+function setForceEscape(node: TextNode): void {
+  const prop = '--md-force-escape';
+  const style = node.getStyle() || '';
+  const entry = `${prop}:1;`;
+  if (new RegExp(`${prop}\\s*:\\s*1\\s*;?`).test(style)) {
+    return;
+  }
+  const nextStyle = style.length > 0 && !style.trim().endsWith(';') ? `${style};${entry}` : `${style}${entry}`;
   node.setStyle(nextStyle);
 }
 

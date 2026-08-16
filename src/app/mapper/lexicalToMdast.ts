@@ -1510,7 +1510,12 @@ function convertLeavesRaw(nodes: LexicalNode[]): PhrasingContent[] {
         continue;
       }
       flushCode();
-      content.push({ type: 'text', value: text });
+      // An escaped character imported inside emphasis/strong (e.g.
+      // `*text \_x\_*`) takes this merged-run export path even on a pure
+      // no-edit round trip, so the force-escape hint must be read here too,
+      // not just in convertTextNode's single-node path (#17).
+      const forceEscape = getForceEscapeFlag(node.getStyle() || '');
+      content.push({ type: 'text', value: text, data: forceEscape ? { _forceEscape: true } : undefined } as PhrasingContent);
     } else if ($isEquationNode(node)) {
       flushCode();
       content.push({ type: 'inlineMath', value: node.getEquation() });
@@ -1825,6 +1830,7 @@ function convertTextNode(node: TextNode): PhrasingContent[] {
   const style = node.getStyle() || '';
   const emphasisMarker = getMarkdownMarker(style, '--md-emphasis-marker');
   const strongMarker = getMarkdownMarker(style, '--md-strong-marker');
+  const forceEscape = getForceEscapeFlag(style);
 
   if (text === '') {
     return [];
@@ -1833,8 +1839,12 @@ function convertTextNode(node: TextNode): PhrasingContent[] {
   // The base node is chosen first, then wrapped — a code-formatted node that
   // also carries bold/italic/strikethrough keeps that wrapper (#973), where
   // previously a trailing `format & 16` short-circuit discarded it.
+  // `_forceEscape` only applies to the plain-text base (#17): code content is
+  // emitted verbatim and never escaped, so the hint is meaningless there.
   let result: PhrasingContent =
-    format & 16 ? { type: 'inlineCode', value: text } : { type: 'text', value: text };
+    format & 16
+      ? { type: 'inlineCode', value: text }
+      : { type: 'text', value: text, data: forceEscape ? { _forceEscape: true } : undefined } as PhrasingContent;
 
   // Apply formatting
   if (format & 1) {
@@ -2103,4 +2113,11 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
 function getMarkdownMarker(style: string, prop: string): '_' | '*' | null {
   const match = new RegExp(`${prop}\\s*:\\s*([_*])`).exec(style);
   return match ? (match[1] as '_' | '*') : null;
+}
+
+// Reads the `--md-force-escape` style hint set by `setForceEscape` in
+// `mdastToLexical.ts` (#17) — marks a single-character TextNode whose source
+// backslash escape must be restored verbatim at stringify time.
+function getForceEscapeFlag(style: string): boolean {
+  return /--md-force-escape\s*:\s*1/.test(style);
 }
