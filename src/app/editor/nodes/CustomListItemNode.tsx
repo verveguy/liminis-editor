@@ -8,8 +8,8 @@ import { LexicalNode, NodeKey, EditorConfig } from 'lexical';
 // also numbered. These class names are deliberately separate from the
 // editorTheme's listitemChecked/listitemUnchecked (Editor.tsx), which apply
 // `list-style-type: none` and would suppress <ol> numbering.
-const ORDERED_TASK_CHECKED_CLASS = 'editor-listitem-ordered-checked';
-const ORDERED_TASK_UNCHECKED_CLASS = 'editor-listitem-ordered-unchecked';
+export const ORDERED_TASK_CHECKED_CLASS = 'editor-listitem-ordered-checked';
+export const ORDERED_TASK_UNCHECKED_CLASS = 'editor-listitem-ordered-unchecked';
 
 export type SerializedCustomListItemNode = SerializedListItemNode & {
   taskChecked?: boolean | null;
