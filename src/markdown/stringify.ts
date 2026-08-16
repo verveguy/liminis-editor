@@ -182,7 +182,7 @@ function convertForceEscapeTextNodes(node: any): any {
   if (node.children && Array.isArray(node.children)) {
     const children: any[] = [];
     for (const child of node.children) {
-      if (child && child.type === 'text' && child.data?._forceEscape === true) {
+      if (child?.type === 'text' && child.data?._forceEscape === true) {
         // Lexical's own reconciliation merges adjacent TextNodes that share
         // identical format/style (see mdastToLexical.ts's setForceEscape),
         // so two force-escaped characters that were adjacent in the source

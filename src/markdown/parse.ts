@@ -407,7 +407,7 @@ function splitEscapedPunctuation(root: Root, normalizedText: string): Root {
     if (node.children && Array.isArray(node.children)) {
       const children: any[] = [];
       for (const child of node.children) {
-        if (child && child.type === 'text') {
+        if (child?.type === 'text') {
           children.push(...splitTextNodeEscapes(child, normalizedText));
         } else {
           children.push(walk(child));
