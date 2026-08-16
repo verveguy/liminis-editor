@@ -185,7 +185,7 @@ With alignment:
 
 ## Images
 
-A remote image from a host that sends no `Access-Control-Allow-Origin`:
+A remote image, loaded cross-origin:
 
 ![build badge](https://img.shields.io/badge/build-passing-brightgreen)
 
