@@ -999,9 +999,10 @@ function convertQuoteNode(node: ElementNode): Blockquote {
 
   const flushBuffer = (): void => {
     if (buffer.length > 0) {
+      const converted = convertInlinePhrasingList(buffer, marked) as PhrasingContent[];
       const paragraph: Paragraph = {
         type: 'paragraph',
-        children: convertInlinePhrasingList(buffer, marked) as PhrasingContent[],
+        children: converted.length > 0 ? converted : [{ type: 'text', value: '' }],
       };
       children.push(paragraph);
       buffer = [];
