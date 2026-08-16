@@ -1513,8 +1513,10 @@ function convertLeavesRaw(nodes: LexicalNode[]): PhrasingContent[] {
       // An escaped character imported inside emphasis/strong (e.g.
       // `*text \_x\_*`) takes this merged-run export path even on a pure
       // no-edit round trip, so the force-escape hint must be read here too,
-      // not just in convertTextNode's single-node path (#17).
-      const forceEscape = getForceEscapeFlag(node.getStyle() || '');
+      // not just in convertTextNode's single-node path (#17). Gated by
+      // isForceEscapableContent so a stale hint on a since-edited node can't
+      // wrap unrelated typed content in a spurious backslash.
+      const forceEscape = getForceEscapeFlag(node.getStyle() || '') && isForceEscapableContent(node.getTextContent());
       content.push({ type: 'text', value: text, data: forceEscape ? { _forceEscape: true } : undefined } as PhrasingContent);
     } else if ($isEquationNode(node)) {
       flushCode();
@@ -1830,7 +1832,9 @@ function convertTextNode(node: TextNode): PhrasingContent[] {
   const style = node.getStyle() || '';
   const emphasisMarker = getMarkdownMarker(style, '--md-emphasis-marker');
   const strongMarker = getMarkdownMarker(style, '--md-strong-marker');
-  const forceEscape = getForceEscapeFlag(style);
+  // Gated by isForceEscapableContent so a stale hint on a since-edited node
+  // can't wrap unrelated typed content in a spurious backslash (#17).
+  const forceEscape = getForceEscapeFlag(style) && isForceEscapableContent(node.getTextContent());
 
   if (text === '') {
     return [];
@@ -2120,4 +2124,26 @@ function getMarkdownMarker(style: string, prop: string): '_' | '*' | null {
 // backslash escape must be restored verbatim at stringify time.
 function getForceEscapeFlag(style: string): boolean {
   return /--md-force-escape\s*:\s*1/.test(style);
+}
+
+// The same seven-character set `splitTextNodeEscapes` (`parse.ts`) tags at
+// import time. Mirrored here (rather than imported) because parse-time and
+// export-time concerns are otherwise kept independent in this codebase.
+const FORCE_ESCAPE_CHARS = new Set(['*', '_', '`', '[', ']', '#', '\\']);
+
+// Guards against a stale `--md-force-escape` style hint corrupting freshly
+// typed content (#17). The style hint is set on a TextNode that, at import
+// time, is guaranteed to hold exactly one force-escaped character — but
+// Lexical's own reconciliation can extend that same TextNode's text (and
+// keep its style) when the user types adjacent to it during live editing,
+// which would otherwise carry the hint onto arbitrary new characters and
+// wrap them in a spurious, meaning-changing backslash at stringify time
+// (e.g. typing "a" next to an escaped "_" must never emit "\a"). Requiring
+// every character of the node's live text content to itself be one of the
+// seven force-escapable characters keeps the hint's effect scoped to
+// content it can actually still describe; anything else safely falls back
+// to ordinary (unescaped) text, at worst re-losing the original escape
+// rather than corrupting adjacent content.
+function isForceEscapableContent(text: string): boolean {
+  return text.length > 0 && [...text].every((ch) => FORCE_ESCAPE_CHARS.has(ch));
 }
