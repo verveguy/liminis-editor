@@ -130,9 +130,23 @@ describe('OffsetSpan recovery (#43 read pathway)', () => {
    * declines instead of wrapping the wrong characters.
    */
   describe('spans whose raw width disagrees with the decoded text are dropped', () => {
-    it('drops the span for a backslash escape', async () => {
-      const { spans } = await importWithOffsets('a \\* b\n');
-      expect(spans).toEqual([]);
+    it('drops only the escaped character\'s own span, not its surrounding text (#17)', async () => {
+      // Liminis #17: parse.ts's splitEscapedPunctuation now splits a text
+      // node at every force-escaped character's boundary (to carry the
+      // escape's provenance through to stringify), so "a \* b" arrives here
+      // as three sibling text nodes — "a ", the escaped "*", " b" — rather
+      // than one "a * b" node. Only the escaped character's own sub-span
+      // still has a raw-width/decoded-length mismatch (source "\*" is 2
+      // chars, decoded "*" is 1) and gets dropped; the plain runs on either
+      // side now have widths that agree with their content and are kept, an
+      // improvement over the previous whole-node drop.
+      const { spans, markdown, verify } = await importWithOffsets('a \\* b\n');
+      expect(spans.length).toBe(2);
+      for (const span of spans) {
+        expect(verify(span)).toBe(markdown.slice(span.start, span.end));
+      }
+      const covered = spans.map((s) => markdown.slice(s.start, s.end));
+      expect(covered).toEqual(['a ', ' b']);
     });
 
     it('drops the span for a character reference', async () => {
