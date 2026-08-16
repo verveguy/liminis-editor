@@ -631,12 +631,19 @@ function convertBlockquote(node: Blockquote): LexicalBlockNode[] {
 
   for (const child of node.children) {
     if (child.type === 'paragraph') {
+      // Wrap every paragraph child in a real ParagraphNode (rather than
+      // flattening its inline content directly onto the quote) so that
+      // consecutive paragraphs stay separated on export. Unlike ListItemNode,
+      // QuoteNode.append() doesn't unwrap/merge appended ParagraphNodes, so
+      // this survives structurally intact — see #18.
+      const p = $createParagraphNode();
       for (const inlineChild of child.children) {
         const nodes = convertInlineNode(inlineChild);
         for (const n of nodes) {
-          quote.append(n);
+          p.append(n);
         }
       }
+      quote.append(p);
     } else if (child.type === 'blockquote') {
       // Nested blockquote: convert recursively.
       // Flush the current quote first, then add nested results.
