@@ -73,20 +73,26 @@ result and the fixture starts enforcing it).
   `fixtures/roundtrip/`.
 - **`other-*`**: additional round-trip fidelity losses discovered while building this
   corpus, for constructs the spec (FR-009) requires coverage of but that aren't part of
-  the #897/#898 issue bodies: nested blockquotes (inner paragraphs collapse
-  and nested quotes are hoisted out, mirroring the #897 mechanism at the blockquote
-  level rather than the list-item level).
-  `other-blockquote-list-content-lost` records a starker instance of the same
-  blockquote-level mechanism, found during #943's review: a **list inside a
-  blockquote is dropped entirely** on round trip — `> Steps to reproduce:` followed
-  by a quoted bullet list serializes back as the lead-in paragraph alone, and a
-  blockquote whose only content *is* a list serializes back as a bare `>`. This is
-  silent data loss and predates #943 (verified against the pre-change
-  `stringify.ts`: byte-identical behaviour). It is unrelated to either #943 fix —
-  the loss happens in the mapper, not the serializer — and needs its own issue.
-  Note the lossy output is a stable fixed point, so #943's idempotence assertion
-  does **not** catch it: a fixed point is a guarantee about *stability*, not about
-  *fidelity*. The first-pass `.expected.md` comparison is what pins it.
+  the #897/#898 issue bodies.
+  `other-blockquote-list-content-lost` originally recorded a **list inside a blockquote
+  dropped entirely** on round trip, found during #943's review: `> Steps to reproduce:`
+  followed by a quoted bullet list serialized back as the lead-in paragraph alone. Fixed
+  by [#18](https://github.com/verveguy/liminis-editor/issues/18) — `convertQuoteNode`
+  now dispatches block-type `QuoteNode` children (lists, code blocks, etc.) through the
+  same block dispatcher used elsewhere, instead of only converting inline content. This
+  now round-trips byte-identical to its input (no `.expected.md` sidecar), so it's
+  become a permanent regression gate rather than a documented defect. Left under
+  `known-defects/` rather than moved, per the `897-*` precedent above.
+  `other-nested-blockquote-paragraph-collapse` records a related but distinct defect: a
+  nested blockquote sitting between two paragraph runs (`> Outer quote`, `> > Nested
+  quote`, `> Back to outer`). #18's fix gives consecutive plain-paragraph children of a
+  blockquote real `ParagraphNode`s, which resolves the concatenation-without-space
+  symptom (`Outer quote` and `Back to outer` no longer run together), but the nested
+  quote is still hoisted out into its own sibling `QuoteNode` rather than staying nested
+  — `QuoteNode` can't represent quote-in-quote nesting, per the comment in
+  `convertBlockquote`. This nested-blockquote-in-blockquote shape is explicitly out of
+  scope for #18 (see its spec's Assumptions), so it remains a known defect; its
+  `.expected.md` has been updated to the new (partially fixed) output.
   A genuinely unbalanced bracket in image alt text (`other-image-alt-unbalanced-bracket-
   corrupted`, e.g. `![unbalanced [ bracket](img.png)`) still corrupts on round trip — the
   #903 fix only unescapes *properly nested* bracket pairs within an image's alt-text
