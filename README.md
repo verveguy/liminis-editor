@@ -28,10 +28,16 @@ travelled with the code, are recorded in [`docs/provenance.md`](./docs/provenanc
 
 ## Install
 
-> **This package is not published.** It is `private: true` and `@liminis/editor`
-> does not exist on the npm registry, so `pnpm add @liminis/editor` will fail.
-> That is deliberate — see [Consuming it](#consuming-it) below for the mechanism
-> that actually works, and `docs/decisions/adr-078.md` for why.
+> **This package is published as a prerelease.** `0.1.0-rc.1` is on npm under the
+> `next` tag, so `pnpm add @liminis/editor` resolves nothing — ask for the tag:
+>
+> ```bash
+> pnpm add @liminis/editor@next
+> ```
+>
+> The prerelease exists to prove the registry install path, which nothing had
+> exercised: both consuming applications resolved this package locally. `latest`
+> stays unset until `0.1.0`.
 
 React and Lexical are **peer dependencies**, so your app resolves exactly one
 copy of each. Two React copies produce `Invalid hook call`; two Lexical copies
@@ -259,8 +265,9 @@ inert).
 
 ## Consuming it
 
-Because the package is unpublished, consumers install a **packed tarball** rather
-than a registry version:
+The registry is now the normal route (`pnpm add @liminis/editor@next`). The
+**packed tarball** below remains the way to consume an unreleased change — a
+local build, or a commit that has not been tagged:
 
 ```bash
 # in this repository
@@ -271,9 +278,10 @@ pnpm add /tmp/liminis-editor-0.1.0.tgz
 ```
 
 Applications that do this commit the tarball into their own tree (typically under
-`vendor/`) and pin it by filename, so the install is reproducible and needs no
-credentials for this private repository. `pnpm pack` works on a private package;
-only `npm publish` is blocked, which is exactly the guard intended.
+`vendor/`) and pin it by filename, so the install is reproducible and pinned to
+an exact build. `pnpm pack` is unaffected by the publish guard — that guard runs
+from `prepublishOnly`, so packing, installing and vendoring all work normally
+while publishing stays a deliberate act.
 
 A git dependency on this repository does **not** work, and the reasons are
 measured rather than assumed: `files` excludes the directory `main` points at, so
