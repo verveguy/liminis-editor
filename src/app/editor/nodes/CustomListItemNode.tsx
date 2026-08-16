@@ -1,5 +1,15 @@
-import { ListItemNode, SerializedListItemNode } from '@lexical/list';
-import { LexicalNode, NodeKey } from 'lexical';
+import { ListItemNode, SerializedListItemNode, $isListNode } from '@lexical/list';
+import { LexicalNode, NodeKey, EditorConfig } from 'lexical';
+
+// Ordered-task checkbox rendering is owned entirely by this node rather than
+// by @lexical/list's own checklist support, which only renders a checkbox
+// (DOM attributes, theme classes, click/keyboard handling) when the *parent
+// list's* listType is 'check' — and Lexical has no 'check'-typed list that is
+// also numbered. These class names are deliberately separate from the
+// editorTheme's listitemChecked/listitemUnchecked (Editor.tsx), which apply
+// `list-style-type: none` and would suppress <ol> numbering.
+export const ORDERED_TASK_CHECKED_CLASS = 'editor-listitem-ordered-checked';
+export const ORDERED_TASK_UNCHECKED_CLASS = 'editor-listitem-ordered-unchecked';
 
 export type SerializedCustomListItemNode = SerializedListItemNode & {
   taskChecked?: boolean | null;
@@ -77,6 +87,50 @@ export class CustomListItemNode extends ListItemNode {
 
   getTaskChecked(): boolean | null {
     return this.__taskChecked;
+  }
+
+  createDOM(config: EditorConfig): HTMLElement {
+    const dom = super.createDOM(config);
+    this.updateOrderedTaskDOM(dom);
+    return dom;
+  }
+
+  updateDOM(prevNode: CustomListItemNode, dom: HTMLElement, config: EditorConfig): boolean {
+    const result = super.updateDOM(prevNode, dom, config);
+    this.updateOrderedTaskDOM(dom);
+    return result;
+  }
+
+  /**
+   * Applies (or clears) the ordered-task checkbox affordance. Only fires for
+   * a leaf item (mirrors stock's own `!$isListNode(getFirstChild())` guard —
+   * a list item whose only child is a nested list isn't itself a task) whose
+   * parent list is `'number'`-typed and whose own `__taskChecked` (this
+   * item's field, not the list's) is non-null — a plain item in a mixed
+   * ordered list is left with no checkbox, same as a plain item in a mixed
+   * unordered list today.
+   */
+  private updateOrderedTaskDOM(dom: HTMLElement): void {
+    const parent = this.getParent();
+    const isOrderedTask =
+      $isListNode(parent) && parent.getListType() === 'number' && !$isListNode(this.getFirstChild()) && this.__taskChecked !== null;
+
+    dom.classList.remove(ORDERED_TASK_CHECKED_CLASS, ORDERED_TASK_UNCHECKED_CLASS);
+    if (!isOrderedTask) {
+      // Stock updateListItemChecked already clears these for any non-'check'
+      // parent list, but that runs before this item's own listType/parent may
+      // have changed shape (e.g. an ordered task item demoted to plain) — so
+      // clear explicitly here too rather than relying on ordering.
+      dom.removeAttribute('role');
+      dom.removeAttribute('tabIndex');
+      dom.removeAttribute('aria-checked');
+      return;
+    }
+
+    dom.classList.add(this.__taskChecked ? ORDERED_TASK_CHECKED_CLASS : ORDERED_TASK_UNCHECKED_CLASS);
+    dom.setAttribute('role', 'checkbox');
+    dom.setAttribute('tabIndex', '-1');
+    dom.setAttribute('aria-checked', this.__taskChecked ? 'true' : 'false');
   }
 }
 

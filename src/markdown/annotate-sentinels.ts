@@ -59,3 +59,41 @@ export function stripAnnotateSentinels(text: string): string {
   if (!text.includes(SENTINEL_OPEN_START) && !text.includes(SENTINEL_CLOSE_START)) return text;
   return text.replace(SENTINEL_TOKEN, '');
 }
+
+export interface SentinelSplitPart {
+  text: string;
+  isSentinel: boolean;
+}
+
+/**
+ * Split `text` into alternating sentinel-token and plain-text parts.
+ *
+ * Used by `stringify.ts`'s force-escape handling (#17): a force-escaped
+ * text node's `getTextContent()` can have a sentinel token spliced onto
+ * either end by `sentinelAugmentedText` (annotate-serialize mode, see the
+ * module doc comment above) before the force-escape data is read, so
+ * treating the whole string as "one force-escaped run" would wrap the
+ * token's own characters in escape placeholders too. Splitting first lets
+ * the caller escape only the real content and leave token parts verbatim.
+ */
+export function splitOnSentinelTokens(text: string): SentinelSplitPart[] {
+  if (!text.includes(SENTINEL_OPEN_START) && !text.includes(SENTINEL_CLOSE_START)) {
+    return [{ text, isSentinel: false }];
+  }
+
+  const parts: SentinelSplitPart[] = [];
+  let cursor = 0;
+  SENTINEL_TOKEN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = SENTINEL_TOKEN.exec(text)) !== null) {
+    if (match.index > cursor) {
+      parts.push({ text: text.slice(cursor, match.index), isSentinel: false });
+    }
+    parts.push({ text: match[0], isSentinel: true });
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < text.length) {
+    parts.push({ text: text.slice(cursor), isSentinel: false });
+  }
+  return parts;
+}

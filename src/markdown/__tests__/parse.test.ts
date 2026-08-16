@@ -403,6 +403,122 @@ $$`
       expect(paragraph.children[0].data._strongMarker).toBe('_')
     })
   })
+
+  describe('escaped punctuation provenance (#17)', () => {
+    function textChildren(markdown: string): any[] {
+      const result = parseMarkdown(markdown)
+      const paragraph = result.root.children[0] as any
+      return paragraph.children
+    }
+
+    it.each([
+      ['*', 'backslash\\*star'],
+      ['_', 'backslash\\_underscore'],
+      ['`', 'backslash\\`tick'],
+      ['[', 'backslash\\[bracket'],
+      [']', 'backslash\\]bracket'],
+      ['#', 'backslash\\#hash'],
+      ['\\', 'backslash\\\\slash'],
+    ])('flags an escaped %s as force-escaped', (char, markdown) => {
+      const children = textChildren(markdown)
+      const flagged = children.find((c) => c.data?._forceEscape === true)
+      expect(flagged).toBeDefined()
+      expect(flagged.value).toBe(char)
+      // The run before the escaped char and the run after it should still
+      // be present as plain text, and concatenating everything reproduces
+      // the fully-decoded value.
+      expect(children.map((c) => c.value).join('')).toBe(
+        markdown.replace(/\\(.)/, '$1')
+      )
+    })
+
+    it('does not flag a genuinely unescaped underscore', () => {
+      const children = textChildren('mac_onboarding.sh')
+      expect(children).toHaveLength(1)
+      expect(children[0].data?._forceEscape).toBeUndefined()
+      expect(children[0].value).toBe('mac_onboarding.sh')
+    })
+
+    it('does not flag a mid-sentence # (no escape present)', () => {
+      const children = textChildren('a # b')
+      expect(children).toHaveLength(1)
+      expect(children[0].data?._forceEscape).toBeUndefined()
+    })
+
+    it('handles an escaped backslash followed by a bare underscore (\\\\_)', () => {
+      // \\_ : an escaped backslash, then a plain, non-escaped underscore
+      const children = textChildren('a \\\\_ b')
+      const flagged = children.filter((c) => c.data?._forceEscape === true)
+      expect(flagged).toHaveLength(1)
+      expect(flagged[0].value).toBe('\\')
+      expect(children.map((c) => c.value).join('')).toBe('a \\_ b')
+    })
+
+    it('bails out safely on a text node containing a character reference', () => {
+      // &amp; decodes to '&', which desyncs the source-span replay from
+      // node.value for the whole merged text node (fromMarkdown merges the
+      // entity reference and surrounding literal text, including the
+      // escaped asterisk, into a single text node) — so this conservatively
+      // leaves the whole run unsplit rather than risk a wrong split. No
+      // crash, no false flag; the pre-existing defect for this narrow
+      // combination is unchanged (see splitTextNodeEscapes doc comment).
+      const markdown = 'a &amp; b \\* c'
+      const result = parseMarkdown(markdown)
+      const paragraph = result.root.children[0] as any
+      expect(() => paragraph.children).not.toThrow()
+      expect(paragraph.children).toHaveLength(1)
+      expect(paragraph.children[0].value).toBe('a & b * c')
+      expect(paragraph.children[0].data?._forceEscape).toBeUndefined()
+    })
+
+    it('still protects an escaped char when a character reference is in a separate text node', () => {
+      // Here the entity reference and the escaped asterisk are split across
+      // sibling text nodes by the emphasis span between them, so each is
+      // decoded independently and the asterisk's escape is preserved.
+      const markdown = 'a &amp; b *em* \\* c'
+      const result = parseMarkdown(markdown)
+      const paragraph = result.root.children[0] as any
+      const allText = paragraph.children.filter((c: any) => c.type === 'text')
+      const flagged = allText.filter((c: any) => c.data?._forceEscape === true)
+      expect(flagged).toHaveLength(1)
+      expect(flagged[0].value).toBe('*')
+    })
+
+    it('leaves emphasis/strong marker annotation untouched alongside a split run', () => {
+      const markdown = '*em \\_x\\_ text*'
+      const result = parseMarkdown(markdown)
+      const paragraph = result.root.children[0] as any
+      const emphasis = paragraph.children[0]
+      expect(emphasis.type).toBe('emphasis')
+      expect(emphasis.data._emphasisMarker).toBe('*')
+      const flagged = emphasis.children.filter((c: any) => c.data?._forceEscape === true)
+      expect(flagged).toHaveLength(2)
+      expect(flagged.map((c: any) => c.value)).toEqual(['_', '_'])
+    })
+
+    it('computes accurate line/column positions for split nodes across a line break', () => {
+      // Regression test (Copilot review, PR #29): split nodes previously
+      // copied the original node's *start* line/column onto every sibling's
+      // *end* position too, so a node split after an embedded newline got a
+      // wrong (too-early) end position.
+      const markdown = 'line one \\* still\nline two'
+      const result = parseMarkdown(markdown)
+      const paragraph = result.root.children[0] as any
+      const children = paragraph.children as any[]
+      expect(children.map((c) => c.value)).toEqual(['line one ', '*', ' still\nline two'])
+
+      const [before, star, after] = children
+      expect(before.position.start).toEqual({ line: 1, column: 1, offset: 0 })
+      expect(before.position.end).toEqual({ line: 1, column: 10, offset: 9 })
+      expect(star.position.start).toEqual({ line: 1, column: 10, offset: 9 })
+      expect(star.position.end).toEqual({ line: 1, column: 12, offset: 11 })
+      // The trailing run crosses the embedded newline, so its end position
+      // must land on line 2, not stay pinned to line 1.
+      expect(after.position.start).toEqual({ line: 1, column: 12, offset: 11 });
+      expect(after.position.end.line).toBe(2)
+      expect(after.position.end.column).toBe(9)
+    })
+  })
 })
 
 describe('type guards', () => {

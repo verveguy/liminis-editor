@@ -2,10 +2,11 @@
  * Liminis #973, review follow-up: an **empty** format-carrying `TextNode` must
  * not contribute its marker-style hint to the run it sits in.
  *
- * The #973 fix had to read `convertFormattedRun`'s `--md-strong-marker` /
- * `--md-emphasis-marker` hints *before* the new code-buffering branch, or a run
- * whose only styled member is code-formatted would never reach the read and
- * would normalize `__` to `**` (FR-004). The first cut of that change hoisted
+ * The #973 fix had to read the run's `--md-strong-marker` / `--md-emphasis-marker`
+ * hints (now in `resolveMarkers`, originally in `convertFormattedRun`) *before* the
+ * code-buffering branch, or a run whose only styled member is code-formatted
+ * would never reach the read and would normalize `__` to `**` (FR-004). The
+ * first cut of that change hoisted
  * the read above the pre-existing `text === ''` early-continue as well, which
  * was wider than necessary: before #973, an empty node hit `continue` before the
  * marker read and had no influence at all.

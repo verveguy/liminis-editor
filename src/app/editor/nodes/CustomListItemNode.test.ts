@@ -100,3 +100,160 @@ describe('CustomListItemNode task-checked tracking (#905)', () => {
     expect(taskChecked).toBe(null);
   });
 });
+
+/**
+ * Coverage for #12: ordered task items render a checkbox affordance from
+ * CustomListItemNode's own DOM override, driven by __taskChecked, since
+ * Lexical's own checklist rendering is gated on the parent list's listType
+ * being 'check' and there is no 'check'-typed list that is also numbered.
+ */
+describe('CustomListItemNode ordered-task checkbox rendering (#12)', () => {
+  it('an ordered checked task item gets the ordered-checked class and checkbox attributes', () => {
+    const editor = createEditor({ nodes: editorNodes, onError: (e) => { throw e; } });
+    editor.setRootElement(document.createElement('div'));
+    let el: HTMLElement | null = null;
+
+    editor.update(
+      () => {
+        const list = $createCustomListNode('number');
+        // Mirrors convertListItem (mdastToLexical.ts): ordered items must be
+        // constructed with checked=undefined (never a raw checked value) and
+        // get their state exclusively via setTaskChecked() — @lexical/list's
+        // ListNode transform (updateChildrenListItemValue) resets any
+        // non-null raw __checked back to undefined for a non-'check' list,
+        // which CustomListItemNode.setChecked()'s override would cascade
+        // into wiping __taskChecked too.
+        const item = $createCustomListItemNode();
+        item.setTaskChecked(true);
+        item.append($createTextNode('Task one'));
+        list.append(item);
+        $getRoot().append(list);
+      },
+      { discrete: true },
+    );
+
+    editor.getEditorState().read(() => {
+      const list = $getRoot().getFirstChild();
+      const item = (list as any)?.getChildren?.()[0];
+      el = editor.getElementByKey(item.getKey());
+    });
+
+    expect(el).not.toBeNull();
+    expect(el!.classList.contains('editor-listitem-ordered-checked')).toBe(true);
+    expect(el!.classList.contains('editor-listitem-ordered-unchecked')).toBe(false);
+    expect(el!.getAttribute('role')).toBe('checkbox');
+    expect(el!.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('an ordered unchecked task item gets the ordered-unchecked class', () => {
+    const editor = createEditor({ nodes: editorNodes, onError: (e) => { throw e; } });
+    editor.setRootElement(document.createElement('div'));
+    let el: HTMLElement | null = null;
+
+    editor.update(
+      () => {
+        const list = $createCustomListNode('number');
+        const item = $createCustomListItemNode();
+        item.setTaskChecked(false);
+        item.append($createTextNode('Task one'));
+        list.append(item);
+        $getRoot().append(list);
+      },
+      { discrete: true },
+    );
+
+    editor.getEditorState().read(() => {
+      const list = $getRoot().getFirstChild();
+      const item = (list as any)?.getChildren?.()[0];
+      el = editor.getElementByKey(item.getKey());
+    });
+
+    expect(el).not.toBeNull();
+    expect(el!.classList.contains('editor-listitem-ordered-unchecked')).toBe(true);
+    expect(el!.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('a plain item in a mixed ordered list gets no checkbox affordance', () => {
+    const editor = createEditor({ nodes: editorNodes, onError: (e) => { throw e; } });
+    editor.setRootElement(document.createElement('div'));
+    let el: HTMLElement | null = null;
+
+    editor.update(
+      () => {
+        const list = $createCustomListNode('number');
+        const task = $createCustomListItemNode();
+        task.setTaskChecked(true);
+        task.append($createTextNode('Task one'));
+        const plain = $createCustomListItemNode(); // taskChecked stays null
+        plain.append($createTextNode('Plain item'));
+        list.append(task, plain);
+        $getRoot().append(list);
+      },
+      { discrete: true },
+    );
+
+    editor.getEditorState().read(() => {
+      const list = $getRoot().getFirstChild();
+      const item = (list as any)?.getChildren?.()[1];
+      el = editor.getElementByKey(item.getKey());
+    });
+
+    expect(el).not.toBeNull();
+    expect(el!.classList.contains('editor-listitem-ordered-checked')).toBe(false);
+    expect(el!.classList.contains('editor-listitem-ordered-unchecked')).toBe(false);
+    expect(el!.hasAttribute('role')).toBe(false);
+  });
+
+  it('an ordered <ol> list still numbers items alongside the checkbox class', () => {
+    const editor = createEditor({ nodes: editorNodes, onError: (e) => { throw e; } });
+    editor.setRootElement(document.createElement('div'));
+    let listEl: HTMLElement | null = null;
+
+    editor.update(
+      () => {
+        const list = $createCustomListNode('number');
+        const item = $createCustomListItemNode();
+        item.setTaskChecked(true);
+        item.append($createTextNode('Task one'));
+        list.append(item);
+        $getRoot().append(list);
+      },
+      { discrete: true },
+    );
+
+    editor.getEditorState().read(() => {
+      const list = $getRoot().getFirstChild();
+      listEl = editor.getElementByKey((list as any).getKey());
+    });
+
+    expect(listEl).not.toBeNull();
+    expect(listEl!.tagName).toBe('OL');
+  });
+
+  it('an unordered (bullet) checked item is unaffected — no ordered-task classes applied', () => {
+    const editor = createEditor({ nodes: editorNodes, onError: (e) => { throw e; } });
+    editor.setRootElement(document.createElement('div'));
+    let el: HTMLElement | null = null;
+
+    editor.update(
+      () => {
+        const list = $createCustomListNode('check');
+        const item = $createCustomListItemNode(true);
+        item.append($createTextNode('Task one'));
+        list.append(item);
+        $getRoot().append(list);
+      },
+      { discrete: true },
+    );
+
+    editor.getEditorState().read(() => {
+      const list = $getRoot().getFirstChild();
+      const item = (list as any)?.getChildren?.()[0];
+      el = editor.getElementByKey(item.getKey());
+    });
+
+    expect(el).not.toBeNull();
+    expect(el!.classList.contains('editor-listitem-ordered-checked')).toBe(false);
+    expect(el!.classList.contains('editor-listitem-ordered-unchecked')).toBe(false);
+  });
+});

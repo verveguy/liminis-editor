@@ -73,20 +73,26 @@ result and the fixture starts enforcing it).
   `fixtures/roundtrip/`.
 - **`other-*`**: additional round-trip fidelity losses discovered while building this
   corpus, for constructs the spec (FR-009) requires coverage of but that aren't part of
-  the #897/#898 issue bodies: nested blockquotes (inner paragraphs collapse
-  and nested quotes are hoisted out, mirroring the #897 mechanism at the blockquote
-  level rather than the list-item level).
-  `other-blockquote-list-content-lost` records a starker instance of the same
-  blockquote-level mechanism, found during #943's review: a **list inside a
-  blockquote is dropped entirely** on round trip — `> Steps to reproduce:` followed
-  by a quoted bullet list serializes back as the lead-in paragraph alone, and a
-  blockquote whose only content *is* a list serializes back as a bare `>`. This is
-  silent data loss and predates #943 (verified against the pre-change
-  `stringify.ts`: byte-identical behaviour). It is unrelated to either #943 fix —
-  the loss happens in the mapper, not the serializer — and needs its own issue.
-  Note the lossy output is a stable fixed point, so #943's idempotence assertion
-  does **not** catch it: a fixed point is a guarantee about *stability*, not about
-  *fidelity*. The first-pass `.expected.md` comparison is what pins it.
+  the #897/#898 issue bodies.
+  `other-blockquote-list-content-lost` originally recorded a **list inside a blockquote
+  dropped entirely** on round trip, found during #943's review: `> Steps to reproduce:`
+  followed by a quoted bullet list serialized back as the lead-in paragraph alone. Fixed
+  by [#18](https://github.com/verveguy/liminis-editor/issues/18) — `convertQuoteNode`
+  now dispatches block-type `QuoteNode` children (lists, code blocks, etc.) through the
+  same block dispatcher used elsewhere, instead of only converting inline content. This
+  now round-trips byte-identical to its input (no `.expected.md` sidecar), so it's
+  become a permanent regression gate rather than a documented defect. Left under
+  `known-defects/` rather than moved, per the `897-*` precedent above.
+  `other-nested-blockquote-paragraph-collapse` records a related but distinct defect: a
+  nested blockquote sitting between two paragraph runs (`> Outer quote`, `> > Nested
+  quote`, `> Back to outer`). #18's fix gives consecutive plain-paragraph children of a
+  blockquote real `ParagraphNode`s, which resolves the concatenation-without-space
+  symptom (`Outer quote` and `Back to outer` no longer run together), but the nested
+  quote is still hoisted out into its own sibling `QuoteNode` rather than staying nested
+  — `QuoteNode` can't represent quote-in-quote nesting, per the comment in
+  `convertBlockquote`. This nested-blockquote-in-blockquote shape is explicitly out of
+  scope for #18 (see its spec's Assumptions), so it remains a known defect; its
+  `.expected.md` has been updated to the new (partially fixed) output.
   A genuinely unbalanced bracket in image alt text (`other-image-alt-unbalanced-bracket-
   corrupted`, e.g. `![unbalanced [ bracket](img.png)`) still corrupts on round trip — the
   #903 fix only unescapes *properly nested* bracket pairs within an image's alt-text
@@ -109,17 +115,22 @@ result and the fixture starts enforcing it).
   match the `NNN-*` convention above.
 - **`other-callout-first-line-inline-formatting-space-lost`**: discovered while adding
   feature coverage for `CalloutNode` ([#1](https://github.com/verveguy/liminis-editor/issues/1)).
-  `convertBlockquote`'s callout detection in `mdastToLexical.ts` computes the callout's
+  `convertBlockquote`'s callout detection in `mdastToLexical.ts` computed the callout's
   first line of body text as `firstText.value.slice(calloutMatch[0].length).trim()` —
-  the trailing `.trim()` is meant to strip the newline between `[!WARNING]` and the body
-  text, but when that body text is itself immediately followed by another inline node
-  (e.g. `This has **bold**`), the same `.trim()` also eats the significant trailing space
+  the trailing `.trim()` was meant to strip the newline between `[!WARNING]` and the body
+  text, but when that body text was itself immediately followed by another inline node
+  (e.g. `This has **bold**`), the same `.trim()` also ate the significant trailing space
   before that node, corrupting `This has **bold**` into `This has**bold**`. The bold/
-  italic/code node itself and its content survive intact — only the one space is lost.
-  Not fixed here: the corpus addition for #1 is scope-limited to test fixtures (see its
-  spec's Out of Scope section); `callout/inline-formatting.md` covers the same
-  bold/italic/code shapes without tripping this defect by placing them in the callout's
-  *second* paragraph, which takes a different, unaffected code path.
+  italic/code node itself and its content survived intact — only the one space was lost.
+  Fixed by [#19](https://github.com/verveguy/liminis-editor/issues/19): `.trim()` →
+  `.trimStart()`, which still strips the separating newline but leaves the trailing
+  space — which belongs to the next inline sibling — untouched. This now round-trips
+  byte-identical to its input (no `.expected.md` sidecar), so it's become a permanent
+  regression gate rather than a documented defect. Left under `known-defects/` rather
+  than moved, per the `897-*` precedent above. Additional coverage (all three affected
+  callout kinds, plus italic/inline-code/strikethrough/link shapes, plus a formatted
+  span with no preceding text) lives directly under `fixtures/roundtrip/` as the
+  `19-callout-*` fixtures.
 - **`other-toggle-nested-in-list-item`**: discovered while adding feature coverage for
   `ToggleContainerNode`/`ToggleTitleNode`/`ToggleContentNode` ([#1](https://github.com/verveguy/liminis-editor/issues/1)).
   `preprocessDetailsBlocks` in `mdastToLexical.ts` scans only the top-level
@@ -195,14 +206,14 @@ result and the fixture starts enforcing it).
   `getFormat`/`hasFormat`/`setFormat`/`toggleFormat` on both node classes), and
   `convertInlineChildren` in `lexicalToMdast.ts` merges a run of consecutive siblings
   sharing the same non-zero format into a single wrapper when the run contains a
-  non-text member. `other-strong-inline-math-not-wrapped` and
-  `other-delete-inline-math-not-wrapped` now round-trip byte-identical (no `.expected.md`
-  sidecar, so they're a permanent regression gate). `other-emphasis-footnote-not-wrapped`
-  keeps an `.expected.md` sidecar, but only to capture an unrelated, pre-existing
-  footnote-*definition* spacing normalization (`[^1]: A note.` → `[^1]:  A note.`, an
-  extra space already present on `footnotes.md` and `link-with-footnote-reference.md`,
-  neither of which this issue touches) — the marker-wrapping defect itself is fixed.
-  Additional coverage for this fix (italic wrapping math, a bare math-only span, math at
+  non-text member. `other-strong-inline-math-not-wrapped`,
+  `other-delete-inline-math-not-wrapped` and `other-emphasis-footnote-not-wrapped` now all
+  round-trip byte-identical (no `.expected.md` sidecar, so they're a permanent regression
+  gate). `other-emphasis-footnote-not-wrapped` used to keep an `.expected.md` sidecar
+  solely to capture an unrelated, pre-existing footnote-*definition* spacing
+  normalization (`[^1]: A note.` → `[^1]:  A note.`); that defect is fixed by
+  [#20](https://github.com/verveguy/liminis-editor/issues/20) — see "The `20-*` fixture
+  set" below — so the sidecar is gone. Additional coverage for this fix (italic wrapping math, a bare math-only span, math at
   the end of a span, and a single span mixing text + math + footnote) lives directly
   under `fixtures/roundtrip/`: `emphasis-inline-math.md`, `strong-inline-math-only.md`,
   `strong-inline-math-trailing.md`, `strong-mixed-text-math-footnote.md`.
@@ -215,10 +226,31 @@ result and the fixture starts enforcing it).
   correct, but the marker character silently flipped. Fixed by giving `EquationNode`/
   `FootnoteNode` their own `getStrongMarker`/`setStrongMarker`/`getEmphasisMarker`/
   `setEmphasisMarker` pair (set on import in `convertStrong`/`convertEmphasis`, read on
-  export in `convertFormattedRun`), mirroring the existing `TextNode` style-based
+  export in `resolveMarkers`), mirroring the existing `TextNode` style-based
   mechanism. Covered by `emphasis-inline-math-only.md`, `emphasis-footnote-only.md`
-  (footnote-definition case, same pre-existing spacing sidecar as above), and
+  (footnote-definition case — used to carry the same pre-existing spacing sidecar as
+  above, fixed by [#20](https://github.com/verveguy/liminis-editor/issues/20)), and
   `strong-inline-math-only-underscore.md`.
+
+## The `19-*` fixture set
+
+Fixed [#19](https://github.com/verveguy/liminis-editor/issues/19), the callout
+first-line space-loss defect described under `known-defects/other-callout-first-line-
+inline-formatting-space-lost` above. Eight fixtures, one shape per file:
+
+- **`19-callout-note-bold.md`**, **`19-callout-tip-bold.md`**,
+  **`19-callout-warning-bold.md`**: the original issue repro (`This has **bold** in
+  it.`) in each of the three callout kinds this issue covers, confirming the fix is
+  independent of which `[!TYPE]` marker precedes the body text.
+- **`19-callout-italic.md`**, **`19-callout-inline-code.md`**,
+  **`19-callout-strikethrough.md`**, **`19-callout-link.md`**: the same
+  text-immediately-before-a-formatted-span shape in a `NOTE` callout, for each of the
+  remaining inline-formatting constructs the issue's acceptance criteria name.
+- **`19-callout-leading-formatted-span.md`** (`**bold** text.`, no preceding prose):
+  the edge case where there is no preceding space to lose, confirming `.trimStart()`
+  doesn't introduce a new defect in that shape.
+
+All eight round-trip byte-identical to their input (no `.expected.md` sidecar).
 
 ## The `902-list-item-double-hard-break*` fixture set
 
@@ -456,7 +488,7 @@ their input (no `.expected.md`):
   rather than splitting it apart.
 - **`973-emphasis-code-leading.md`** (`*`), **`973-strong-underscore-code-leading.md`**
   (`__`): the marker-style guard. A run whose only styled member is code-formatted must
-  keep its original marker, which is why `convertFormattedRun` reads its
+  keep its original marker, which is why `resolveMarkers` reads its
   `--md-strong-marker` / `--md-emphasis-marker` hints *above* the code branch, not after
   it. Without that, `__` normalizes to `*`.
 
@@ -550,12 +582,17 @@ is the complement, green either way, proving the unchanged path stayed unchanged
 
 ### A fourth subtlety: where the marker-hint read sits
 
-`convertFormattedRun` reads its `--md-strong-marker` / `--md-emphasis-marker` hints
-**above the code branch but below the `text === ''` early-continue**. Both halves of that
-position matter, and they pull in opposite directions:
+`resolveMarkers` reads its `--md-strong-marker` / `--md-emphasis-marker` hints from every
+non-empty text node in the run it's given, **regardless of that node's own code
+formatting, but below the `text === ''` early-continue**. (Originally this was one
+constraint on where the read sat inside `convertFormattedRun`'s single loop, which also
+did code-buffering; the #16 nested-run fix split that loop into `resolveMarkers` and
+`convertLeavesRaw`, so the marker read no longer shares a branch with the code check at
+all — it simply never skips a code-formatted member.) Both halves of the original
+constraint still hold:
 
-- *Above the code branch*, because a run whose every member is code-formatted would
-  otherwise never reach the read at all, and `__` would normalize to `**` (FR-004).
+- *Regardless of code formatting*, because a run whose every member is code-formatted
+  would otherwise never contribute a hint, and `__` would normalize to `**` (FR-004).
 - *Below the empty-text continue*, because the hints are captured with `??` — first
   non-null wins — so an **empty** format-carrying node preceding the run's real content
   would otherwise decide the marker for the whole wrapper. Lexical creates empty
@@ -580,6 +617,121 @@ change existing fixture output, and it is a genuinely separate defect. Tracked a
 [#989](https://github.com/verveguy/liminis/issues/989); code+bold and code+italic work,
 code+strikethrough does not, and the asymmetry is real rather than an oversight.
 
+## The `17-*` fixture set
+
+Added by [#17](https://github.com/verveguy/liminis-editor/issues/17). A backslash-escaped
+`_` (and, less obviously, `[`/`]`) silently lost its backslash on a no-edit round trip,
+while `\*` survived — an asymmetry, not a narrow underscore-only bug. `fromMarkdown`
+(standard CommonMark parsing) discards escape provenance at parse time: `\_underscore` and
+`_underscore` collapse to the identical mdast `text` value, so nothing downstream of
+`parseMarkdown` can tell "the user escaped this" from "the library's own conservative
+default would over-escape this." The two existing post-processes below (intraword-
+underscore-unescape, added for #901; bracket-preservation, added for #921) strip *every*
+instance blindly for exactly that reason.
+
+The fix threads real provenance through the whole pipeline instead of re-deriving it
+heuristically downstream:
+
+1. **Capture** (`splitTextNodeEscapes` / `splitEscapedPunctuation` in `parse.ts`, run last
+   in `parseMarkdown`, after `annotateEmphasisMarkers`): replay-decodes each `text` node's
+   raw source span character-by-character — consuming a backslash plus one of CommonMark's
+   escapable ASCII punctuation characters as a single decoded character, exactly as
+   `fromMarkdown` itself does — and, whenever the replayed decode doesn't exactly reproduce
+   `node.value` (an HTML entity or other untracked transform in the same span), bails out
+   for that node rather than risk a wrong split. This mirrors `recordOffsetSpan`'s own
+   width-mismatch bail-out in `mdastToLexical.ts` (see `offset-spans.test.ts`'s "spans whose
+   raw width disagrees with the decoded text are dropped" — a missed protection reproduces
+   today's pre-existing defect, but a wrong split would corrupt text. Because `fromMarkdown`
+   merges a character reference and any literal text around it (including an escaped target
+   character) into one `text` node, a character reference anywhere in that merged run
+   suppresses protection for the whole run, not just its own span — a narrow,
+   defect-shaped limitation rather than a new one.
+   Otherwise, the node is split into siblings at every backslash-escaped instance of the
+   seven characters this issue scopes (`* _ \` [ ] # \`): untouched runs stay plain `text`
+   nodes, and each protected character becomes its own single-character `text` node carrying
+   `data._forceEscape = true`.
+2. **Carry** (`setForceEscape` / `convertText` in `mdastToLexical.ts`; read by
+   `convertTextNode` and `convertFormattedRun` in `lexicalToMdast.ts`): a per-character
+   `--md-force-escape:1` `TextNode` style hint, mirroring the established
+   `--md-emphasis-marker` / `--md-strong-marker` precedent above rather than embedding
+   anything in editable text content — it has zero footprint on live document state (no
+   risk to cursor movement, selection, copy/paste, or spellcheck), unlike the rejected
+   alternative of a Private-Use-Area marker character spliced directly into Lexical text.
+   Both `convertTextNode` (the single-node export path) and `convertFormattedRun` (the
+   merged-run path used when a node is inside emphasis/strong, or when a live annotation
+   mark forces a run merge) read the hint — an escaped character inside emphasis/strong
+   (e.g. `*text \_x\_*`) always takes the merged-run path even on a pure no-edit round trip,
+   so skipping `convertFormattedRun` would leave that adjacency case unfixed.
+3. **Restore** (`convertForceEscapeTextNodes` / the `escapedChar` handler / the final
+   placeholder-restoration regex in `stringify.ts`): a pre-process converts every
+   `{type: 'text', data: {_forceEscape: true}}` node into a dedicated `escapedChar` node,
+   whose handler emits a transient, backslash-free Private-Use-Area placeholder
+   (`\u{E004}`, distinct from `annotate-sentinels.ts`'s `E000`-`E003` range, module-local to
+   `stringify.ts` and never exported) wrapping the character. Being backslash-free, the
+   placeholder is provably invisible to the two existing blind-strip post-processes during
+   their pass — **neither one needed to change**. After every other post-process has run, a
+   final step replaces each `\u{E004}<char>\u{E004}` with `\<char>`, restoring exactly one
+   backslash regardless of what the default handler did or didn't add underneath. The
+   placeholder never touches Lexical or live document state — it exists only inside a
+   single `stringifyMarkdown` call, on a mdast tree reconstructed fresh from Lexical at
+   export time and discarded immediately after, mirroring `annotate-sentinels.ts`'s own
+   scoping.
+
+Two adjacent force-escaped characters in the source (e.g. `\*\*`) can arrive at
+`convertForceEscapeTextNodes` already fused into one multi-character node: Lexical's own
+reconciliation merges adjacent `TextNode`s that share identical format/style, and two
+independent single-character force-escape nodes with the same `--md-force-escape:1` style
+qualify. Since only single-character force-escaped nodes are ever produced upstream, every
+character of a fused node was independently force-escaped, so the pre-process expands such
+a node back into one `escapedChar` node per character rather than assuming length 1 —
+`973-literal-asterisks-near-code.md` (a genuinely bare `\*\*` beside a code span, part of
+the pre-existing `973-*` set above) is the regression guard for this.
+
+An annotate-serialize sentinel token (see `annotate-sentinels.ts`) can also be spliced onto
+a force-escaped node's text by `sentinelAugmentedText` in `lexicalToMdast.ts`, if that exact
+`TextNode` instance happens to be a live annotation mark's boundary leaf — the value isn't
+always pure escaped content. `convertForceEscapeTextNodes` uses the new
+`splitOnSentinelTokens` helper (also in `annotate-sentinels.ts`) to split those parts out
+first and leave them as plain, unescaped text, so a token's own characters never get
+individually wrapped in escape placeholders. Without this, `annotated-serialize-corpus.test.ts`'s
+#970 invariant — annotate mode must differ from a plain export by its sentinel tokens and
+nothing else — breaks for any fixture containing a force-escaped character, because the
+token's id characters would themselves come back out individually backslash-escaped.
+
+`splitTextNodeEscapes` splitting a `text` node at escape boundaries also changes how
+`recordOffsetSpan`'s width-mismatch bail-out behaves for text containing an escape: where
+`a \* b` previously arrived as one `text` node (source width 6 vs. decoded length 5,
+dropping the *whole* span), it now arrives as three sibling nodes — `a `, the escaped `*`,
+` b` — each with its own source-offset span. Only the escaped character's own sub-span
+still has a width/length mismatch and is dropped; the plain runs on either side now get
+valid spans, an improvement over the previous whole-node drop. See
+`offset-spans.test.ts`'s "drops only the escaped character's own span, not its surrounding
+text" test.
+
+Fixtures (all byte-identical to their input except where noted):
+
+- **`17-underscore-and-asterisk-escape.md`**: the issue's own reproduction case, `\_` and
+  `\*` together on one line (SC-001).
+- **`17-escaped-backtick.md`**, **`17-escaped-bracket-pair.md`** (pairs `\[` with `\]` in
+  one fixture — a lone `\]` is never reinterpreted by CommonMark regardless of escaping, so
+  a standalone case wouldn't be "meaningful" per FR-001), **`17-escaped-leading-hash.md`**,
+  **`17-escaped-literal-backslash.md`**: the remaining FR-004/SC-002 characters, one
+  meaningful-context fixture each.
+- **`17-escaped-backslash-then-underscore.md`** + `.expected.md`: the spec's `\\_` edge
+  case — an escaped backslash immediately followed by a plain, non-escaped underscore. Only
+  the backslash is force-escaped; the underscore is left to the pipeline's own existing,
+  pre-#17 conservative default (intraword-unescape only fires when both flanking characters
+  are alphanumeric, and a restored literal backslash isn't), so it stays escaped by
+  `mdast-util-to-markdown`'s own default behaviour. That's not a new over-escape introduced
+  by this fix — it's the same conservative policy `898-underscore-link.md` already accepts
+  for other non-alphanumeric-flanked cases — so the first pass legitimately isn't
+  byte-identical to input; the `.expected.md` records the actual (correct) output, and the
+  second pass is still a fixed point (the now-literal `\_` in that output reads back as a
+  genuine user escape next time).
+- **`17-escaped-asterisk-adjacent-formatting.md`**: an escaped character beside inline code
+  and a real emphasis span in the same paragraph, mirroring #973's adjacency conditions —
+  must not regress either fix.
+
 ## The `callout/`, `toggle/`, `mermaid/`, and `c4/` fixture groups
 
 Added by [#1](https://github.com/verveguy/liminis-editor/issues/1). Every fixture group
@@ -603,10 +755,11 @@ directory; toggle has three — its nested-in-list-item shape is structurally un
 fixture in `toggle/`.
 
 - **`callout/`**: `minimal.md`, `nested-in-list-item.md`, `inline-formatting.md`,
-  `empty.md`. All four round-trip byte-identical. `inline-formatting.md` deliberately
-  places its bold/italic/inline-code content in the callout's *second* paragraph, not
-  its first line — see `known-defects/other-callout-first-line-inline-formatting-space-
-  lost` above for why the first-line shape currently loses a space.
+  `empty.md`. All four round-trip byte-identical. `inline-formatting.md` places its
+  bold/italic/inline-code content in the callout's *second* paragraph rather than its
+  first line; the first-line shape (bold/italic/inline-code/strikethrough/link
+  immediately preceded by text) is covered separately by the `19-callout-*` fixtures —
+  see `known-defects/other-callout-first-line-inline-formatting-space-lost` above.
 - **`toggle/`**: `minimal.md`, `inline-formatting.md`, `empty.md`, each with an
   `.expected.md` sidecar — `convertToggleContainerNode`'s export
   (`lexicalToMdast.ts`) always emits a blank line before the closing `</details>` tag
@@ -634,6 +787,71 @@ contrast, has a full block-dispatch fallback and round-trips all four constructs
 correctly when nested in a list item — confirmed for callout, mermaid, and c4 above;
 toggle is the one exception, for the separate root-level-only detection reason described
 in its own known-defects entry.
+
+## The `20-*` fixture set
+
+Fixed [#20](https://github.com/verveguy/liminis-editor/issues/20): a footnote
+definition's colon-to-body separator doubled on every round trip — `[^1]: The note.`
+became `[^1]:  The note.` On import, `convertBlockNode`'s `footnoteDefinition` case
+(`mdastToLexical.ts`) inserts the label and its separator as two nodes: a `FootnoteNode`
+and a standalone single-space `TextNode`. When the definition's body starts with plain
+text, Lexical's reconciliation merges that separator into the body's own `TextNode`
+(`' '` + `'The note.'` → `' The note.'`) rather than leaving it as a distinct sibling, so
+export's old identity check (`rest[0].getTextContent() === ' '`) no longer matched it —
+the merged space survived into the exported content, and `mdast-util-gfm-footnote` then
+added its own separator space on top. All five existing fixtures that carried this
+defect's `.expected.md` sidecar (`footnotes.md`, `link-with-footnote-reference.md`,
+`known-defects/other-emphasis-footnote-not-wrapped.md`, `emphasis-footnote-only.md`,
+`strong-mixed-text-math-footnote.md`) had a definition body starting with plain text —
+exactly the shape that triggers the merge.
+
+Fixed in `convertFootnoteInlineChildren` (`lexicalToMdast.ts`) by operating on the mdast
+output instead of trying to detect whether the separator survived as a distinct Lexical
+node: after building a definition's inline content, strip exactly one leading space
+character from the first text child (dropping the node if it becomes empty), which
+handles the merged and unmerged cases identically. The removal is sentinel-aware — it
+skips past any annotate-mode boundary token spliced into the same node before looking
+for the space — so it doesn't perturb where those tokens land (the invariant
+`annotated-serialize-corpus.test.ts` pins for #970).
+
+- **`20-footnote-multiple-definitions.md`**: two numeric footnote definitions, both
+  already at the document's true end. Byte-identical, fixed point.
+- **`20-footnote-named-label.md`**: a named (`[^note]:`) definition alongside a numeric
+  one, both at the document's true end. Byte-identical, fixed point.
+
+A second, previously unconfirmed behaviour was reported alongside the spacing defect:
+round-tripping a document that groups its footnote definitions under a heading
+partway through the document (rather than at the very end) moves those definitions to
+the end. This is now confirmed, not hypothetical, and traced to two pieces of existing,
+intentional machinery working together rather than to any accidental interaction with
+the spacing fix above:
+
+- On import, `preprocessFootnoteDefinitions` (`mdastToLexical.ts`) unconditionally
+  extracts *every* `footnoteDefinition` node from wherever it's found in the source tree
+  and appends it at the absolute end of the document — already exercised by
+  `footnote-collection.test.ts`'s blockquote- and list-nesting assertions.
+- On export, `splitFootnoteSection` (`lexicalToMdast.ts`) only ever reconstructs a
+  footnote section from the document's *trailing* contiguous run — it has no way to
+  place a definition back in the middle of a document.
+
+Together, any footnote definition that isn't already the very last content in the source
+is unconditionally relocated to the end on round-trip. Rewriting both sides to preserve
+a definition's original position would be a materially larger structural change, and the
+issue explicitly frames relocation as "a defensible normalisation on its own" as long as
+it isn't silent — so the fix here is to document and pin the behaviour, not prevent it:
+
+- **`20-footnote-definition-relocation.md`** + `.expected.md`: a footnote reference, a
+  `## Footnotes` heading, the definition, a `## More` heading, and trailing prose. Pins
+  that the definition moves past both headings to the very end of the document (leaving
+  `## Footnotes` with nothing beneath it — the exact edge case the issue calls out), that
+  no synthesized `---` separator appears in the emitted markdown (the internal
+  `HorizontalRuleNode` used to mark the footnote section in Lexical is stripped by
+  `splitFootnoteSection` before export, per `footnote-collection.test.ts`'s "should not
+  produce a thematicBreak in MDAST output"), that the relocated definition carries only a
+  single space after its colon (the two defects don't compound), and that the relocated
+  output is itself a stable fixed point on a second pass. The `.expected.md` content is
+  generated from the actual pipeline output, not hand-predicted, per this corpus's own
+  convention.
 
 ## Diagnosing a failure
 

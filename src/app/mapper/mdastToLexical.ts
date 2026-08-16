@@ -572,7 +572,7 @@ function convertBlockquote(node: Blockquote): LexicalBlockNode[] {
         const calloutMatch = /^\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i.exec(firstText.value);
         if (calloutMatch) {
           const calloutType = calloutMatch[1].toLowerCase() as CalloutType;
-          const restOfText = firstText.value.slice(calloutMatch[0].length).trim();
+          const restOfText = firstText.value.slice(calloutMatch[0].length).trimStart();
 
           // Create callout node without initial content
           const callout = $createCalloutNode(calloutType);
@@ -631,12 +631,19 @@ function convertBlockquote(node: Blockquote): LexicalBlockNode[] {
 
   for (const child of node.children) {
     if (child.type === 'paragraph') {
+      // Wrap every paragraph child in a real ParagraphNode (rather than
+      // flattening its inline content directly onto the quote) so that
+      // consecutive paragraphs stay separated on export. Unlike ListItemNode,
+      // QuoteNode.append() doesn't unwrap/merge appended ParagraphNodes, so
+      // this survives structurally intact — see #18.
+      const p = $createParagraphNode();
       for (const inlineChild of child.children) {
         const nodes = convertInlineNode(inlineChild);
         for (const n of nodes) {
-          quote.append(n);
+          p.append(n);
         }
       }
+      quote.append(p);
     } else if (child.type === 'blockquote') {
       // Nested blockquote: convert recursively.
       // Flush the current quote first, then add nested results.
@@ -687,7 +694,9 @@ function convertList(node: List): ListNode {
 function convertListItem(node: ListItem, parentList: List): CustomListItemNode {
   // Support checkboxes in both ordered and unordered lists.
   // For unordered lists, we use Lexical's checklist rendering (listType = 'check').
-  // For ordered lists, Lexical doesn't render checklists, so we preserve [ ] text.
+  // For ordered lists, Lexical's stock rendering can't be checklist-typed (it
+  // would lose numbering), so CustomListItemNode.createDOM/updateDOM renders
+  // the checkbox itself, driven by __taskChecked rather than useChecked/listType.
   const useChecked = parentList.ordered ? undefined : node.checked !== null ? node.checked : undefined;
   const listItem = $createCustomListItemNode(useChecked);
   // mdast's own tri-state `checked` is the true per-item source of truth,
@@ -697,11 +706,6 @@ function convertListItem(node: ListItem, parentList: List): CustomListItemNode {
   // CustomListItemNode's docstring for why this must not be derived from
   // Lexical's own checkbox state.
   listItem.setTaskChecked(node.checked ?? null);
-
-  // For ordered task lists, prefix the text with [ ] or [x] so it round-trips.
-  // Only the item's first paragraph gets the marker.
-  const shouldPrefixTaskMarker = parentList.ordered && node.checked !== null;
-  let isFirstParagraph = true;
 
   for (let i = 0; i < node.children.length; i++) {
     const child = node.children[i];
@@ -720,26 +724,12 @@ function convertListItem(node: ListItem, parentList: List): CustomListItemNode {
         listItem.append($createListItemParagraphBreakNode());
       }
 
-      const shouldPrefixThisParagraph = isFirstParagraph && shouldPrefixTaskMarker;
-
-      // Prepend the marker as its own TextNode before any inline content,
-      // rather than splicing it into the first TextNode found — the first
-      // inline child isn't always a TextNode (e.g. a link or emphasis run),
-      // and splicing into whichever TextNode appears first misplaces the
-      // marker mid-paragraph instead of at its start.
-      if (shouldPrefixThisParagraph) {
-        const marker = node.checked ? '[x] ' : '[ ] ';
-        listItem.append($createTextNode(marker));
-      }
-
       for (const inlineChild of child.children) {
         const nodes = convertInlineNode(inlineChild);
         for (const n of nodes) {
           listItem.append(n);
         }
       }
-
-      isFirstParagraph = false;
     } else if (child.type === 'list') {
       // Nested list
       const nestedList = convertList(child);
@@ -1098,6 +1088,9 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageN
 function convertText(node: Text): TextNode {
   const textNode = $createTextNode(node.value);
   recordOffsetSpan(node.position, textNode);
+  if ((node as any).data?._forceEscape === true) {
+    setForceEscape(textNode);
+  }
   return textNode;
 }
 
@@ -1203,6 +1196,22 @@ function setMarkdownMarker(node: TextNode, kind: 'emphasis' | 'strong', marker: 
     : style.length > 0 && !style.trim().endsWith(';')
       ? `${style};${entry}`
       : `${style}${entry}`;
+  node.setStyle(nextStyle);
+}
+
+// Marks a single-character TextNode as carrying a source-level backslash
+// escape that must survive stringification, mirroring the
+// `--md-emphasis-marker`/`--md-strong-marker` style-hint precedent above
+// (see `setMarkdownMarker`) rather than embedding anything in the editable
+// text content itself (#17).
+function setForceEscape(node: TextNode): void {
+  const prop = '--md-force-escape';
+  const style = node.getStyle() || '';
+  const entry = `${prop}:1;`;
+  if (new RegExp(`${prop}\\s*:\\s*1\\s*;?`).test(style)) {
+    return;
+  }
+  const nextStyle = style.length > 0 && !style.trim().endsWith(';') ? `${style};${entry}` : `${style}${entry}`;
   node.setStyle(nextStyle);
 }
 

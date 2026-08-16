@@ -1,0 +1,75 @@
+name: Deploy Pages
+
+# Release-triggered, not push-triggered (FR-010): the public demo pins to the
+# latest published version, not the default branch, so a broken merge to
+# main cannot break the live site and an evaluator never sees behaviour
+# `npm install` wouldn't give them. See docs/decisions/adr-082.md.
+#
+# `workflow_dispatch` exists only so the workflow shape can be exercised
+# manually before the repository is public and any release has been
+# published — see the same note in scripts/build-site.mjs's callers.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+# Only one Pages deploy should ever be in flight; a second release published
+# mid-deploy should wait for the first to finish rather than race it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v4
+
+      # Builds @liminis/editor, packs it, regenerates the demo's fixture and
+      # documentation data, and builds examples/demo against the tarball —
+      # see scripts/build-site.mjs. The version badge (FR-011) is sourced
+      # from the triggering release's tag, not package.json, since the
+      # package is unpublished/private and package.json's checked-in version
+      # is not meaningful.
+      - name: Build the site
+        run: pnpm build:site
+        env:
+          VITE_LIMINIS_EDITOR_VERSION: ${{ github.event.release.tag_name }}
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: examples/demo/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
