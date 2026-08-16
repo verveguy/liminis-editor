@@ -142,6 +142,12 @@ Another paragraph.`;
       const fnDefs = mdast.children.filter((c) => c.type === 'footnoteDefinition');
       expect(fnDefs).toHaveLength(1);
       expect((fnDefs[0] as any).identifier).toBe('1');
+
+      // Liminis #20: the separator between label and body must not gain an
+      // extra space — the body text must not carry a leading space of its own.
+      const para = (fnDefs[0] as any).children[0];
+      expect(para.children[0].type).toBe('text');
+      expect(para.children[0].value).toBe('This is the footnote.');
     });
 
     it('should round-trip multiple footnote definitions', async () => {
