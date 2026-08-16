@@ -315,6 +315,8 @@ application, to exist. See
 ```bash
 pnpm build:examples   # builds and packs the package once, then builds both
                        # examples/demo and examples/electron against it
+pnpm build:site       # builds examples/demo only — what the release-triggered
+                       # Pages deploy runs (see the Demo section above)
 ```
 
 ## Development
