@@ -18,7 +18,7 @@
  * (docs/decisions/adr-081.md) and gitignored, so this file never carries a
  * second, drifting copy of #1's fixtures.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 // The editor itself, plus the annotation-configuration types, come from the
 // root entry. `captureAnchor`/`resolveAnchors` live on `./annotations` because
@@ -33,6 +33,7 @@ import '@liminis/editor/styles.css'
 
 import { Docs } from './Docs.jsx'
 import { fixtures } from './fixtures.generated.js'
+import { useScrollSync } from './useScrollSync.js'
 
 // Set by the Pages workflow from the triggering release's `tag_name`
 // (verveguy/liminis-editor#3, FR-011). `package.json`'s checked-in version is
@@ -44,6 +45,23 @@ const DEMO_VERSION = import.meta.env.VITE_LIMINIS_EDITOR_VERSION || 'unpublished
 // on screen is traceable to a specific file in the shared corpus (SC-003),
 // not just to "the fixtures" in the abstract.
 const CORPUS_PATH = 'src/app/mapper/__tests__/fixtures/roundtrip/'
+
+/** Group the fixture generator stamps on documents from `examples/shared/`. */
+const SHARED_GROUP = 'all'
+
+/** How long typing in the raw pane must pause before it re-imports. */
+const RAW_APPLY_DELAY_MS = 500
+
+/**
+ * Corpus subdirectories are named after the issue that produced them
+ * (`897-list-item-block-content`). The number is provenance for a
+ * contributor and noise for someone browsing the demo, so it is dropped
+ * from the label only — `fixture.name` keeps it, and the path shown above
+ * the editor still resolves to a real file.
+ */
+function groupLabel(group) {
+  return group.replace(/^\d+-/, '')
+}
 
 const DEFAULT_FIXTURE =
   fixtures.find((f) => f.name === 'all-the-things') ??
@@ -57,7 +75,18 @@ function groupFixtures(list) {
     if (!groups.has(fixture.group)) groups.set(fixture.group, [])
     groups.get(fixture.group).push(fixture)
   }
-  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))
+  // `all` leads, then the rest alphabetically. The corpus groups are
+  // regression fixtures named after the issue that produced them; the sample
+  // document is what a first-time reader should meet first, and alphabetical
+  // order would bury it mid-list.
+  return [...groups.entries()].sort(([a], [b]) => {
+    if (a === SHARED_GROUP) return -1
+    if (b === SHARED_GROUP) return 1
+    // Sort on the *label*, not the raw name: the numeric prefixes are stripped
+    // for display, so sorting on the raw name would order by a number the
+    // reader cannot see — putting `897-list-item-block-content` above `c4`.
+    return groupLabel(a).localeCompare(groupLabel(b))
+  })
 }
 
 const GROUPED_FIXTURES = groupFixtures(fixtures)
@@ -145,7 +174,7 @@ export function App() {
             </p>
             {GROUPED_FIXTURES.map(([group, items]) => (
               <section key={group}>
-                <h3>{group}</h3>
+                <h3>{groupLabel(group)}</h3>
                 <ul className="demo-fixture-list">
                   {items.map((fixture) => (
                     <li key={fixture.name}>
@@ -175,7 +204,70 @@ export function App() {
 }
 
 function FixtureWorkspace({ fixture }) {
+  // `markdown` is the editor's output — what would land on disk. `raw` is what
+  // the textarea shows. They are usually the same string; they diverge while
+  // the raw pane is being typed into, until the debounce feeds it back.
   const [markdown, setMarkdown] = useState(fixture.markdown)
+  const [raw, setRaw] = useState(fixture.markdown)
+  // Bumping `n` remounts the editor with fresh content; `initialContent` alone
+  // is only read on mount.
+  const [seed, setSeed] = useState({ text: fixture.markdown, n: 0 })
+  const editorPaneRef = useRef(null)
+  const markdownPreRef = useRef(null)
+  const gutterRef = useRef(null)
+  const rawFocused = useRef(false)
+  const applyTimer = useRef(null)
+
+  useEffect(() => () => clearTimeout(applyTimer.current), [])
+
+  /** Raw edits re-import into the editor once typing pauses. */
+  function onRawChange(event) {
+    const value = event.target.value
+    setRaw(value)
+    clearTimeout(applyTimer.current)
+    applyTimer.current = setTimeout(() => {
+      setSeed((s) => ({ text: value, n: s.n + 1 }))
+    }, RAW_APPLY_DELAY_MS)
+  }
+
+  /**
+   * The editor's output flows back into the raw pane — but never while that
+   * pane has focus, or a round-trip that reformats what you just typed would
+   * overwrite you mid-keystroke.
+   */
+  function onEditorChange(md) {
+    setMarkdown(md)
+    if (!rawFocused.current) setRaw(md)
+  }
+
+  /** The gutter does not scroll itself; it is translated to match. */
+  function onRawScroll(event) {
+    if (gutterRef.current) {
+      gutterRef.current.style.transform = `translateY(${-event.currentTarget.scrollTop}px)`
+    }
+  }
+
+  // Keep the two panes on the same section as either is scrolled.
+  useScrollSync(editorPaneRef, markdownPreRef, markdown)
+
+  /**
+   * Scroll the editor to its nth heading. Paired by ordinal with the outline,
+   * which is derived from the same document by `parseMarkdown` — the same
+   * pairing `useScrollSync` uses.
+   *
+   * Offsets are computed against the pane rather than using `scrollIntoView`,
+   * which would also scroll ancestor containers and move the whole page. The
+   * 16px margin leaves the heading just below the pane's top edge instead of
+   * flush against it. The markdown pane follows via the scroll sync.
+   */
+  function scrollToHeading(index) {
+    const pane = editorPaneRef.current
+    const target = pane?.querySelectorAll('[class*="editor-heading-h"]')[index]
+    if (!pane || !target) return
+    const origin = pane.getBoundingClientRect().top - pane.scrollTop
+    const top = target.getBoundingClientRect().top - origin - 16
+    pane.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+  }
   const [annotations, setAnnotations] = useState([])
   const [activeId, setActiveId] = useState(null)
   const [nextId, setNextId] = useState(1)
@@ -239,13 +331,14 @@ function FixtureWorkspace({ fixture }) {
   return (
     <>
       <main className="demo-editor">
-        <div className="demo-editor-pane">
+        <div className="demo-editor-pane" ref={editorPaneRef}>
           <p className="demo-source">
             Loaded from <code>{CORPUS_PATH}{fixture.name}.md</code>
           </p>
           <Editor
-            initialContent={fixture.markdown}
-            onChange={setMarkdown}
+            key={seed.n}
+            initialContent={seed.text}
+            onChange={onEditorChange}
             annotationKinds={ANNOTATION_KINDS}
             annotations={annotations}
             activeAnnotationId={activeId}
@@ -261,7 +354,35 @@ function FixtureWorkspace({ fixture }) {
             produced. */}
         <div className="demo-markdown-pane">
           <h2>Markdown output</h2>
-          <pre className="demo-markdown-output"><code>{markdown}</code></pre>
+          {/* Editable. Typing here re-imports into the editor once you pause,
+              so the round trip can be driven from either side.
+
+              Lines do not wrap (`wrap="off"`, horizontal scroll instead): a
+              textarea cannot be split into per-line rows, so the gutter can
+              only stay aligned if one source line is one visual row. That also
+              removes the wrap-versus-newline ambiguity the numbers were added
+              to resolve — a wrap can no longer occur. */}
+          <div className="demo-md-editor">
+            <div className="demo-md-gutter" aria-hidden="true">
+              <div ref={gutterRef}>
+                {raw.split('\n').map((_, i) => (
+                  <div key={i}>{i + 1}</div>
+                ))}
+              </div>
+            </div>
+            <textarea
+              ref={markdownPreRef}
+              className="demo-md-input"
+              value={raw}
+              onChange={onRawChange}
+              onScroll={onRawScroll}
+              onFocus={() => { rawFocused.current = true }}
+              onBlur={() => { rawFocused.current = false }}
+              spellCheck={false}
+              wrap="off"
+              aria-label="Markdown source"
+            />
+          </div>
         </div>
       </main>
 
@@ -271,7 +392,11 @@ function FixtureWorkspace({ fixture }) {
           <p className="demo-hint">Built with <code>@liminis/editor/markdown</code> — no editor involved.</p>
           <ul className="demo-outline">
             {headings.map((h, i) => (
-              <li key={i} style={{ paddingLeft: `${(h.depth - 1) * 12}px` }}>{h.text}</li>
+              <li key={i} style={{ paddingLeft: `${(h.depth - 1) * 12}px` }}>
+                <button type="button" className="demo-outline-link" onClick={() => scrollToHeading(i)}>
+                  {h.text}
+                </button>
+              </li>
             ))}
           </ul>
         </section>

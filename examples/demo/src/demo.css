@@ -109,17 +109,136 @@ body {
   color: #888;
   border-bottom: 1px solid #f0f0f0;
 }
-.demo-markdown-output {
+
+.demo-docs {
   flex: 1;
-  margin: 0;
-  padding: 16px 20px;
-  overflow: auto;
+  overflow-y: auto;
+  padding: 24px 32px;
+  background: #fff;
+  max-width: 860px;
+  margin: 0 auto;
+}
+.demo-docs :is(h1, h2, h3, h4) { color: #1a1a1a; }
+.demo-docs pre {
+  background: #fafafa;
+  border: 1px solid #e4e4e4;
+  border-radius: 6px;
+  padding: 12px;
+  overflow-x: auto;
+}
+.demo-docs code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; }
+.demo-docs table { border-collapse: collapse; width: 100%; }
+.demo-docs th, .demo-docs td { border: 1px solid #e4e4e4; padding: 6px 10px; text-align: left; }
+
+.demo-fixture-picker {
+  width: 240px;
+  flex: none;
+  padding: 16px;
+  overflow-y: auto;
+  border-right: 1px solid #e4e4e4;
+  background: #fff;
+  font-size: 13px;
+}
+.demo-fixture-picker h2 { margin-top: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; }
+.demo-fixture-picker h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: #aaa; margin: 16px 0 4px; }
+.demo-fixture-list { list-style: none; padding: 0; margin: 0; }
+.demo-fixture-list button {
+  all: unset;
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #333;
+  font-size: 12px;
+  word-break: break-word;
+}
+.demo-fixture-list button:hover { background: #f4f4f4; }
+.demo-fixture-list button.is-active { background: #fff7e0; color: #8a5a00; font-weight: 600; }
+.demo-fixture-list button:focus-visible { outline: 2px solid #f0b429; outline-offset: 2px; }
+
+/* Scoped to the demo shell's own controls — the direct-child chain matches the
+   sidebar's standalone buttons and nothing else. A bare `button` selector would
+   restyle the editor's own toolbar, defeating the point of a demo that is
+   supposed to show what `@liminis/editor/styles.css` actually looks like; a
+   plain `.demo-sidebar button` would also catch the annotation rows below, and
+   `:hover` (which adds specificity) would then beat their `all: unset` and paint
+   a grey background over the active-row highlight. */
+.demo-sidebar > section > button {
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+.demo-sidebar > section > button:hover { background: #f4f4f4; }
+
+/* The annotation list rows are buttons so they are keyboard-reachable. They sit
+   under `ul > li`, so the shell rules above do not reach them. */
+.demo-annotations button {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px;
+  cursor: pointer;
+}
+.demo-annotations button:focus-visible { outline: 2px solid #f0b429; outline-offset: 2px; }
+
+/* Editable markdown source with a line-number gutter.
+
+   The gutter is a fixed column that never scrolls itself — it is translated to
+   match the textarea's scrollTop, so the two stay locked without the gutter
+   ever wrapping or clipping. Both share font, size and line-height, which is
+   what keeps row N of the gutter beside line N of the text.
+
+   `min-width` rather than a fixed `flex-basis`: a fixed basis with border-box
+   padding leaves too little room and three-digit numbers wrap. `nowrap` makes
+   that impossible regardless. */
+.demo-md-editor {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   line-height: 1.5;
+}
+.demo-md-gutter {
+  flex: none;
+  min-width: 4ch;
+  padding: 16px 1ch 16px 12px;
+  overflow: hidden;
+  text-align: right;
+  white-space: nowrap;
+  color: #c4c4c4;
+  background: #fafafa;
+  border-right: 1px solid #f0f0f0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.demo-md-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 16px 20px 16px 12px;
+  border: 0;
+  outline: none;
+  resize: none;
+  overflow: auto;
+  font: inherit;
+  line-height: inherit;
   color: #333;
-  white-space: pre-wrap;
-  word-break: break-word;
+  background: transparent;
+  white-space: pre;
+  tab-size: 2;
+}
+.demo-md-input:focus {
+  background: #fffef8;
 }
 
 .demo-docs {
@@ -200,3 +319,27 @@ body {
   cursor: pointer;
 }
 .demo-annotations button:focus-visible { outline: 2px solid #f0b429; outline-offset: 2px; }
+
+/* Numbered source lines in the markdown pane.
+
+   The gutter exists to make wrapping legible: a wrapped line continues under
+   the text column with no number beside it, so a soft wrap cannot be mistaken
+   for a newline in the file. That distinction matters here specifically,
+   because the pane's claim is that it shows exactly what lands on disk. */
+
+.demo-outline-link {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.demo-outline-link:hover,
+.demo-outline-link:focus-visible {
+  color: #1a6fd4;
+  text-decoration: underline;
+}
