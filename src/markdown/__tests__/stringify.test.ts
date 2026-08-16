@@ -301,6 +301,94 @@ describe('stringifyMarkdown', () => {
     })
   })
 
+  describe('force-escaped punctuation (#17)', () => {
+    it.each([
+      ['*', '\\*'],
+      ['_', '\\_'],
+      ['`', '\\`'],
+      ['[', '\\['],
+      [']', '\\]'],
+      ['#', '\\#'],
+      ['\\', '\\\\'],
+    ])('restores the backslash for a force-escaped %s', (char, expected) => {
+      const root: Root = {
+        type: 'root',
+        children: [
+          {
+            type: 'paragraph',
+            children: [
+              { type: 'text', value: 'a ' },
+              { type: 'text', value: char, data: { _forceEscape: true } } as any,
+              { type: 'text', value: ' b' },
+            ],
+          },
+        ],
+      }
+      const result = stringifyMarkdown(root)
+      expect(result.trim()).toBe(`a ${expected} b`)
+    })
+
+    it('does not add a backslash to a plain (non-force-escaped) text node', () => {
+      const root: Root = {
+        type: 'root',
+        children: [
+          {
+            type: 'paragraph',
+            children: [{ type: 'text', value: 'plain * text' }],
+          },
+        ],
+      }
+      const result = stringifyMarkdown(root)
+      expect(result.trim()).toBe('plain \\* text')
+      // Unrelated to force-escape: this is mdast-util-to-markdown's own
+      // unconditional '*' escaping, present with or without this issue's fix.
+    })
+
+    it('restores adjacent force-escaped characters independently, in order', () => {
+      // Regression coverage for the fusion Lexical's reconciliation performs
+      // on adjacent same-style TextNodes: two independently force-escaped
+      // characters can arrive at stringify time already merged into one
+      // multi-character node (see convertForceEscapeTextNodes), and each
+      // must still get its own backslash.
+      const root: Root = {
+        type: 'root',
+        children: [
+          {
+            type: 'paragraph',
+            children: [
+              { type: 'text', value: 'literal ' },
+              { type: 'text', value: '**', data: { _forceEscape: true } } as any,
+              { type: 'text', value: ' end' },
+            ],
+          },
+        ],
+      }
+      const result = stringifyMarkdown(root)
+      expect(result.trim()).toBe('literal \\*\\* end')
+    })
+
+    it('does not over-escape a character adjacent to a force-escaped one', () => {
+      const root: Root = {
+        type: 'root',
+        children: [
+          {
+            type: 'paragraph',
+            children: [
+              { type: 'text', value: 'mac' },
+              { type: 'text', value: '_', data: { _forceEscape: true } } as any,
+              { type: 'text', value: 'onboarding.sh and mac_onboarding.sh' },
+            ],
+          },
+        ],
+      }
+      const result = stringifyMarkdown(root)
+      // The force-escaped underscore keeps its backslash; the unrelated,
+      // genuinely-intraword underscore later in the same paragraph is
+      // unaffected by the existing intraword-underscore-unescape post-process.
+      expect(result.trim()).toBe('mac\\_onboarding.sh and mac_onboarding.sh')
+    })
+  })
+
   describe('ordered list checkboxes', () => {
     it('should add checkbox text to ordered list items with checked property', () => {
       const root: Root = {
