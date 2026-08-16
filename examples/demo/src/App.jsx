@@ -45,7 +45,10 @@ const DEMO_VERSION = import.meta.env.VITE_LIMINIS_EDITOR_VERSION || 'unpublished
 // not just to "the fixtures" in the abstract.
 const CORPUS_PATH = 'src/app/mapper/__tests__/fixtures/roundtrip/'
 
-const DEFAULT_FIXTURE = fixtures.find((f) => f.name === '50-reference-readme') ?? fixtures[0]
+const DEFAULT_FIXTURE =
+  fixtures.find((f) => f.name === 'all-the-things') ??
+  fixtures.find((f) => f.name === '50-reference-readme') ??
+  fixtures[0]
 
 /** Fixtures grouped by their top-level corpus subdirectory, in name order. */
 function groupFixtures(list) {
