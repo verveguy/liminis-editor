@@ -611,6 +611,121 @@ change existing fixture output, and it is a genuinely separate defect. Tracked a
 [#989](https://github.com/verveguy/liminis/issues/989); code+bold and code+italic work,
 code+strikethrough does not, and the asymmetry is real rather than an oversight.
 
+## The `17-*` fixture set
+
+Added by [#17](https://github.com/verveguy/liminis-editor/issues/17). A backslash-escaped
+`_` (and, less obviously, `[`/`]`) silently lost its backslash on a no-edit round trip,
+while `\*` survived — an asymmetry, not a narrow underscore-only bug. `fromMarkdown`
+(standard CommonMark parsing) discards escape provenance at parse time: `\_underscore` and
+`_underscore` collapse to the identical mdast `text` value, so nothing downstream of
+`parseMarkdown` can tell "the user escaped this" from "the library's own conservative
+default would over-escape this." The two existing post-processes below (intraword-
+underscore-unescape, added for #901; bracket-preservation, added for #921) strip *every*
+instance blindly for exactly that reason.
+
+The fix threads real provenance through the whole pipeline instead of re-deriving it
+heuristically downstream:
+
+1. **Capture** (`splitTextNodeEscapes` / `splitEscapedPunctuation` in `parse.ts`, run last
+   in `parseMarkdown`, after `annotateEmphasisMarkers`): replay-decodes each `text` node's
+   raw source span character-by-character — consuming a backslash plus one of CommonMark's
+   escapable ASCII punctuation characters as a single decoded character, exactly as
+   `fromMarkdown` itself does — and, whenever the replayed decode doesn't exactly reproduce
+   `node.value` (an HTML entity or other untracked transform in the same span), bails out
+   for that node rather than risk a wrong split. This mirrors `recordOffsetSpan`'s own
+   width-mismatch bail-out in `mdastToLexical.ts` (see `offset-spans.test.ts`'s "spans whose
+   raw width disagrees with the decoded text are dropped" — a missed protection reproduces
+   today's pre-existing defect, but a wrong split would corrupt text. Because `fromMarkdown`
+   merges a character reference and any literal text around it (including an escaped target
+   character) into one `text` node, a character reference anywhere in that merged run
+   suppresses protection for the whole run, not just its own span — a narrow,
+   defect-shaped limitation rather than a new one.
+   Otherwise, the node is split into siblings at every backslash-escaped instance of the
+   seven characters this issue scopes (`* _ \` [ ] # \`): untouched runs stay plain `text`
+   nodes, and each protected character becomes its own single-character `text` node carrying
+   `data._forceEscape = true`.
+2. **Carry** (`setForceEscape` / `convertText` in `mdastToLexical.ts`; read by
+   `convertTextNode` and `convertFormattedRun` in `lexicalToMdast.ts`): a per-character
+   `--md-force-escape:1` `TextNode` style hint, mirroring the established
+   `--md-emphasis-marker` / `--md-strong-marker` precedent above rather than embedding
+   anything in editable text content — it has zero footprint on live document state (no
+   risk to cursor movement, selection, copy/paste, or spellcheck), unlike the rejected
+   alternative of a Private-Use-Area marker character spliced directly into Lexical text.
+   Both `convertTextNode` (the single-node export path) and `convertFormattedRun` (the
+   merged-run path used when a node is inside emphasis/strong, or when a live annotation
+   mark forces a run merge) read the hint — an escaped character inside emphasis/strong
+   (e.g. `*text \_x\_*`) always takes the merged-run path even on a pure no-edit round trip,
+   so skipping `convertFormattedRun` would leave that adjacency case unfixed.
+3. **Restore** (`convertForceEscapeTextNodes` / the `escapedChar` handler / the final
+   placeholder-restoration regex in `stringify.ts`): a pre-process converts every
+   `{type: 'text', data: {_forceEscape: true}}` node into a dedicated `escapedChar` node,
+   whose handler emits a transient, backslash-free Private-Use-Area placeholder
+   (`\u{E004}`, distinct from `annotate-sentinels.ts`'s `E000`-`E003` range, module-local to
+   `stringify.ts` and never exported) wrapping the character. Being backslash-free, the
+   placeholder is provably invisible to the two existing blind-strip post-processes during
+   their pass — **neither one needed to change**. After every other post-process has run, a
+   final step replaces each `\u{E004}<char>\u{E004}` with `\<char>`, restoring exactly one
+   backslash regardless of what the default handler did or didn't add underneath. The
+   placeholder never touches Lexical or live document state — it exists only inside a
+   single `stringifyMarkdown` call, on a mdast tree reconstructed fresh from Lexical at
+   export time and discarded immediately after, mirroring `annotate-sentinels.ts`'s own
+   scoping.
+
+Two adjacent force-escaped characters in the source (e.g. `\*\*`) can arrive at
+`convertForceEscapeTextNodes` already fused into one multi-character node: Lexical's own
+reconciliation merges adjacent `TextNode`s that share identical format/style, and two
+independent single-character force-escape nodes with the same `--md-force-escape:1` style
+qualify. Since only single-character force-escaped nodes are ever produced upstream, every
+character of a fused node was independently force-escaped, so the pre-process expands such
+a node back into one `escapedChar` node per character rather than assuming length 1 —
+`973-literal-asterisks-near-code.md` (a genuinely bare `\*\*` beside a code span, part of
+the pre-existing `973-*` set above) is the regression guard for this.
+
+An annotate-serialize sentinel token (see `annotate-sentinels.ts`) can also be spliced onto
+a force-escaped node's text by `sentinelAugmentedText` in `lexicalToMdast.ts`, if that exact
+`TextNode` instance happens to be a live annotation mark's boundary leaf — the value isn't
+always pure escaped content. `convertForceEscapeTextNodes` uses the new
+`splitOnSentinelTokens` helper (also in `annotate-sentinels.ts`) to split those parts out
+first and leave them as plain, unescaped text, so a token's own characters never get
+individually wrapped in escape placeholders. Without this, `annotated-serialize-corpus.test.ts`'s
+#970 invariant — annotate mode must differ from a plain export by its sentinel tokens and
+nothing else — breaks for any fixture containing a force-escaped character, because the
+token's id characters would themselves come back out individually backslash-escaped.
+
+`splitTextNodeEscapes` splitting a `text` node at escape boundaries also changes how
+`recordOffsetSpan`'s width-mismatch bail-out behaves for text containing an escape: where
+`a \* b` previously arrived as one `text` node (source width 6 vs. decoded length 5,
+dropping the *whole* span), it now arrives as three sibling nodes — `a `, the escaped `*`,
+` b` — each with its own source-offset span. Only the escaped character's own sub-span
+still has a width/length mismatch and is dropped; the plain runs on either side now get
+valid spans, an improvement over the previous whole-node drop. See
+`offset-spans.test.ts`'s "drops only the escaped character's own span, not its surrounding
+text" test.
+
+Fixtures (all byte-identical to their input except where noted):
+
+- **`17-underscore-and-asterisk-escape.md`**: the issue's own reproduction case, `\_` and
+  `\*` together on one line (SC-001).
+- **`17-escaped-backtick.md`**, **`17-escaped-bracket-pair.md`** (pairs `\[` with `\]` in
+  one fixture — a lone `\]` is never reinterpreted by CommonMark regardless of escaping, so
+  a standalone case wouldn't be "meaningful" per FR-001), **`17-escaped-leading-hash.md`**,
+  **`17-escaped-literal-backslash.md`**: the remaining FR-004/SC-002 characters, one
+  meaningful-context fixture each.
+- **`17-escaped-backslash-then-underscore.md`** + `.expected.md`: the spec's `\\_` edge
+  case — an escaped backslash immediately followed by a plain, non-escaped underscore. Only
+  the backslash is force-escaped; the underscore is left to the pipeline's own existing,
+  pre-#17 conservative default (intraword-unescape only fires when both flanking characters
+  are alphanumeric, and a restored literal backslash isn't), so it stays escaped by
+  `mdast-util-to-markdown`'s own default behaviour. That's not a new over-escape introduced
+  by this fix — it's the same conservative policy `898-underscore-link.md` already accepts
+  for other non-alphanumeric-flanked cases — so the first pass legitimately isn't
+  byte-identical to input; the `.expected.md` records the actual (correct) output, and the
+  second pass is still a fixed point (the now-literal `\_` in that output reads back as a
+  genuine user escape next time).
+- **`17-escaped-asterisk-adjacent-formatting.md`**: an escaped character beside inline code
+  and a real emphasis span in the same paragraph, mirroring #973's adjacency conditions —
+  must not regress either fix.
+
 ## The `callout/`, `toggle/`, `mermaid/`, and `c4/` fixture groups
 
 Added by [#1](https://github.com/verveguy/liminis-editor/issues/1). Every fixture group
