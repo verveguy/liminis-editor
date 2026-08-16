@@ -809,7 +809,10 @@ function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[
   const first = contentChildren[0];
   if (first?.type === 'text' && stripAnnotateSentinels(first.value).startsWith(' ')) {
     const value = stripLeadingSpaceKeepingSentinels(first.value);
-    if (stripAnnotateSentinels(value).length > 0) {
+    // Keep the node even if stripping the space left no real text — it may
+    // still carry sentinel tokens that must not be dropped (Liminis #970).
+    // Only an entirely empty string means there's nothing left to emit.
+    if (value.length > 0) {
       contentChildren[0] = { ...first, value };
     } else {
       contentChildren.shift();
