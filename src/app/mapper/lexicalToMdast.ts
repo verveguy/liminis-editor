@@ -347,7 +347,9 @@ function isHoistableConstruct(node: LexicalNode): boolean {
  * Inclusive bounds of the maximal run of consecutive siblings in `flat` that
  * will be emitted inside one shared delimiter pair with `flat[index]` — the
  * same runs `convertInlinePhrasingList` merges (inline code, and
- * strong/emphasis/delete). Null when `flat[index]` carries no such delimiters.
+ * strong/emphasis/delete, including a run whose members' formats differ but
+ * share a common bit — see `convertInlineUnit`). Null when `flat[index]`
+ * carries no such delimiters.
  */
 function mergeableRunBounds(flat: readonly LexicalNode[], index: number): { start: number; end: number } | null {
   const child = flat[index];
@@ -369,10 +371,34 @@ function mergeableRunBounds(flat: readonly LexicalNode[], index: number): { star
 
   const format = getMergeableFormat(child);
   if (!format) return null;
+
+  // Bidirectional counterpart of `convertInlineUnit`'s shrinking-intersection
+  // scan: `common` starts at `flat[index]`'s own format and only ever loses
+  // bits as the run grows, so a boundary between differing-but-overlapping
+  // formats (e.g. the bold/bold+italic/bold split produced by a nested
+  // `**bold _and italic_**`) is still recognized as one run. Extension
+  // alternates left/right around a single shared `common` (rather than two
+  // independent one-directional scans) so the result doesn't depend on which
+  // side is checked first.
   let start = index;
   let end = index;
-  while (start > 0 && getMergeableFormat(flat[start - 1]) === format) start--;
-  while (end + 1 < flat.length && getMergeableFormat(flat[end + 1]) === format) end++;
+  let common = format;
+  let extended = true;
+  while (extended) {
+    extended = false;
+    const rightFormat = end + 1 < flat.length ? getMergeableFormat(flat[end + 1]) : null;
+    if (rightFormat !== null && (rightFormat & common) !== 0) {
+      common &= rightFormat;
+      end++;
+      extended = true;
+    }
+    const leftFormat = start > 0 ? getMergeableFormat(flat[start - 1]) : null;
+    if (leftFormat !== null && (leftFormat & common) !== 0) {
+      common &= leftFormat;
+      start--;
+      extended = true;
+    }
+  }
   return { start, end };
 }
 
@@ -1444,19 +1470,17 @@ function convertSingleInlineChild(child: LexicalNode): PhrasingContentLike[] {
   return [];
 }
 
-// Converts a run of consecutive siblings that all share the same non-zero
-// bold/italic/strikethrough bits into a single mdast strong/emphasis/delete
-// wrapper, so a non-text child (math, footnote reference) in the middle of a
-// formatted span doesn't get left outside the marker's boundary.
-function convertFormattedRun(runChildren: LexicalNode[], format: number): PhrasingContent {
+// Flattens a list of leaf-level inline nodes into mdast content with no
+// format wrapping — the base case once every bold/italic/strikethrough bit
+// a run carries has been consumed by an enclosing wrapper.
+//
+// Consecutive code-formatted members accumulate and flush as a single
+// `inlineCode` node (#973), mirroring convertCodeRun: a mark splitting a
+// code span leaves adjacent code-format siblings, and mdast-util-to-markdown
+// never merges adjacent inlineCode nodes back together.
+function convertLeavesRaw(nodes: LexicalNode[]): PhrasingContent[] {
   const content: PhrasingContent[] = [];
-  let strongMarker: '_' | '*' | null = null;
-  let emphasisMarker: '_' | '*' | null = null;
 
-  // Consecutive code-formatted members accumulate here and flush as a single
-  // `inlineCode` node inside the wrapper (#973), mirroring convertCodeRun: a
-  // mark splitting a code span leaves adjacent code-format siblings, and
-  // mdast-util-to-markdown never merges adjacent inlineCode nodes back together.
   let codeBuffer = '';
   const flushCode = (): void => {
     if (codeBuffer === '') return;
@@ -1464,47 +1488,110 @@ function convertFormattedRun(runChildren: LexicalNode[], format: number): Phrasi
     codeBuffer = '';
   };
 
-  for (const child of runChildren) {
-    if ($isTextNode(child)) {
-      const text = sentinelAugmentedText(child);
+  for (const node of nodes) {
+    if ($isTextNode(node)) {
+      const text = sentinelAugmentedText(node);
       if (text === '') {
         continue;
       }
-      // Marker hints are read before the code branch — but still *after* the
-      // empty-text continue above — so a run whose only styled member is
-      // code-formatted keeps its `__`/`*` rather than normalizing, without
-      // letting an empty node contribute a hint it never contributed before.
-      // Lexical creates empty format-carrying TextNodes as caret placeholders
-      // when a format is toggled before anything is typed; one of those
-      // carrying a stale marker style must not decide the whole run's marker.
-      const style = child.getStyle() || '';
-      strongMarker = strongMarker ?? getMarkdownMarker(style, '--md-strong-marker');
-      emphasisMarker = emphasisMarker ?? getMarkdownMarker(style, '--md-emphasis-marker');
-      if (child.hasFormat('code')) {
+      if (node.hasFormat('code')) {
         codeBuffer += text;
         continue;
       }
       flushCode();
       content.push({ type: 'text', value: text });
-    } else if ($isEquationNode(child)) {
+    } else if ($isEquationNode(node)) {
       flushCode();
-      content.push({ type: 'inlineMath', value: child.getEquation() });
-      strongMarker = strongMarker ?? child.getStrongMarker();
-      emphasisMarker = emphasisMarker ?? child.getEmphasisMarker();
-    } else if ($isFootnoteNode(child)) {
+      content.push({ type: 'inlineMath', value: node.getEquation() });
+    } else if ($isFootnoteNode(node)) {
       flushCode();
-      strongMarker = strongMarker ?? child.getStrongMarker();
-      emphasisMarker = emphasisMarker ?? child.getEmphasisMarker();
       content.push({
         type: 'footnoteReference',
-        identifier: child.getFootnoteId(),
-        label: child.getFootnoteId(),
+        identifier: node.getFootnoteId(),
+        label: node.getFootnoteId(),
       } as unknown as PhrasingContent);
     }
   }
   flushCode();
 
-  return wrapWithFormat(content, format, strongMarker, emphasisMarker);
+  return content;
+}
+
+// Scans `nodes` for the strong/emphasis marker style hints (`--md-strong-marker`
+// / `--md-emphasis-marker`) carried on text nodes, or the equivalent getters on
+// equation/footnote nodes — the first non-empty hint for each wins.
+//
+// Marker hints are read regardless of a text node's own code formatting, so a
+// run whose only styled member is code-formatted still keeps its `_`/`*`
+// rather than normalizing. Empty text nodes are skipped: Lexical creates
+// empty format-carrying TextNodes as caret placeholders when a format is
+// toggled before anything is typed, and one of those carrying a stale marker
+// style must not decide the whole run's marker.
+function resolveMarkers(nodes: LexicalNode[]): { strongMarker: '_' | '*' | null; emphasisMarker: '_' | '*' | null } {
+  let strongMarker: '_' | '*' | null = null;
+  let emphasisMarker: '_' | '*' | null = null;
+
+  for (const node of nodes) {
+    if ($isTextNode(node)) {
+      const text = sentinelAugmentedText(node);
+      if (text === '') continue;
+      const style = node.getStyle() || '';
+      strongMarker = strongMarker ?? getMarkdownMarker(style, '--md-strong-marker');
+      emphasisMarker = emphasisMarker ?? getMarkdownMarker(style, '--md-emphasis-marker');
+    } else if ($isEquationNode(node) || $isFootnoteNode(node)) {
+      strongMarker = strongMarker ?? node.getStrongMarker();
+      emphasisMarker = emphasisMarker ?? node.getEmphasisMarker();
+    }
+  }
+
+  return { strongMarker, emphasisMarker };
+}
+
+// Builds nested strong/emphasis/delete wrappers from a run of siblings whose
+// bold/italic/strikethrough bits may *differ* but overlap — the shape
+// produced when importing e.g. `**bold and _nested italic_ inside**`, where
+// the enclosing bold survives as a shared bit across three siblings while
+// only the middle one also carries italic (see `convertInlineUnit`, which
+// selects the run this is called on).
+//
+// Recursively: group the run into maximal sub-runs whose formats share a
+// common non-zero bit (the running AND across the sub-run never drops to
+// zero), wrap each sub-run in that common format, and recurse on each
+// member's *residual* bits (its own format minus the common bits) to build
+// the nested content — bottoming out once a member's residual format is 0,
+// at which point it's flattened via `convertLeavesRaw`. For a uniform run
+// (every member's format literally equal, the classic case), this collapses
+// to a single group spanning the whole run with zero residual everywhere,
+// reproducing the old single-wrapper behavior exactly.
+function buildFormattedContent(members: { node: LexicalNode; format: number }[]): PhrasingContent[] {
+  const result: PhrasingContent[] = [];
+
+  let i = 0;
+  while (i < members.length) {
+    if (members[i].format === 0) {
+      let j = i + 1;
+      while (j < members.length && members[j].format === 0) j++;
+      result.push(...convertLeavesRaw(members.slice(i, j).map((m) => m.node)));
+      i = j;
+      continue;
+    }
+
+    let common = members[i].format;
+    let j = i + 1;
+    while (j < members.length && (members[j].format & common) !== 0) {
+      common &= members[j].format;
+      j++;
+    }
+
+    const group = members.slice(i, j);
+    const residual = group.map((m) => ({ node: m.node, format: m.format & ~common }));
+    const inner = buildFormattedContent(residual);
+    const { strongMarker, emphasisMarker } = resolveMarkers(group.map((m) => m.node));
+    result.push(wrapWithFormat(inner, common, strongMarker, emphasisMarker));
+    i = j;
+  }
+
+  return result;
 }
 
 // Nests content in strong/emphasis/delete wrappers matching convertTextNode's
@@ -1654,17 +1741,30 @@ function convertInlineUnit(
   const format = getMergeableFormat(child);
 
   if (format) {
-    // Find the maximal run of consecutive siblings sharing this exact
-    // format, tracking whether it contains a non-text (math/footnote) node —
-    // only those runs need the merged wrapper; all-text runs keep the
-    // existing per-node path below (untouched, per FR-006) unless a mark
-    // split them, in which case merging is what preserves transparency.
+    // Find the maximal run of consecutive siblings whose formats keep a
+    // non-empty running intersection (`common`) — a strict generalization of
+    // "sharing this exact format": a uniform run (every member's format
+    // literally equal) is the special case where the intersection never
+    // actually shrinks, but a run like bold/bold+italic/bold (produced by
+    // `**bold and _nested italic_**`) also qualifies, with `common` settling
+    // on the shared bold bit. `uniform` tracks whether the run was exact-match
+    // throughout, so the merge condition below can keep today's narrow gates
+    // for that case while unconditionally merging the newly-reachable
+    // non-uniform (genuinely nested) case — see `buildFormattedContent`,
+    // which recovers the nested wrapper structure from each member's residual
+    // (non-common) bits.
     const isCodeMember = (node: LexicalNode): boolean => $isTextNode(node) && node.hasFormat('code');
     let j = i + 1;
+    let common = format;
+    let uniform = true;
     let hasNonTextMember = !$isTextNode(child);
     let hasCodeMember = isCodeMember(child);
     let runTouchesMark = marked.has(child);
-    while (j < kids.length && getMergeableFormat(kids[j]) === format) {
+    while (j < kids.length) {
+      const nextFormat = getMergeableFormat(kids[j]);
+      if (nextFormat === null || (nextFormat & common) === 0) break;
+      if (nextFormat !== format) uniform = false;
+      common &= nextFormat;
       if (!$isTextNode(kids[j])) {
         hasNonTextMember = true;
       }
@@ -1681,11 +1781,17 @@ function convertInlineUnit(
     // emitting two adjacent `strong` nodes that mdast-util-to-markdown will not
     // join (`**`code`**** more text**`). Do not "simplify" this away.
     //
-    // Safe under FR-009: a multi-member run containing a code member could not
-    // form before this issue, because getMergeableFormat returned null for code
-    // nodes and terminated the scan.
-    if (hasNonTextMember || (hasCodeMember && j > i + 1) || (runTouchesMark && j > i + 1)) {
-      return { content: [convertFormattedRun(kids.slice(i, j), format)], next: j };
+    // Safe under FR-009: a multi-member uniform run containing a code member
+    // could not form before this issue, because getMergeableFormat returned
+    // null for code nodes and terminated the scan.
+    //
+    // `!uniform` merges unconditionally (#16): the differing-but-overlapping
+    // run shape it covers was never reachable before this fix (the old scan
+    // always stopped at the first unequal sibling), so no existing fixture can
+    // depend on the old (broken) un-merged behavior for it.
+    if (hasNonTextMember || (hasCodeMember && j > i + 1) || (runTouchesMark && j > i + 1) || !uniform) {
+      const members = kids.slice(i, j).map((node) => ({ node, format: getMergeableFormat(node) ?? 0 }));
+      return { content: buildFormattedContent(members), next: j };
     }
   }
 
