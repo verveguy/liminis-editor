@@ -38,6 +38,8 @@ interface Manifest {
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   private?: boolean;
+  publishConfig?: { access?: string };
+  scripts?: Record<string, string>;
 }
 
 function readManifest(): Manifest {
@@ -143,14 +145,36 @@ describe('the package manifest keeps its own promises', () => {
     ).toEqual([]);
   });
 
-  // The publish guard. verveguy/liminis#995 extracted this package deliberately
-  // stopping short of both an npm publish and a public repository flip, and
-  // `private: true` is what makes an accidental `npm publish` fail rather than
-  // succeed. `pnpm pack` still works, so `verify:package` is unaffected.
-  it('stays private until the publish decision is actually taken', () => {
+  // The publish guard, after the decision. This package was `private: true`
+  // until verveguy/liminis-editor#39, and that flag was the thing standing
+  // between a stray command and a permanent publish. Removing it removed the
+  // guard, so these assertions cover what replaced it.
+  //
+  // `private: true` was never verifiable in any case: `npm publish --dry-run`
+  // on npm 10.8.2 builds, packs all 219 files, reports it would publish, and
+  // exits 0 without mentioning that the package is private. The replacement is
+  // a script precisely so that it can be tested.
+  it('is publishable, and publicly so', () => {
+    const manifest = readManifest();
     expect(
-      readManifest().private,
-      'private: true is the publish guard — removing it is a decision, not a cleanup',
+      manifest.private,
+      'private: true is gone deliberately (#39). Re-adding it would silently disable publishing',
+    ).toBeUndefined();
+    expect(
+      manifest.publishConfig?.access,
+      'scoped packages default to restricted — without this the first publish fails or goes private',
+    ).toBe('public');
+  });
+
+  it('cannot publish without an explicit opt-in', () => {
+    const manifest = readManifest();
+    expect(
+      manifest.scripts?.prepublishOnly,
+      'prepublishOnly is what makes publishing deliberate now that private: true is gone',
+    ).toMatch(/guard-publish/);
+    expect(
+      existsSync(resolve(REPO_ROOT, 'scripts/guard-publish.mjs')),
+      'the script prepublishOnly points at must exist, or the guard is a no-op that looks like a guard',
     ).toBe(true);
   });
 });
