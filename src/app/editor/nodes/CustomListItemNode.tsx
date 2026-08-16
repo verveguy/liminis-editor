@@ -104,10 +104,11 @@ export class CustomListItemNode extends ListItemNode {
   /**
    * Applies (or clears) the ordered-task checkbox affordance. Only fires for
    * a leaf item (mirrors stock's own `!$isListNode(getFirstChild())` guard —
-   * a list item whose only child is a nested list isn't itself a task) of a
-   * `'number'`-typed parent list whose own `__taskChecked` is non-null — a
-   * plain item in a mixed ordered list is left with no checkbox, same as a
-   * plain item in a mixed unordered list today.
+   * a list item whose only child is a nested list isn't itself a task) whose
+   * parent list is `'number'`-typed and whose own `__taskChecked` (this
+   * item's field, not the list's) is non-null — a plain item in a mixed
+   * ordered list is left with no checkbox, same as a plain item in a mixed
+   * unordered list today.
    */
   private updateOrderedTaskDOM(dom: HTMLElement): void {
     const parent = this.getParent();

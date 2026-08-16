@@ -29,7 +29,11 @@ const READONLY = process.argv.includes('--readonly')
 // as a base64 query param, since there is no preload/IPC bridge to send it
 // through directly (see this file's own header comment on why).
 const contentFileIndex = process.argv.indexOf('--content-file')
-const CONTENT_FILE = contentFileIndex !== -1 ? process.argv[contentFileIndex + 1] : null
+const contentFileArg = contentFileIndex !== -1 ? process.argv[contentFileIndex + 1] : undefined
+if (contentFileIndex !== -1 && (contentFileArg === undefined || contentFileArg.startsWith('--'))) {
+  throw new Error('--content-file requires a path argument')
+}
+const CONTENT_FILE = contentFileArg ?? null
 
 function buildSearch() {
   const params = new URLSearchParams()
