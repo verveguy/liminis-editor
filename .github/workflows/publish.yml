@@ -49,13 +49,18 @@ jobs:
           cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
 
-      # Node 20 ships npm 10.8.2, which predates OIDC trusted publishing
+      # Node 20 ships npm 10.x, which predates OIDC trusted publishing
       # (npm 11.5.1+). Installing npm explicitly rather than raising
       # node-version keeps the toolchain this package is tested against
       # unchanged — only the publishing client moves.
+      #
+      # Pinned, not `@latest`: this is a release path, and a new npm major
+      # arriving unannounced is exactly the kind of change that should not
+      # happen between a tag being cut and the artifact it produces. Bump it
+      # deliberately; the floor for trusted publishing is 11.5.1.
       - name: Use an npm that supports trusted publishing
         run: |
-          npm install -g npm@latest
+          npm install -g npm@12.0.2
           npm --version
 
       - name: Install dependencies
