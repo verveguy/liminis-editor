@@ -31,7 +31,14 @@ import { parseMarkdown, isHeading, isText } from '@liminis/editor/markdown'
 // invisible — the failure is silent, which is why the README says so twice.
 import '@liminis/editor/styles.css'
 
+import { Docs } from './Docs.jsx'
 import { fixtures } from './fixtures.generated.js'
+
+// Set by the Pages workflow from the triggering release's `tag_name`
+// (verveguy/liminis-editor#3, FR-011). `package.json`'s checked-in version is
+// not meaningful here — the package is `private: true` and has never been
+// published, so a local build has no real version to show.
+const DEMO_VERSION = import.meta.env.VITE_LIMINIS_EDITOR_VERSION || 'unpublished (local build)'
 
 // Where the corpus actually lives, shown next to the loaded fixture so what's
 // on screen is traceable to a specific file in the shared corpus (SC-003),
@@ -86,49 +93,80 @@ const ANNOTATION_KINDS = {
 }
 
 export function App() {
+  const [view, setView] = useState('demo')
   const [selectedName, setSelectedName] = useState(DEFAULT_FIXTURE.name)
   const selectedFixture = fixtures.find((f) => f.name === selectedName) ?? DEFAULT_FIXTURE
 
   return (
     <div className="demo">
       <header className="demo-header">
-        <h1>@liminis/editor</h1>
+        <div className="demo-header-top">
+          <h1>@liminis/editor</h1>
+          {/* Visible without further navigation regardless of which view is
+              active (FR-011) — an evaluator needs to know which release this
+              build represents before they trust anything else on the page. */}
+          <span className="demo-version-badge" title="Published version this build represents">
+            {DEMO_VERSION}
+          </span>
+          <nav className="demo-view-toggle" aria-label="Site sections">
+            <button
+              type="button"
+              aria-pressed={view === 'demo'}
+              className={view === 'demo' ? 'is-active' : undefined}
+              onClick={() => setView('demo')}
+            >
+              Demo
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === 'docs'}
+              className={view === 'docs' ? 'is-active' : undefined}
+              onClick={() => setView('docs')}
+            >
+              Documentation
+            </button>
+          </nav>
+        </div>
         <p>Pick a fixture on the left, then select text and click <strong>Note</strong> in the toolbar to annotate.</p>
       </header>
 
-      <div className="demo-body">
-        <aside className="demo-fixture-picker">
-          <h2>Fixtures</h2>
-          <p className="demo-hint">
-            From the shared round-trip corpus (<code>{CORPUS_PATH}</code>), also used by
-            verveguy/liminis-editor#1's node-class completeness gate.
-          </p>
-          {GROUPED_FIXTURES.map(([group, items]) => (
-            <section key={group}>
-              <h3>{group}</h3>
-              <ul className="demo-fixture-list">
-                {items.map((fixture) => (
-                  <li key={fixture.name}>
-                    <button
-                      type="button"
-                      className={fixture.name === selectedName ? 'is-active' : undefined}
-                      onClick={() => setSelectedName(fixture.name)}
-                      aria-current={fixture.name === selectedName ? 'true' : undefined}
-                    >
-                      {fixture.name.includes('/') ? fixture.name.slice(fixture.name.indexOf('/') + 1) : fixture.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </aside>
+      {view === 'docs' ? (
+        <Docs />
+      ) : (
+        <div className="demo-body">
+          <aside className="demo-fixture-picker">
+            <h2>Fixtures</h2>
+            <p className="demo-hint">
+              From the shared round-trip corpus (<code>{CORPUS_PATH}</code>), also used by
+              verveguy/liminis-editor#1's node-class completeness gate.
+            </p>
+            {GROUPED_FIXTURES.map(([group, items]) => (
+              <section key={group}>
+                <h3>{group}</h3>
+                <ul className="demo-fixture-list">
+                  {items.map((fixture) => (
+                    <li key={fixture.name}>
+                      <button
+                        type="button"
+                        className={fixture.name === selectedName ? 'is-active' : undefined}
+                        onClick={() => setSelectedName(fixture.name)}
+                        aria-current={fixture.name === selectedName ? 'true' : undefined}
+                      >
+                        {fixture.name.includes('/') ? fixture.name.slice(fixture.name.indexOf('/') + 1) : fixture.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </aside>
 
-        {/* Keyed on the fixture name so switching fixtures remounts this whole
-            subtree — a fresh document should not carry over annotations, active
-            selection, or markdown state from the previous one. */}
-        <FixtureWorkspace key={selectedFixture.name} fixture={selectedFixture} />
-      </div>
+          {/* Keyed on the fixture name so switching fixtures remounts this whole
+              subtree — a fresh document should not carry over annotations, active
+              selection, or markdown state from the previous one. */}
+          <FixtureWorkspace key={selectedFixture.name} fixture={selectedFixture} />
+        </div>
+      )}
     </div>
   )
 }
@@ -198,18 +236,30 @@ function FixtureWorkspace({ fixture }) {
   return (
     <>
       <main className="demo-editor">
-        <p className="demo-source">
-          Loaded from <code>{CORPUS_PATH}{fixture.name}.md</code>
-        </p>
-        <Editor
-          initialContent={fixture.markdown}
-          onChange={setMarkdown}
-          annotationKinds={ANNOTATION_KINDS}
-          annotations={annotations}
-          activeAnnotationId={activeId}
-          onCreateAnnotation={handleCreate}
-          onActivateAnnotation={setActiveId}
-        />
+        <div className="demo-editor-pane">
+          <p className="demo-source">
+            Loaded from <code>{CORPUS_PATH}{fixture.name}.md</code>
+          </p>
+          <Editor
+            initialContent={fixture.markdown}
+            onChange={setMarkdown}
+            annotationKinds={ANNOTATION_KINDS}
+            annotations={annotations}
+            activeAnnotationId={activeId}
+            onCreateAnnotation={handleCreate}
+            onActivateAnnotation={setActiveId}
+          />
+        </div>
+
+        {/* The round-trip claim (FR-001, SC-001): what you type on the left is
+            exactly the markdown that would land on disk, shown live on the
+            right. `markdown` is `onChange`'s output — nothing in this pane is
+            re-derived or reformatted, it is the literal string the editor
+            produced. */}
+        <div className="demo-markdown-pane">
+          <h2>Markdown output</h2>
+          <pre className="demo-markdown-output"><code>{markdown}</code></pre>
+        </div>
       </main>
 
       <aside className="demo-sidebar">

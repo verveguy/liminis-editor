@@ -119,6 +119,15 @@ jobs:
       - name: Build example shells
         run: pnpm build:examples
 
+      # Exercises the exact build .github/workflows/pages.yml runs on every
+      # release (verveguy/liminis-editor#3), even though no release has been
+      # published yet to trigger that workflow for real. Duplicates the pack
+      # step build:examples just did — accepted, since the alternative is a
+      # source of a broken Pages deploy invisible to CI until an actual
+      # release ships.
+      - name: Build the Pages site (smoke test)
+        run: pnpm build:site
+
   # Runs the Electron e2e suite (FR-010): the tests that reproduce the
   # read-only create-affordance defect and the toolbar-surfaced-kind defect
   # named in this package's own issue tracker, against real Electron/Chromium.

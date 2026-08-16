@@ -20,6 +20,10 @@ examples/*/pnpm-lock.yaml
 # stale checked-in copy would only drift.
 examples/demo/src/fixtures.generated.js
 
+# Generated from the root README.md (docs/decisions/adr-082.md). Regenerated
+# by `pnpm demo`, `pnpm build:examples` and `pnpm build:site` before every use.
+examples/demo/src/docs-content.generated.js
+
 # Electron/Vite build output and Playwright artifacts for the e2e shell.
 examples/electron/dist/
 examples/electron/dist-renderer/
