@@ -6,8 +6,12 @@
 #     repository, this workflow and the exact commit it was built from. It can
 #     only be produced by a CI publish from a public repo, so a local `npm
 #     publish` cannot carry it however careful the operator is.
-#   - **2FA.** An interactive publish prompts for a one-time code, which makes
-#     it unattended-hostile. A granular automation token does not.
+#   - **2FA.** An interactive publish prompts for a one-time code, and a token
+#     does not help: npm has removed classic automation tokens, and a granular
+#     token still hits `EOTP` when the account requires 2FA for writes. Trusted
+#     publishing is npm's sanctioned answer — the registry trusts *this
+#     repository and workflow* via OIDC, so there is no long-lived credential
+#     to hold, scope or rotate at all.
 #
 # Triggered by publishing a GitHub Release, so the tag, the release notes and
 # the npm version are decided in one place and the audit trail is a real
@@ -20,8 +24,9 @@ on:
 
 permissions:
   contents: read
-  # Required for provenance: lets the job mint the OIDC token npm uses to
-  # attest what built the package. Without it, `--provenance` fails.
+  # Required twice over: it is how npm authenticates this workflow as a
+  # trusted publisher, and how provenance is attested. Without it the publish
+  # cannot authenticate at all.
   id-token: write
 
 jobs:
@@ -42,8 +47,21 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-          # Points npm at the public registry and wires NODE_AUTH_TOKEN.
           registry-url: 'https://registry.npmjs.org'
+
+      # Node 20 ships npm 10.x, which predates OIDC trusted publishing
+      # (npm 11.5.1+). Installing npm explicitly rather than raising
+      # node-version keeps the toolchain this package is tested against
+      # unchanged — only the publishing client moves.
+      #
+      # Pinned, not `@latest`: this is a release path, and a new npm major
+      # arriving unannounced is exactly the kind of change that should not
+      # happen between a tag being cut and the artifact it produces. Bump it
+      # deliberately; the floor for trusted publishing is 11.5.1.
+      - name: Use an npm that supports trusted publishing
+        run: |
+          npm install -g npm@12.0.2
+          npm --version
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -88,10 +106,12 @@ jobs:
             *)   echo "dist=latest" >> "$GITHUB_OUTPUT" ;;
           esac
 
+      # No NODE_AUTH_TOKEN: authentication is the OIDC exchange, which npm
+      # performs itself when the package has this repository and workflow
+      # registered as a trusted publisher.
       - name: Publish
         run: npm publish --provenance --access public --tag "${{ steps.tag.outputs.dist }}"
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           # The publish guard's deliberate opt-in. Scoped to this step, so no
           # other job in this repository can publish as a side effect.
           LIMINIS_ALLOW_PUBLISH: '1'
