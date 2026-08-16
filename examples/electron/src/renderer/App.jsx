@@ -15,11 +15,9 @@ import { useState } from 'react'
 import { Editor } from '@liminis/editor'
 
 import '@liminis/editor/styles.css'
-
-const INITIAL = `# Electron shell
-
-Select this sentence about the quick brown fox and click **Note** in the toolbar.
-`
+// Every construct the package supports, in one document, so the shell shows
+// what the editor can actually do rather than a placeholder sentence.
+import INITIAL from '../../../shared/all-the-things.md?raw'
 
 const ANNOTATION_KINDS = {
   note: {

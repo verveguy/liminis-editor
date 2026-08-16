@@ -30,6 +30,12 @@ import { fileURLToPath } from 'node:url'
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const FIXTURES_DIR = join(REPO_ROOT, 'src', 'app', 'mapper', '__tests__', 'fixtures', 'roundtrip')
 const OUT_FILE = join(REPO_ROOT, 'examples', 'demo', 'src', 'fixtures.generated.js')
+// Documents that are not round-trip fixtures but are still worth showing in the
+// demo. `all-the-things.md` is the shared sample both shells load: every
+// construct the package supports, in one document. It deliberately does NOT
+// live in the corpus — it is a demonstration, not a fidelity assertion, and it
+// currently exercises several open round-trip defects.
+const SHARED_DIR = join(REPO_ROOT, 'examples', 'shared')
 
 function discoverFixtures(dir) {
   const entries = []
@@ -67,6 +73,13 @@ function discoverFixtures(dir) {
 }
 
 const fixtures = discoverFixtures(FIXTURES_DIR)
+
+// Shared sample documents lead the list — they are what a first-time reader
+// should see, ahead of several dozen narrow regression fixtures.
+if (existsSync(SHARED_DIR)) {
+  fixtures.unshift(...discoverFixtures(SHARED_DIR).map((entry) => ({ ...entry, group: 'sample' })))
+}
+
 if (fixtures.length === 0) {
   console.error(`no fixtures discovered under ${relative(REPO_ROOT, FIXTURES_DIR)}`)
   process.exit(1)
