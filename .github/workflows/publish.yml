@@ -43,17 +43,22 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
+      # Node 24, not the 20 used by ci.yml. Trusted publishing needs npm
+      # 11.5.1+, and npm cannot simply be installed over an older Node: npm 12
+      # declares `node: ^22.22.2 || ^24.15.0 || >=26`, so installing it on
+      # Node 20 fails with EBADENGINE. The publishing client and the runtime
+      # move together or not at all.
+      #
+      # This only affects the environment the release is *published* from. The
+      # package is still built and tested against Node 20 by ci.yml, and the
+      # suite runs again below on this Node — so a release that only works on
+      # one of the two fails here rather than reaching the registry.
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
 
-      # Node 20 ships npm 10.x, which predates OIDC trusted publishing
-      # (npm 11.5.1+). Installing npm explicitly rather than raising
-      # node-version keeps the toolchain this package is tested against
-      # unchanged — only the publishing client moves.
-      #
       # Pinned, not `@latest`: this is a release path, and a new npm major
       # arriving unannounced is exactly the kind of change that should not
       # happen between a tag being cut and the artifact it produces. Bump it
