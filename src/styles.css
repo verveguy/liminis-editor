@@ -263,6 +263,48 @@ body {
   color: white;
 }
 
+/*
+ * Ordered task items keep native <ol> decimal numbering (unlike
+ * .editor-listitem-checked/-unchecked above, which set `list-style-type:
+ * none` and pull the marker box back with a negative margin to make room for
+ * the checkbox where the bullet would have been). Here the decimal marker
+ * still renders in the <ol>'s own padding-left area, undisturbed; the
+ * checkbox instead claims new space via this item's own padding-left, placed
+ * between the number and the item's text.
+ */
+.editor-listitem-ordered-checked,
+.editor-listitem-ordered-unchecked {
+  position: relative;
+  padding-left: 24px;
+}
+
+.editor-listitem-ordered-checked::before,
+.editor-listitem-ordered-unchecked::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--checkbox-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.editor-listitem-ordered-checked::before {
+  background: var(--vscode-link);
+  border-color: var(--vscode-link);
+}
+
+.editor-listitem-ordered-checked::after {
+  content: '✓';
+  position: absolute;
+  left: 3px;
+  top: 2px;
+  font-size: 12px;
+  color: white;
+}
+
 .editor-nested-listitem {
   list-style-type: none;
 }
@@ -2380,11 +2422,14 @@ body {
 
   /* Checkboxes - ensure visibility */
   .editor-listitem-checked::before,
-  .editor-listitem-unchecked::before {
+  .editor-listitem-unchecked::before,
+  .editor-listitem-ordered-checked::before,
+  .editor-listitem-ordered-unchecked::before {
     border-color: #666 !important;
   }
 
-  .editor-listitem-checked::before {
+  .editor-listitem-checked::before,
+  .editor-listitem-ordered-checked::before {
     background: #333 !important;
     border-color: #333 !important;
   }
