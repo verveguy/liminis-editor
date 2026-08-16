@@ -354,3 +354,23 @@ MIT. See [LICENSE](./LICENSE).
 This package vendors a modified copy of `mdast-util-wiki-link` (MIT, Mark
 Hudnall); its license and the modifications are documented at
 `dist/markdown/vendor/mdast-util-wiki-link/`.
+
+## Acknowledgements
+
+This editor began as the `webview-ui` package of
+[**SlashMD**](https://github.com/wolfdavo/SlashMD) by David Wolfenden (MIT, as
+declared in that project's README) — a VS Code extension that opens Markdown
+files in a block-based WYSIWYG editor while keeping the file itself plain
+Markdown.
+
+That is the origin of the substance of this package, not a passing influence:
+the Lexical node set (callouts, toggles, equations, Mermaid, frontmatter,
+images), the mdast ↔ Lexical mappers, the Markdown parsing and stringification
+layer, and the host-message contract all descend from it. The contract's shape
+still shows its beginnings — `REQUEST_INIT`, `REQUEST_SETTINGS`, `WRITE_ASSET`
+were a VS Code webview protocol before they were carried over an Electron IPC
+bridge — and identifiers such as `SlashMDSettings` keep the name outright.
+
+What has changed since is the seam rather than the ideas: a curated set of
+export subpaths, peer-dependency inversion, an annotation mechanism, and a
+round-trip corpus that holds the Markdown pipeline to a fixed point.
