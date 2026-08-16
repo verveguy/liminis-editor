@@ -29,7 +29,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # This job installs dependencies and runs their lifecycle scripts, so the
+      # checkout token must not be left in .git/config for that code to read —
+      # the same reasoning ci.yml and pages.yml apply.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
 

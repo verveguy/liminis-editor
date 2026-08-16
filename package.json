@@ -1,7 +1,7 @@
 {
   "name": "@liminis/editor",
   "version": "0.1.0-rc.1",
-  "//private": "Deliberate, not an oversight. Publishing to a registry is out of scope (see docs/decisions/adr-078.md); this repository only proves the package is publishable. `pnpm pack` works on a private package, so the whole verify:package pipeline runs \u2014 but `npm publish` will refuse, which is the guard we want until the publish decision is actually taken. Reaffirmed by verveguy/liminis#995, the extraction of this package into verveguy/liminis-editor, which deliberately stopped short of both an npm publish and a public repository flip. Remove this flag as part of that decision, not before.",
+  "//publishing": "Publishing is deliberate, never incidental. `private: true` was this package's guard until verveguy/liminis-editor#39 took the publish decision; it is gone because that decision was taken, not because it was tidied away. The guard is now `prepublishOnly` -> scripts/guard-publish.mjs, which refuses unless LIMINIS_ALLOW_PUBLISH=1 is set explicitly. That variable is set at step scope in .github/workflows/publish.yml and nowhere else, so a release is the only path that publishes. Note that `npm publish --dry-run` does NOT report a private package as blocked (npm 10.8.2), which is why the guard is a script rather than a flag.",
   "license": "MIT",
   "description": "Lexical-based markdown WYSIWYG editor with mdast round-trip and a host-injection seam",
   "//packageManager": "Not cosmetic. This field used to live in the monorepo root manifest and did not travel with the package, so `pnpm/action-setup` had no version to read and CI failed before installing anything. It is also what pins the pnpm that resolves the lockfile.",
