@@ -69,6 +69,19 @@ related symptoms under `src/app/mapper/__tests__/fixtures/roundtrip/known-defect
 Both are noted here as directly relevant prior art for whoever researches and fixes this
 issue (see Assumptions and Out of Scope for how they relate to this issue's scope).
 
+**Reopened 2026-08-16.** The defect is confirmed still live on `main` (re-verified at
+`c0244ba`, unchanged from the reproduction above). This spec was already implemented in
+full on this branch and submitted as
+[PR #26](https://github.com/verveguy/liminis-editor/pull/26) — mapper changes in both
+`lexicalToMdast.ts` and `mdastToLexical.ts`, the `18-*` fixtures, and the
+`known-defects/other-blockquote-*` promotions this spec's FR-007a anticipates — but that
+PR was closed without merging and the issue was closed anyway. Branch `fabrik/issue-18`
+still carries all of that work; it has simply fallen behind `main`, which has advanced
+by several commits since the branch's last sync (including #17's escape-split work) and
+needs reconciling before the existing fix can land. This spec is unchanged from the
+version PR #26 was implemented against — the work it describes does not need to be
+redone, only rebased, re-verified against current `main`, and re-landed.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - A two-paragraph quotation survives being opened and saved (Priority: P1)
@@ -272,3 +285,6 @@ a second-pass fixed point for each.
   this issue.
 - Liminis issue #897 — analogous multi-paragraph collapse fix for list items, the
   reference implementation pattern for this issue.
+- [PR #26](https://github.com/verveguy/liminis-editor/pull/26) (closed, unmerged) — the
+  previous implementation of this spec; `fabrik/issue-18` still carries its commits and
+  needs rebasing onto current `main` rather than reimplementation.
