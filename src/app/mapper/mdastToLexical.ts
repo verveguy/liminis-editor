@@ -572,7 +572,7 @@ function convertBlockquote(node: Blockquote): LexicalBlockNode[] {
         const calloutMatch = /^\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]/i.exec(firstText.value);
         if (calloutMatch) {
           const calloutType = calloutMatch[1].toLowerCase() as CalloutType;
-          const restOfText = firstText.value.slice(calloutMatch[0].length).trim();
+          const restOfText = firstText.value.slice(calloutMatch[0].length).trimStart();
 
           // Create callout node without initial content
           const callout = $createCalloutNode(calloutType);
