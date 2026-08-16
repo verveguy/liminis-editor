@@ -28,16 +28,14 @@ travelled with the code, are recorded in [`docs/provenance.md`](./docs/provenanc
 
 ## Install
 
-> **This package is published as a prerelease.** `0.1.0-rc.1` is on npm under the
-> `next` tag, so `pnpm add @liminis/editor` resolves nothing — ask for the tag:
->
-> ```bash
-> pnpm add @liminis/editor@next
-> ```
->
-> The prerelease exists to prove the registry install path, which nothing had
-> exercised: both consuming applications resolved this package locally. `latest`
-> stays unset until `0.1.0`.
+```bash
+pnpm add @liminis/editor
+```
+
+> **This is `0.x`.** Minor versions may contain breaking changes; patch versions
+> will not. The seven declared subpath exports are the public API — anything
+> reachable by a deeper path is private and may move without notice. Breaking
+> changes are listed in the changelog with a migration note.
 
 React and Lexical are **peer dependencies**, so your app resolves exactly one
 copy of each. Two React copies produce `Invalid hook call`; two Lexical copies
@@ -265,7 +263,7 @@ inert).
 
 ## Consuming it
 
-The registry is now the normal route (`pnpm add @liminis/editor@next`). The
+The registry is the normal route (`pnpm add @liminis/editor`). The
 **packed tarball** below remains the way to consume an unreleased change — a
 local build, or a commit that has not been tagged:
 
