@@ -495,6 +495,29 @@ $$`
       expect(flagged).toHaveLength(2)
       expect(flagged.map((c: any) => c.value)).toEqual(['_', '_'])
     })
+
+    it('computes accurate line/column positions for split nodes across a line break', () => {
+      // Regression test (Copilot review, PR #29): split nodes previously
+      // copied the original node's *start* line/column onto every sibling's
+      // *end* position too, so a node split after an embedded newline got a
+      // wrong (too-early) end position.
+      const markdown = 'line one \\* still\nline two'
+      const result = parseMarkdown(markdown)
+      const paragraph = result.root.children[0] as any
+      const children = paragraph.children as any[]
+      expect(children.map((c) => c.value)).toEqual(['line one ', '*', ' still\nline two'])
+
+      const [before, star, after] = children
+      expect(before.position.start).toEqual({ line: 1, column: 1, offset: 0 })
+      expect(before.position.end).toEqual({ line: 1, column: 10, offset: 9 })
+      expect(star.position.start).toEqual({ line: 1, column: 10, offset: 9 })
+      expect(star.position.end).toEqual({ line: 1, column: 12, offset: 11 })
+      // The trailing run crosses the embedded newline, so its end position
+      // must land on line 2, not stay pinned to line 1.
+      expect(after.position.start).toEqual({ line: 1, column: 12, offset: 11 });
+      expect(after.position.end.line).toBe(2)
+      expect(after.position.end.column).toBe(9)
+    })
   })
 })
 

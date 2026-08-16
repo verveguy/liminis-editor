@@ -365,13 +365,33 @@ function splitTextNodeEscapes(node: any, normalizedText: string): any[] {
 
   const result: any[] = [];
   const startPos = node.position.start;
+  // Per-offset line/column within `source`, walked once from the original
+  // node's start position — `makeTextNode` below looks up the correct point
+  // for each split node's start/end instead of copying the original node's
+  // start position onto every sibling (which would leave every split node's
+  // `end` reporting the same line/column as the original node's `start`).
+  const positionAt: { line: number; column: number }[] = new Array(source.length + 1);
+  {
+    let line = startPos.line;
+    let column = startPos.column;
+    positionAt[0] = { line, column };
+    for (let i = 0; i < source.length; i++) {
+      if (source[i] === '\n') {
+        line += 1;
+        column = 1;
+      } else {
+        column += 1;
+      }
+      positionAt[i + 1] = { line, column };
+    }
+  }
   const makeTextNode = (value: string, srcStart: number, srcEnd: number, forceEscape: boolean): any => ({
     type: 'text',
     value,
     ...(forceEscape ? { data: { _forceEscape: true } } : {}),
     position: {
-      start: { ...startPos, offset: srcStart },
-      end: { ...startPos, offset: srcEnd },
+      start: { ...positionAt[srcStart - start], offset: srcStart },
+      end: { ...positionAt[srcEnd - start], offset: srcEnd },
     },
   });
 
