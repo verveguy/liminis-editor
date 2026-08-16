@@ -1,2 +1,0 @@
-- [ ] Task one
-- [x] Task two

@@ -1,1 +1,0 @@
-![[leading] bracket](img.png)

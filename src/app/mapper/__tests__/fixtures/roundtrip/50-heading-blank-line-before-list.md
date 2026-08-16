@@ -1,5 +1,0 @@
-## Ingredients
-
-- Flour
-- Sugar
-- Eggs
