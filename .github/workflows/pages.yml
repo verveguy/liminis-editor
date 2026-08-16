@@ -5,9 +5,15 @@ name: Deploy Pages
 # main cannot break the live site and an evaluator never sees behaviour
 # `npm install` wouldn't give them. See docs/decisions/adr-082.md.
 #
-# `workflow_dispatch` exists only so the workflow shape can be exercised
-# manually before the repository is public and any release has been
-# published — see the same note in scripts/build-site.mjs's callers.
+# `workflow_dispatch` is kept for rebuilding the site without cutting a
+# release — recovering from an infrastructure failure, say. Prefer re-running
+# the release-triggered run when there is one: a dispatched run has no
+# `github.event.release`, so the version badge below comes out empty.
+#
+# Deploying from a release means the deploying ref is a tag, so the
+# `github-pages` environment must permit `v*` tags and not just `main`. A
+# branch-only policy rejects the deploy job before it runs a single step,
+# which surfaces as a failed job with an empty step list and no log at all.
 on:
   release:
     types: [published]
@@ -36,7 +42,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -49,9 +55,11 @@ jobs:
       # Builds @liminis/editor, packs it, regenerates the demo's fixture and
       # documentation data, and builds examples/demo against the tarball —
       # see scripts/build-site.mjs. The version badge (FR-011) is sourced
-      # from the triggering release's tag, not package.json, since the
-      # package is unpublished/private and package.json's checked-in version
-      # is not meaningful.
+      # from the triggering release's tag rather than package.json, so the
+      # badge states the version this site was actually built and deployed
+      # from. package.json on main can already carry the *next* version after
+      # a release, and reading it here would label the live site with a
+      # version nobody can install.
       - name: Build the site
         run: pnpm build:site
         env:
