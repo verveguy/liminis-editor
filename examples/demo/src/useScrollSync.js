@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 /**
  * Keep the editor pane and the raw-markdown pane scrolled to the same place.
@@ -19,13 +19,24 @@ import { useEffect } from 'react'
  * must be measured from real layout again.
  */
 export function useScrollSync(editorPaneRef, markdownPreRef, markdown) {
+  // The listeners and the observer must not be rebuilt when the document
+  // changes — with an editable source pane that is every keystroke, and the
+  // churn shows up as scroll jitter. The effect therefore depends only on the
+  // refs, and reads the current text through a ref instead.
+  const markdownRef = useRef(markdown)
+  // Anchor positions live outside the effect too, so a document change can
+  // invalidate them without tearing the effect down. Measuring is deferred to
+  // the next scroll rather than done here.
+  const anchorsRef = useRef(null)
+  useEffect(() => {
+    markdownRef.current = markdown
+    anchorsRef.current = null
+  }, [markdown])
+
   useEffect(() => {
     const pane = editorPaneRef.current
     const pre = markdownPreRef.current
     if (!pane || !pre) return
-
-    /** Y offsets of each heading within each pane's scrollable content. */
-    let anchors = null
 
     function measure() {
       // getBoundingClientRect is viewport-relative; adding scrollTop and
@@ -44,7 +55,7 @@ export function useScrollSync(editorPaneRef, markdownPreRef, markdown) {
       const lineHeight = parseFloat(style.lineHeight)
       const paddingTop = parseFloat(style.paddingTop)
       const sourceY = []
-      markdown.split('\n').forEach((line, i) => {
+      markdownRef.current.split('\n').forEach((line, i) => {
         if (/^#{1,6} /.test(line)) sourceY.push(paddingTop + i * lineHeight)
       })
 
@@ -83,7 +94,8 @@ export function useScrollSync(editorPaneRef, markdownPreRef, markdown) {
 
     function sync(source, target, key) {
       if (syncing) return
-      if (!anchors) anchors = measure()
+      if (!anchorsRef.current) anchorsRef.current = measure()
+      const anchors = anchorsRef.current
       if (!anchors) return
 
       const from = key === 'editor' ? anchors.editorY : anchors.sourceY
@@ -103,12 +115,11 @@ export function useScrollSync(editorPaneRef, markdownPreRef, markdown) {
     const onEditorScroll = () => sync(pane, pre, 'editor')
     const onPreScroll = () => sync(pre, pane, 'source')
 
-    // Anchor positions move when the document changes, when the window
-    // resizes, and when async content (diagrams, math, images) finishes
-    // laying out. Dropping the cache is cheap; measuring is deferred to the
-    // next scroll.
+    // Anchors also move when the window resizes and when async content
+    // (diagrams, math, images) finishes laying out — neither of which changes
+    // the document, so they invalidate here rather than in the effect above.
     const invalidate = () => {
-      anchors = null
+      anchorsRef.current = null
     }
 
     pane.addEventListener('scroll', onEditorScroll, { passive: true })
@@ -125,5 +136,5 @@ export function useScrollSync(editorPaneRef, markdownPreRef, markdown) {
       window.removeEventListener('resize', invalidate)
       observer.disconnect()
     }
-  }, [editorPaneRef, markdownPreRef, markdown])
+  }, [editorPaneRef, markdownPreRef])
 }
