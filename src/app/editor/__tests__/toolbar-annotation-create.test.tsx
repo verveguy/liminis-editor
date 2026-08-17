@@ -42,7 +42,7 @@ import {
   $setSelection,
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
-import { Toolbar } from '../Toolbar';
+import { Toolbar, type ToolbarAnnotationAffordance } from '../Toolbar';
 import { AnnotationPlugin, type AnnotationCreateEvent } from '../AnnotationPlugin';
 import { OPEN_ANNOTATION_COMPOSER_COMMAND } from '../annotationCommands';
 import type { AnnotationKindConfigs } from '../../../annotations/types';
@@ -71,7 +71,7 @@ function Harness({
   annotationAffordances,
 }: {
   onCreate: (e: AnnotationCreateEvent) => void;
-  annotationAffordances: { kind: string; label: string }[];
+  annotationAffordances: ToolbarAnnotationAffordance[];
 }) {
   const [editor] = useLexicalComposerContext();
 
@@ -319,7 +319,7 @@ function renderToolbar({
   onCreate = vi.fn(),
 }: {
   editable?: boolean;
-  annotationAffordances?: { kind: string; label: string }[];
+  annotationAffordances?: ToolbarAnnotationAffordance[];
   onCreate?: (e: AnnotationCreateEvent) => void;
 } = {}) {
   const editorRef: { current: import('lexical').LexicalEditor | null } = { current: null };
@@ -646,5 +646,50 @@ describe('Toolbar — format flags after a native-only selection with no precedi
     // FR-001/FR-002) — only the format flag is affected.
     expect(getByLabelText('Bold')).not.toBeNull();
     expect(getByLabelText('Bold').className).not.toContain('active');
+  });
+});
+
+// User Story 2 (FR-003/FR-004/FR-005/SC-002): a toolbar-surfaced kind whose
+// `createAffordance` includes `icon` renders that icon as the button's
+// visible content, while the button's accessible name stays derived from
+// `label` — and an icon-omitted affordance renders exactly as it does today.
+describe('Toolbar — icon affordances (User Story 2)', () => {
+  it('renders the icon as visible content, not the literal label text', () => {
+    const { getByRole } = renderToolbar({
+      annotationAffordances: [{ kind: 'comment', label: 'Comment', icon: <svg data-testid="comment-icon" /> }],
+    });
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+    });
+
+    const button = getByRole('button', { name: 'Comment' });
+    expect(button.querySelector('[data-testid="comment-icon"]')).not.toBeNull();
+    expect(button.textContent).toBe('');
+  });
+
+  it('remains reachable by accessible name via getByRole even with an icon configured (FR-005)', () => {
+    const { getByRole } = renderToolbar({
+      annotationAffordances: [{ kind: 'comment', label: 'Comment', icon: <svg /> }],
+    });
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+    });
+
+    expect(() => getByRole('button', { name: 'Comment' })).not.toThrow();
+  });
+
+  it('renders the plain-text label unchanged when icon is omitted (FR-003 regression guard)', () => {
+    const { getByRole } = renderToolbar({
+      annotationAffordances: [{ kind: 'comment', label: 'Comment' }],
+    });
+
+    act(() => {
+      selectNeedleNatively(NEEDLE);
+    });
+
+    const button = getByRole('button', { name: 'Comment' });
+    expect(button.textContent).toBe('Comment');
   });
 });

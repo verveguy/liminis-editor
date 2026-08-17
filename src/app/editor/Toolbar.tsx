@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
   $getSelection,
@@ -17,6 +18,12 @@ import { OPEN_ANNOTATION_COMPOSER_COMMAND } from './annotationCommands';
 export interface ToolbarAnnotationAffordance {
   kind: string;
   label: string;
+  /**
+   * Icon content to render as the button's visible children instead of the
+   * plain-text `label`, fitting the 32×32 `.toolbar-button` box. Never
+   * affects the button's accessible name — that always derives from `label`.
+   */
+  icon?: ReactNode;
 }
 
 interface ToolbarProps {
@@ -400,7 +407,7 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
       {annotationAffordances.length > 0 && (
         <>
           {editable && <div className="toolbar-divider" />}
-          {annotationAffordances.map(({ kind, label }) => (
+          {annotationAffordances.map(({ kind, label, icon }) => (
             <button
               key={kind}
               type="button"
@@ -412,7 +419,7 @@ export function Toolbar({ annotationAffordances = [] }: ToolbarProps) {
               aria-label={label}
               title={label}
             >
-              {label}
+              {icon ?? label}
             </button>
           ))}
         </>

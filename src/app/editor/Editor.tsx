@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useRef, useMemo, useState, lazy, Suspense, type MutableRefObject, type ReactNode } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -671,7 +671,11 @@ export function Editor({
     if (!annotationKinds) return [];
     return Object.entries(annotationKinds)
       .filter(([, config]) => config.createAffordance?.surface === 'toolbar')
-      .map(([kind, config]) => ({ kind, label: config.createAffordance?.label ?? kind }));
+      .map(([kind, config]) => ({
+        kind,
+        label: config.createAffordance?.label ?? kind,
+        icon: config.createAffordance?.icon as ReactNode,
+      }));
   }, [annotationKinds]);
 
   const contextMenuAnnotationAffordances = useMemo(() => {
