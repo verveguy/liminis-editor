@@ -1,1 +1,0 @@
-![trailing [bracket]](img.png)

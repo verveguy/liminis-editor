@@ -1,2 +1,0 @@
-Term A
-: Definition A
