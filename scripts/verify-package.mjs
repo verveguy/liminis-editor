@@ -91,10 +91,24 @@ function run(command, args, cwd, env = {}) {
 step('Building @liminis/editor')
 run('pnpm', ['run', 'build'], PACKAGE_DIR)
 
+// Packed with **npm**, because .github/workflows/publish.yml publishes with
+// npm. This is not interchangeable, and treating it as though it were is what
+// shipped a broken 0.1.0: this script packed with pnpm, pnpm applied the
+// `publishConfig` manifest-field overrides, and every assertion below passed
+// against a tarball nobody would ever install. The release packed with npm,
+// which ignores those overrides, and published src/ paths into a tarball
+// containing only dist/.
+//
+// The rule this encodes: verify the artifact the release actually produces.
+// A check run against a differently-built artifact proves nothing about the
+// one that reaches users, however thorough it is — and this one was thorough.
+// If the publish client ever changes, change it here in the same commit.
 step('Packing the tarball')
 const packDir = tempDir('liminis-editor-pack-')
-const packOutput = run('pnpm', ['pack', '--pack-destination', packDir], PACKAGE_DIR)
-const tarball = packOutput.trim().split('\n').pop().trim()
+// --ignore-scripts because `prepack` (the build) already ran above; without it
+// npm rebuilds the whole package a second time.
+const packOutput = run('npm', ['pack', '--pack-destination', packDir, '--ignore-scripts'], PACKAGE_DIR)
+const tarball = join(packDir, packOutput.trim().split('\n').pop().trim())
 if (!existsSync(tarball)) {
   console.error(`could not find the packed tarball (parsed: ${tarball})`)
   process.exit(1)
@@ -102,10 +116,10 @@ if (!existsSync(tarball)) {
 console.log(`  ${relative(REPO_ROOT, tarball) || tarball}`)
 
 // The packed manifest is what an external consumer actually resolves through.
-// The checked-in one still points at `src/`, so that in-workspace consumers keep
-// resolving raw TypeScript (which is what makes a Tailwind `@source` directive
-// and a bundler's externalization exclusion able to name real files) —
-// `publishConfig` is what swaps them to `dist/` at pack time.
+// Since 0.1.1 it should be identical to the checked-in one — the entry points
+// are written as dist/ paths directly, with no pack-time rewriting by anyone —
+// so these assertions are now checking that nothing rewrote them, rather than
+// that something did.
 step('Checking the packed manifest')
 const extractDir = tempDir('liminis-editor-extract-')
 run('tar', ['xzf', tarball, '-C', extractDir], REPO_ROOT)
@@ -113,6 +127,29 @@ const packed = JSON.parse(readFileSync(join(extractDir, 'package', 'package.json
 
 check('main points at dist/', packed.main === './dist/index.js', `got ${packed.main}`)
 check('types points at dist/', packed.types === './dist/index.d.ts', `got ${packed.types}`)
+
+// This pairs with the dist/ assertions above; neither is sufficient alone, and
+// a mutation test recreating the 0.1.0 manifest shape proved it:
+//
+//   - Packed by npm (what we publish with), the overrides are ignored, so both
+//     manifests say src/ and agree. Byte-identity passes; the dist/ assertions
+//     above are what fail.
+//   - Packed by pnpm, the overrides apply, so the tarball says dist/ while the
+//     checked-in manifest says src/. The dist/ assertions pass — this is
+//     exactly how 0.1.0 got a clean verification — and byte-identity fails.
+//
+// So: the assertions above catch entry points that are wrong, and this one
+// catches entry points that were rewritten during packing. It is the second
+// that makes a change of publish client safe, because it fails on divergence
+// rather than on any particular client's behaviour.
+const source = JSON.parse(readFileSync(join(PACKAGE_DIR, 'package.json'), 'utf8'))
+for (const field of ['main', 'types', 'exports']) {
+  check(
+    `packed "${field}" is byte-identical to the checked-in manifest`,
+    JSON.stringify(packed[field]) === JSON.stringify(source[field]),
+    `checked-in ${JSON.stringify(source[field])} != packed ${JSON.stringify(packed[field])}`,
+  )
+}
 
 const EXPECTED_SUBPATHS = ['.', './markdown', './annotations', './headless', './contract', './nodes', './styles.css']
 for (const subpath of EXPECTED_SUBPATHS) {

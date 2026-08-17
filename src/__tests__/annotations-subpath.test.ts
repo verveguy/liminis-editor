@@ -118,9 +118,12 @@ describe('./annotations subpath import graph', () => {
     const pkg = JSON.parse(readFileSync(resolve(SRC, '..', 'package.json'), 'utf8')) as {
       exports: Record<string, unknown>;
     };
+    // dist/, not src/: since 0.1.1 the checked-in manifest is the published
+    // manifest, with no `publishConfig` rewriting at pack time. See ADR-078's
+    // 2026-08-16 amendment for why that indirection was reversed.
     expect(pkg.exports['./annotations']).toEqual({
-      types: './src/annotations.ts',
-      default: './src/annotations.ts',
+      types: './dist/annotations.d.ts',
+      default: './dist/annotations.js',
     });
   });
 });
