@@ -869,7 +869,7 @@ body {
   width: 220px;
   padding: 6px 10px;
   font-size: 13px;
-  color: var(--vscode-text);
+  color: var(--vscode-foreground);
   background: var(--vscode-input-bg, var(--vscode-code-bg));
   border: 1px solid var(--vscode-border);
   border-radius: 4px;
