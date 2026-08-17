@@ -19,6 +19,7 @@ import {
 import { AnnotationPlugin, type AnnotationCreateEvent } from './AnnotationPlugin';
 import { AnnotationMarkerPlugin } from './AnnotationMarkerPlugin';
 import { registerMarkOverlapResolver } from './mark-overlap-resolver';
+import { OPEN_ANNOTATION_COMPOSER_COMMAND } from './annotationCommands';
 
 export interface AnnotationSurfaceProps {
   kinds: AnnotationKindConfigs;
@@ -141,6 +142,7 @@ function AnnotationEditorHandlePlugin({
       removeMarksForAnnotation: (id) => removeMarksForAnnotation(editor, id),
       collectLiveAnchorSnapshots: (markdownText) =>
         collectLiveAnchorSnapshots(editor, markdownText, { wikiLinkPromotion }),
+      createAnnotation: (kind) => editor.dispatchCommand(OPEN_ANNOTATION_COMPOSER_COMMAND, { kind }),
     };
     return () => {
       handleRef.current = null;
