@@ -68,6 +68,17 @@ export type AnnotationMarkerStyle = 'highlight' | 'squiggle' | 'none'
 export interface AnnotationCreateAffordance {
   surface: 'toolbar' | 'contextMenu'
   label?: string
+  /**
+   * Opaque icon content for the `toolbar` surface, rendered by `Toolbar` in
+   * place of the plain-text `label` when present. Typed `unknown` (not
+   * `ReactNode`) so this module stays import-free: `./annotations` is a
+   * headless subpath, and `Toolbar.tsx` is where React/lucide-react are
+   * actually consulted to interpret whatever value is supplied here. Never
+   * affects the affordance button's accessible name, which always derives
+   * from `label`. Consulted only on the `toolbar` surface — out of scope for
+   * `contextMenu`.
+   */
+  icon?: unknown
 }
 
 /**
@@ -213,4 +224,15 @@ export interface AnnotationEditorHandle {
   removeMarksForAnnotation: (annotationId: string) => void
   /** The current live range of every marked passage, keyed by annotation id. */
   collectLiveAnchorSnapshots: (markdownText: string) => Map<string, AnchorRange>
+  /**
+   * Triggers the same create-on-selection flow the toolbar's affordance
+   * button dispatches, for a host reaching in from outside the
+   * `LexicalComposer` tree (e.g. an ancestor-rendered context menu). Reads
+   * `window.getSelection()` live at dispatch time — no anchor/range is
+   * plumbed through this call. Declines silently (matching
+   * `OPEN_ANNOTATION_COMPOSER_COMMAND`'s existing handler) when `kind` has no
+   * configured `createAffordance` or there is no live, non-collapsed native
+   * selection.
+   */
+  createAnnotation: (kind: AnnotationKind) => void
 }
