@@ -254,6 +254,16 @@ export function SelectionContextMenuPlugin({
     }
   }, [onSelectionContextMenu, menuState]);
 
+  // Nothing to offer: no contextMenu-surfaced kind is configured and no host
+  // callback is supplied (FR-007/US3). Rendering the overlay in this case
+  // produces an empty box sitting on top of, or beside, a host's own
+  // ancestor-rendered context menu on every selection right-click. The native
+  // `contextmenu` listener's `preventDefault()` behaviour above is untouched
+  // (FR-009) — only this component's DOM output is skipped.
+  if (annotationAffordances.length === 0 && !onSelectionContextMenu) {
+    return null;
+  }
+
   return (
     <SelectionContextMenu
       visible={menuState.visible}

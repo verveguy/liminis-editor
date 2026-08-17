@@ -90,9 +90,13 @@ function CommandRecorder({ seen }: { seen: string[] }) {
   return null
 }
 
+// `false` (rather than `undefined`, which would trigger the default) is the
+// sentinel for "explicitly no onSelectionContextMenu" — the true FR-007
+// zero-config case.
 function renderMenu(
   extra?: React.ReactNode,
   annotationAffordances: { kind: string; label: string }[] = [{ kind: 'correction', label: 'Correction…' }],
+  onSelectionContextMenu: (() => void) | false = vi.fn() as () => void,
 ) {
   const utils = render(
     <LexicalComposer
@@ -111,7 +115,10 @@ function renderMenu(
       />
       <Seed />
       {extra}
-      <SelectionContextMenuPlugin onSelectionContextMenu={vi.fn()} annotationAffordances={annotationAffordances} />
+      <SelectionContextMenuPlugin
+        onSelectionContextMenu={onSelectionContextMenu === false ? undefined : onSelectionContextMenu}
+        annotationAffordances={annotationAffordances}
+      />
     </LexicalComposer>,
   )
 
@@ -250,6 +257,35 @@ describe('SelectionContextMenuPlugin — no configured kind means no affordance'
     renderMenu(<CommandRecorder seen={seen} />, [])
 
     expect(seen).toEqual([])
+  })
+})
+
+// User Story 3 / FR-007/SC-003: the true zero-configuration case — no
+// contextMenu-surfaced kind AND no onSelectionContextMenu — must produce zero
+// DOM output at all, not merely an empty menu with no items. The suite above
+// always supplies onSelectionContextMenu (renderMenu's default), so it never
+// exercised this path; a host that renders its own ancestor context menu on
+// the same right-click otherwise gets this plugin's overlay on top of it.
+describe('SelectionContextMenuPlugin — zero configuration produces no DOM output (US3/FR-007/SC-003)', () => {
+  it('renders nothing when both annotationAffordances is empty and onSelectionContextMenu is absent', () => {
+    const { container } = renderMenu(undefined, [], false)
+
+    // The menu overlay is the only element in this tree styled with a fixed
+    // position and this z-index; its absence means the plugin produced no
+    // DOM output at all, not merely an overlay with zero menu items.
+    expect(container.querySelector('[style*="z-index: 10000"]')).toBeNull()
+  })
+
+  it('still renders the menu when a contextMenu-surfaced kind is configured, even with no onSelectionContextMenu (FR-008)', () => {
+    const { getByText } = renderMenu(undefined, [{ kind: 'correction', label: 'Correction…' }], false)
+
+    expect(getByText('Correction…')).not.toBeNull()
+  })
+
+  it('still renders the menu when onSelectionContextMenu is supplied, even with no configured kind (FR-008)', () => {
+    const { getByText } = renderMenu(undefined, [], vi.fn() as () => void)
+
+    expect(getByText('Chat about this…')).not.toBeNull()
   })
 })
 
