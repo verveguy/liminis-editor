@@ -59,6 +59,29 @@ All optional; supplying `annotationKinds` is what turns the mechanism on. See
 | `annotationEditorHandleRef` | `MutableRefObject<AnnotationEditorHandle \| null>` | Imperative handle for the mounted editor's live marks. |
 | `annotationLogger` | `{ warn(message, ...args): void }` | Injected, so the package never imports a host logger. |
 
+#### `AnnotationEditorHandle`
+
+The imperative bridge from a host to a mounted editor, reachable from
+anywhere the host renders — including from *outside* the `<Editor>`'s own
+`LexicalComposer` tree, e.g. an ancestor-rendered right-click context menu
+that needs to intercept the same `contextmenu` event this package's own
+selection-context-menu plugin already listens for.
+
+| Method | Type | Notes |
+|---|---|---|
+| `removeMarksForAnnotation` | `(annotationId: string) => void` | Removes every live mark wrapping `annotationId`. |
+| `collectLiveAnchorSnapshots` | `(markdownText: string) => Map<string, AnchorRange>` | The current live range of every marked passage, keyed by annotation id. |
+| `createAnnotation` | `(kind: AnnotationKind) => void` | Triggers the same create-on-selection flow the toolbar's affordance button dispatches for `kind`, anchored to whatever is currently selected in the editor (read live via `window.getSelection()` — no anchor/range is passed in). Declines silently, exactly as clicking the toolbar button would, when `kind` has no configured `createAffordance` or there is no live, non-collapsed selection. |
+
+```tsx
+const handleRef = useRef<AnnotationEditorHandle | null>(null)
+
+<Editor annotationKinds={kinds} annotationEditorHandleRef={handleRef} onCreateAnnotation={handleCreate} />
+
+// From a host-rendered ancestor menu, outside the editor's own component tree:
+<button onClick={() => handleRef.current?.createAnnotation('comment')}>Add Comment</button>
+```
+
 ## The host seam
 
 The package boundary is drawn at **persistence**: text ranges, marks, rendering

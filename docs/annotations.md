@@ -48,12 +48,27 @@ behind a `React.lazy()` boundary, so it is not in the chunk your app downloads.
 | Field | Type | Meaning |
 |---|---|---|
 | `markerStyle` | `'highlight' \| 'squiggle' \| 'none'` | How the kind paints. `none` places no visible marker at all — used by kinds that adopt the anchor model but render nothing themselves. |
-| `createAffordance` | `{ surface: 'toolbar' \| 'contextMenu', label?: string } \| null` | Where a user-initiated create action is offered. Omit or `null` for host-injected annotations only. |
+| `createAffordance` | `{ surface: 'toolbar' \| 'contextMenu', label?: string, icon?: unknown } \| null` | Where a user-initiated create action is offered. Omit or `null` for host-injected annotations only. |
 | `livemarkPolicy` | `(annotation) => boolean` | Whether an annotation gets a live `MarkNode` in the document. Defaults to `shouldPlaceLiveMark(outcome)`. Consulted only when `markerStyle` is not `none`. |
 | `retainMarkOnCreate` | `boolean` | Whether the transient capture mark stays after an anchor is captured. A composer that highlights the passage wants `true`; a kind that captures and dismisses wants `false`. |
 
 `AnnotationKindConfigs` is `Record<string, AnnotationKindConfig>`. Kind names are
 plain strings — the package has no closed set and gives no kind special status.
+
+`createAffordance.icon` is consulted only on the `toolbar` surface, where it
+replaces the affordance button's plain-text `label` as its *visible* content
+(fitting the existing 32×32 `.toolbar-button` box). It never affects the
+button's *accessible name* — `aria-label`/`title` always derive from `label`,
+so a host's existing `getByRole('button', { name: label })` query keeps
+working whether or not `icon` is supplied. It is typed `unknown` in
+`src/annotations/types.ts` (the headless `./annotations` subpath cannot
+import `react`), so a React host supplies a `ReactNode` (e.g. a
+`lucide-react` icon element) and `Toolbar` casts it back at render time. The
+`contextMenu` surface does not consult `icon` at all.
+
+```tsx
+createAffordance: { surface: 'toolbar', label: 'Comment', icon: <MessageSquareIcon size={16} /> },
+```
 
 ### `Annotation`
 
