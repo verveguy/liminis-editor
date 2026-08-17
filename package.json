@@ -1,6 +1,6 @@
 {
   "name": "@liminis/editor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "//publishing": "Publishing is deliberate, never incidental. `private: true` was this package's guard until verveguy/liminis-editor#39 took the publish decision; it is gone because that decision was taken, not because it was tidied away. The guard is now `prepublishOnly` -> scripts/guard-publish.mjs, which refuses unless LIMINIS_ALLOW_PUBLISH=1 is set explicitly. That variable is set at step scope in .github/workflows/publish.yml and nowhere else, so a release is the only path that publishes. Note that `npm publish --dry-run` does NOT report a private package as blocked (npm 10.8.2), which is why the guard is a script rather than a flag.",
   "license": "MIT",
   "description": "Lexical-based markdown WYSIWYG editor with mdast round-trip and a host-injection seam",
@@ -19,66 +19,38 @@
   "//packageManager": "Not cosmetic. This field used to live in the monorepo root manifest and did not travel with the package, so `pnpm/action-setup` had no version to read and CI failed before installing anything. It is also what pins the pnpm that resolves the lockfile.",
   "packageManager": "pnpm@10.33.0",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "//entrypoints": "These point at dist/ here, in the checked-in manifest, and must stay that way. They lived under `publishConfig` until 0.1.1 so that in-workspace consumers could resolve raw TypeScript, and that silently shipped a broken 0.1.0: `publishConfig` manifest-field overrides (main/types/exports) are a pnpm and yarn feature, and npm honours `publishConfig` only for config values like access, registry and tag. `npm publish` therefore published src/ paths while `files` shipped only dist/, so every entry point resolved to a file that was not in the tarball. What is published is now exactly what is written here, and scripts/verify-package.mjs packs with the same client that publishes so the two cannot diverge again. See docs/decisions/adr-078.md.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./markdown": {
-      "types": "./src/markdown.ts",
-      "default": "./src/markdown.ts"
+      "types": "./dist/markdown.d.ts",
+      "default": "./dist/markdown.js"
     },
     "./annotations": {
-      "types": "./src/annotations.ts",
-      "default": "./src/annotations.ts"
+      "types": "./dist/annotations.d.ts",
+      "default": "./dist/annotations.js"
     },
     "./headless": {
-      "types": "./src/headless.ts",
-      "default": "./src/headless.ts"
+      "types": "./dist/headless.d.ts",
+      "default": "./dist/headless.js"
     },
     "./contract": {
-      "types": "./src/contract.ts",
-      "default": "./src/contract.ts"
+      "types": "./dist/contract.d.ts",
+      "default": "./dist/contract.js"
     },
     "./nodes": {
-      "types": "./src/nodes.ts",
-      "default": "./src/nodes.ts"
+      "types": "./dist/nodes.d.ts",
+      "default": "./dist/nodes.js"
     },
-    "./styles.css": "./src/styles.css"
+    "./styles.css": "./dist/styles.css"
   },
   "publishConfig": {
-    "access": "public",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      },
-      "./markdown": {
-        "types": "./dist/markdown.d.ts",
-        "default": "./dist/markdown.js"
-      },
-      "./annotations": {
-        "types": "./dist/annotations.d.ts",
-        "default": "./dist/annotations.js"
-      },
-      "./headless": {
-        "types": "./dist/headless.d.ts",
-        "default": "./dist/headless.js"
-      },
-      "./contract": {
-        "types": "./dist/contract.d.ts",
-        "default": "./dist/contract.js"
-      },
-      "./nodes": {
-        "types": "./dist/nodes.d.ts",
-        "default": "./dist/nodes.js"
-      },
-      "./styles.css": "./dist/styles.css"
-    }
+    "access": "public"
   },
   "files": [
     "dist",
