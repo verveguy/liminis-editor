@@ -4,7 +4,7 @@
  * scattered across `src/`, none of them listed anywhere a host could read
  * without grepping 2,477 lines of `styles.css`.
  *
- * This suite is the drift guard the issue asks for, and asserts three things:
+ * This suite is the drift guard the issue asks for, and asserts four things:
  *
  * 1. The token table generated into `README.md` names exactly the set of
  *    tokens `src/` actually consumes — no more, no less. Add a `var(--x)`
@@ -16,8 +16,13 @@
  * 3. Every consumed token has a curated, non-empty description of what it
  *    controls (FR-003) — a token added without one fails CI rather than
  *    shipping a blank "Controls" cell.
+ * 4. Every token renamed by #51 preserves an immediate fallback to its
+ *    previous (`--vscode-*`/`--slashmd-*`/`--color-*`/`--checkbox-*`) name
+ *    at every call site (FR-011) — a partial rename that drops the fallback
+ *    would otherwise silently strip theming from any host still supplying
+ *    only the old name (see #51's User Story 2).
  *
- * All three failure modes are demonstrated by mutation below, not merely
+ * All four failure modes are demonstrated by mutation below, not merely
  * asserted to work — a fixture directory under `os.tmpdir()` is given a
  * deliberate violation, and the guard is checked to actually flag it.
  */
@@ -31,6 +36,7 @@ import {
   consumedTokens,
   defaultedTokens,
   resolvesWithoutHost,
+  resolvesToPreviousName,
   parseDocumentedTokens,
   describe as describeToken,
 } from '../scripts/lib/theming-tokens.mjs';
@@ -108,6 +114,21 @@ describe('theming contract: every consumed token has a human-readable descriptio
   });
 });
 
+describe('theming contract: every renamed token preserves a fallback to its previous name', () => {
+  it('has an immediate var() fallback to its previous name at every call site (FR-011)', () => {
+    const consumed = consumedTokens(SRC_ROOT);
+
+    const broken = [...consumed.keys()].filter((name) => !resolvesToPreviousName(name, consumed));
+
+    expect(
+      broken,
+      'consumed --liminis-editor-* token(s) without an immediate fallback to their previous name at ' +
+        'every call site — a partial rename like this would silently strip theming from any host ' +
+        'still supplying only the old name (see #51 User Story 2)',
+    ).toEqual([]);
+  });
+});
+
 describe('theming contract: README table is not stale', () => {
   it('regenerating the token table from current source produces the committed content', () => {
     const regenerated = withThemingBlock(readme(), renderThemingBlock());
@@ -160,7 +181,7 @@ describe('theming contract: mutation tests (the guard actually fires)', () => {
     mkdirSync(join(fixtureRoot, 'app'));
     writeFileSync(
       join(fixtureRoot, 'app', 'Widget.tsx'),
-      "export const Widget = () => <div style={{ color: 'var(--checkbox-border)' }} />;\n" +
+      "export const Widget = () => <div style={{ color: 'var(--liminis-editor-checkbox-border, var(--checkbox-border))' }} />;\n" +
         "export const Rogue = () => <div style={{ color: 'var(--never-described-token)' }} />;\n",
     );
 
@@ -191,5 +212,24 @@ describe('theming contract: mutation tests (the guard actually fires)', () => {
     );
 
     expect(unresolvable).toEqual(['--broken-token']);
+  });
+
+  it('flags a renamed token consumed without a fallback to its previous name', () => {
+    const fixtureRoot = makeFixtureRoot();
+    const stylesPath = join(fixtureRoot, 'styles.css');
+    writeFileSync(stylesPath, ':root {\n  --checkbox-border: red;\n}\n');
+    mkdirSync(join(fixtureRoot, 'app'));
+    writeFileSync(
+      join(fixtureRoot, 'app', 'Widget.tsx'),
+      // Correctly chained: preserves the fallback to --checkbox-border.
+      "export const Good = () => <div style={{ borderColor: 'var(--liminis-editor-checkbox-border, var(--checkbox-border))' }} />;\n" +
+        // Renamed but with no fallback at all — the FR-011 violation.
+        "export const Bad = () => <div style={{ color: 'var(--liminis-editor-focus-border)' }} />;\n",
+    );
+
+    const consumed = consumedTokens(fixtureRoot);
+    const broken = [...consumed.keys()].filter((name) => !resolvesToPreviousName(name, consumed));
+
+    expect(broken).toEqual(['--liminis-editor-focus-border']);
   });
 });
