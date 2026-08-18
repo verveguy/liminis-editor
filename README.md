@@ -309,7 +309,7 @@ widely referenced tokens, so they're usually the highest-value place to start.
 > The `--vscode-*` prefix reflects where these names came from, not where the
 > package is going — a future minor version may rename the vocabulary to
 > something package-owned. The names above are correct and stable for the
-> `0.1.x` series; this note is a heads-up, not a hedge.
+> current series; this note is a heads-up, not a hedge.
 
 ## Annotations
 
