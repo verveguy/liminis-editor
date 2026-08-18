@@ -256,6 +256,71 @@ function normalizeWikiLinkNodes(node: any): any {
   return node;
 }
 
+/**
+ * Widen every GFM table delimiter-row cell mdast-util-to-markdown emits at
+ * its library-enforced minimum (a bare `-`, or `:-`, `-:`, `:-:` with
+ * alignment colons) up to the conventional three-hyphen form GFM,
+ * remark-stringify, and Prettier all produce (`---`, `:---`, `---:`,
+ * `:---:`). `tablePipeAlign: false` (see the gfmToMarkdown() call below) is
+ * the one option controlling both column-width padding and this dash-count
+ * minimum in markdown-table — there is no way to keep the former's "no
+ * cell-width padding" behavior while asking for the latter's wider default
+ * separately, so this text-level post-process patches it after the fact
+ * (#60).
+ *
+ * A GFM table's delimiter row is always exactly the *second* line of a
+ * contiguous run of pipe-led lines (the first is the header row). Widening
+ * is restricted to that position rather than to any line that merely looks
+ * delimiter-shaped — a body row whose cells' entire content happens to be a
+ * bare `-` (e.g. `| - | - |`) renders identically to a delimiter row, and a
+ * shape-only match would silently rewrite that user content instead of
+ * leaving it alone (caught in review — see PR #61). Only the exact
+ * single-dash form the library deterministically emits matches at that
+ * position, so an already-conventional delimiter row (3+ dashes) is left
+ * untouched — idempotence for free. Lines inside fenced code blocks or `$$`
+ * math blocks are excluded from the pipe-line run entirely, mirroring the
+ * intraword-underscore post-process below, so a fenced block that happens
+ * to contain a line shaped like a delimiter row is not rewritten. The
+ * pipe-line check also tolerates a leading run of `>` blockquote markers
+ * (each optionally preceded/followed by spaces or tabs) before the opening
+ * pipe, since a table nested in a blockquote (or a blockquote-wrapped list)
+ * serializes with a `> ` prefix on every line.
+ */
+function widenTableDelimiterDashes(markdown: string): string {
+  const protectedRegionPattern = /^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[ \t]*$|\$\$[\s\S]*?\$\$/gmu;
+  const protectedRanges: [number, number][] = [];
+  let region: RegExpExecArray | null;
+  while ((region = protectedRegionPattern.exec(markdown)) !== null) {
+    protectedRanges.push([region.index, region.index + region[0].length]);
+  }
+
+  const pipeLinePattern = /^(?:[ \t]*>)*[ \t]*\|/;
+  const delimiterRowPattern = /^(?:[ \t]*>)*[ \t]*\|(?:\s*:?-:?\s*\|)+[ \t]*$/;
+
+  const lines = markdown.split('\n');
+  let offset = 0;
+  let pipeRunLength = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineStart = offset;
+    const lineEnd = lineStart + line.length;
+    offset = lineEnd + 1; // account for the '\n' consumed by split()
+
+    const inProtectedRegion = protectedRanges.some(([start, end]) => lineStart < end && lineEnd > start);
+    if (inProtectedRegion || !pipeLinePattern.test(line)) {
+      pipeRunLength = 0;
+      continue;
+    }
+
+    pipeRunLength += 1;
+    if (pipeRunLength === 2 && delimiterRowPattern.test(line)) {
+      lines[i] = line.replace(/-/g, '---');
+    }
+  }
+
+  return lines.join('\n');
+}
+
 export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): string {
   // Pre-process: add checkbox text to ordered list items (GFM only outputs for unordered)
   let processedRoot = addCheckboxTextToOrderedLists(root);
@@ -364,6 +429,13 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
       },
     ],
   });
+
+  // Post-process: widen table delimiter-row dashes to the conventional
+  // three-hyphen width (#60). Must run first, before any of the other
+  // backslash-stripping/restoring post-processes below, since none of them
+  // touch dashes and this step's own verbatim-region skip logic is simplest
+  // to reason about against toMarkdown()'s raw output.
+  result = widenTableDelimiterDashes(result);
 
   // Post-process: convert escaped spaces back to regular spaces
   // mdast-util-to-markdown escapes leading/trailing spaces at paragraph

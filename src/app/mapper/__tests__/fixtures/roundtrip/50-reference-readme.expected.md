@@ -85,7 +85,7 @@ a document nobody touched should not keep changing on disk. The table below summ
 this reference document exercises.
 
 | Construct | Example | Round-trips as |
-| - | - | - |
+| --- | --- | --- |
 | Tight list | see Installation above | byte-identical |
 | Loose list | see below | byte-identical |
 | Blank line before list | see Support the ecosystem, above | exactly one blank line |
@@ -171,7 +171,7 @@ Liminis keeps its shortcut surface small on purpose — most authoring actions a
 keypress away, and none of them collide with the editor's own text-editing shortcuts.
 
 | Action | Shortcut | Notes |
-| - | - | - |
+| --- | --- | --- |
 | Insert wiki link | `Cmd+Shift+M` | Requires an active text selection |
 | Follow link | `Enter` | While a link is focused in the editor |
 | Toggle graph view | `Cmd+Shift+R` | Reversible — return with the same shortcut |
