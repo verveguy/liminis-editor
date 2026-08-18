@@ -448,18 +448,26 @@ export function buildInventory(srcRoot, stylesCssPath) {
       hasDefault: defaulted.has(name),
       classification: classify(name, consumed.get(name).properties),
       description: describe(name),
+      previousName: PREVIOUS_NAME[name] ?? null,
     }))
 }
 
 const CLASSIFICATION_LABEL = { structural: 'Structural', cosmetic: 'Cosmetic' }
 
-/** Render the inventory as a GitHub-flavored markdown table. */
+/**
+ * Render the inventory as a GitHub-flavored markdown table, including the
+ * `PREVIOUS_NAME` a renamed (#51) token replaced — so a reader migrating an
+ * old override can find its `--liminis-editor-*` equivalent directly in this
+ * table rather than needing to guess at (or be pointed elsewhere for) the
+ * prefix-stripping convention, which isn't 1:1 for every token (see the
+ * `--checkbox-border`/`--vscode-border` collision in `PREVIOUS_NAME`'s docs).
+ */
 export function renderTokenTable(inventory) {
   const header =
-    '| Custom property | Controls | Kind | Has a default |\n| --- | --- | --- | --- |'
+    '| Custom property | Previous name | Controls | Kind | Has a default |\n| --- | --- | --- | --- | --- |'
   const rows = inventory.map(
     (row) =>
-      `| \`${row.name}\` | ${row.description ?? '_undocumented — add an entry to TOKEN_DESCRIPTIONS_'} | ${CLASSIFICATION_LABEL[row.classification]} | ${row.hasDefault ? 'Yes' : 'No (inline fallback only)'} |`,
+      `| \`${row.name}\` | ${row.previousName ? `\`${row.previousName}\`` : '—'} | ${row.description ?? '_undocumented — add an entry to TOKEN_DESCRIPTIONS_'} | ${CLASSIFICATION_LABEL[row.classification]} | ${row.hasDefault ? 'Yes' : 'No (inline fallback only)'} |`,
   )
   return [header, ...rows].join('\n')
 }

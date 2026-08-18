@@ -31,6 +31,7 @@ export interface InventoryRow {
   hasDefault: boolean;
   classification: Classification;
   description: string | undefined;
+  previousName: string | null;
 }
 
 export function stripCssComments(text: string): string;

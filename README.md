@@ -201,16 +201,18 @@ properties under a single package-owned vocabulary, `--liminis-editor-*`.
 Every one of them resolves with no host configuration at all — the table
 below exists so you can *override* a palette, not so you can complete one.
 
-**Controls** is a short description of what the token actually affects.
-**Kind** distinguishes tokens that only affect appearance (`Cosmetic`) from
-the handful that also affect layout (`Structural` — heading indents and the
-base font). **Has a default** marks tokens with a `--liminis-editor-*`
-`:root`/`.dark` declaration in `styles.css` directly; every row below reads
-"No (inline fallback only)" because each token instead resolves through a
-fallback chain — `--liminis-editor-x` first, then that token's deprecated
-previous name (which still carries the real `:root`/`.dark` default), so a
-host supplying only the old name keeps theming unchanged. See "Migrating
-from the old names" below for what those previous names were.
+**Previous name** is the pre-`0.2.0` name this property replaced — the exact
+name to look for if you're migrating a host that still overrides the old
+vocabulary (`—` for a property that was never renamed). **Controls** is a
+short description of what the token actually affects. **Kind** distinguishes
+tokens that only affect appearance (`Cosmetic`) from the handful that also
+affect layout (`Structural` — heading indents and the base font). **Has a
+default** marks tokens with a `--liminis-editor-*` `:root`/`.dark`
+declaration in `styles.css` directly; every row below reads "No (inline
+fallback only)" because each token instead resolves through a fallback chain
+— `--liminis-editor-x` first, then its previous name (which still carries the
+real `:root`/`.dark` default), so a host supplying only the old name keeps
+theming unchanged. See "Migrating from the old names" below.
 
 This table is generated from `src/` by `node scripts/generate-theming-docs.mjs`
 and checked for staleness in CI (`tests/theming-contract.test.ts`) — a `var(--x)`
@@ -220,67 +222,67 @@ generation and drift guard work, and ADR-087 for the rename and its
 compatibility design.
 
 <!-- theming-tokens:start -->
-| Custom property | Controls | Kind | Has a default |
-| --- | --- | --- | --- |
-| `--liminis-editor-background` | Base background color of the editor surface and its popovers/menus. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-bold-color` | Text color of bold (`**text**`) markdown spans. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-border` | Default border color used throughout the editor chrome. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-button-background` | Background of primary action buttons (e.g. the correction panel's "Apply" button). | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-button-foreground` | Text color of primary action buttons. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-callout-caution-bg` | Background of "caution" callout blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-callout-caution-border` | Left border accent of "caution" callout blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-callout-important-bg` | Background of "important" callout blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-callout-important-border` | Left border accent of "important" callout blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-callout-note-bg` | Background of "note" callout blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-callout-note-border` | Left border accent of "note" callout blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-callout-tip-bg` | Background of "tip" callout blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-callout-tip-border` | Left border accent of "tip" callout blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-callout-warning-bg` | Background of "warning" callout blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-callout-warning-border` | Left border accent of "warning" callout blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-checkbox-border` | Border color of unchecked task-list checkboxes. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-code-bg` | Background of inline code spans and fenced code blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-errorForeground` | Text color for error and validation messages. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-external-link` | Text color of links that point outside the document. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-focus-border` | Border color of the toolbar link-input field when focused. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-focusBorder` | Color of the drag-and-drop position indicator while reordering blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-font-family` | Base font family for the editor content. | Structural | No (inline fallback only) |
-| `--liminis-editor-font-size` | Base font size for the editor content. | Structural | No (inline fallback only) |
-| `--liminis-editor-foreground` | Default text color throughout the editor. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-foreground-muted` | Hover border color for the frontmatter tray's raw-view toggle. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-h1-color` | Text color of level-1 (`#`) headings. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-h1-indent` | Left margin of level-1 (`#`) headings. | Structural | No (inline fallback only) |
-| `--liminis-editor-h2-color` | Text color of level-2 (`##`) headings. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-h2-indent` | Left margin of level-2 (`##`) headings. | Structural | No (inline fallback only) |
-| `--liminis-editor-h3-color` | Text color of level-3 (`###`) headings. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-h3-indent` | Left margin of level-3 (`###`) headings. | Structural | No (inline fallback only) |
-| `--liminis-editor-h4-color` | Text color of level-4 (`####`) headings. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-h4-indent` | Left margin of level-4 (`####`) headings. | Structural | No (inline fallback only) |
-| `--liminis-editor-h5-color` | Text color of level-5 (`#####`) headings. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-h5-indent` | Left margin of level-5 (`#####`) headings. | Structural | No (inline fallback only) |
-| `--liminis-editor-input-bg` | Background of the toolbar link-input field. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-inputValidation-errorBackground` | Background of inline validation-error messages. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-italic-color` | Text color of italic (`*text*`) markdown spans. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-link` | Text color of in-document links. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-menu-background` | Background of context menus (block, selection and correction menus). | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-menu-border` | Border color of context menus. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-menu-foreground` | Text color of context menu items. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-menu-selectionBackground` | Background of a hovered/selected context menu item. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-menu-separatorBackground` | Color of separator lines inside context menus. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-muted-100` | Background of the C4 diagram layout-toggle buttons when inactive. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-muted-foreground` | Icon/text color of the C4 diagram layout-toggle buttons when inactive. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-notificationsInfoIcon-foreground` | Color of informational icons in inline notifications. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-primary` | Icon/text color of the C4 diagram layout-toggle buttons when active. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-primary-100` | Background of the C4 diagram layout-toggle buttons when active. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-selection` | Background color of selected/highlighted text. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-token-comment` | Syntax-highlight color for comments in fenced code blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-token-function` | Syntax-highlight color for function names in fenced code blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-token-keyword` | Syntax-highlight color for keywords in fenced code blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-token-operator` | Syntax-highlight color for operators in fenced code blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-token-property` | Syntax-highlight color for object properties in fenced code blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-token-punctuation` | Syntax-highlight color for punctuation in fenced code blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-token-selector` | Syntax-highlight color for CSS selectors in fenced code blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-token-variable` | Syntax-highlight color for variables in fenced code blocks. | Cosmetic | No (inline fallback only) |
-| `--liminis-editor-toolbar-hoverBackground` | Background of a toolbar button on hover. | Cosmetic | No (inline fallback only) |
+| Custom property | Previous name | Controls | Kind | Has a default |
+| --- | --- | --- | --- | --- |
+| `--liminis-editor-background` | `--vscode-background` | Base background color of the editor surface and its popovers/menus. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-bold-color` | `--slashmd-bold-color` | Text color of bold (`**text**`) markdown spans. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-border` | `--vscode-border` | Default border color used throughout the editor chrome. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-button-background` | `--vscode-button-background` | Background of primary action buttons (e.g. the correction panel's "Apply" button). | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-button-foreground` | `--vscode-button-foreground` | Text color of primary action buttons. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-callout-caution-bg` | `--slashmd-callout-caution-bg` | Background of "caution" callout blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-callout-caution-border` | `--slashmd-callout-caution-border` | Left border accent of "caution" callout blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-callout-important-bg` | `--slashmd-callout-important-bg` | Background of "important" callout blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-callout-important-border` | `--slashmd-callout-important-border` | Left border accent of "important" callout blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-callout-note-bg` | `--slashmd-callout-note-bg` | Background of "note" callout blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-callout-note-border` | `--slashmd-callout-note-border` | Left border accent of "note" callout blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-callout-tip-bg` | `--slashmd-callout-tip-bg` | Background of "tip" callout blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-callout-tip-border` | `--slashmd-callout-tip-border` | Left border accent of "tip" callout blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-callout-warning-bg` | `--slashmd-callout-warning-bg` | Background of "warning" callout blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-callout-warning-border` | `--slashmd-callout-warning-border` | Left border accent of "warning" callout blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-checkbox-border` | `--checkbox-border` | Border color of unchecked task-list checkboxes. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-code-bg` | `--vscode-code-bg` | Background of inline code spans and fenced code blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-errorForeground` | `--vscode-errorForeground` | Text color for error and validation messages. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-external-link` | `--vscode-external-link` | Text color of links that point outside the document. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-focus-border` | `--vscode-focus-border` | Border color of the toolbar link-input field when focused. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-focusBorder` | `--vscode-focusBorder` | Color of the drag-and-drop position indicator while reordering blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-font-family` | `--vscode-font-family` | Base font family for the editor content. | Structural | No (inline fallback only) |
+| `--liminis-editor-font-size` | `--vscode-font-size` | Base font size for the editor content. | Structural | No (inline fallback only) |
+| `--liminis-editor-foreground` | `--vscode-foreground` | Default text color throughout the editor. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-foreground-muted` | `--vscode-foreground-muted` | Hover border color for the frontmatter tray's raw-view toggle. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-h1-color` | `--slashmd-h1-color` | Text color of level-1 (`#`) headings. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-h1-indent` | `--slashmd-h1-indent` | Left margin of level-1 (`#`) headings. | Structural | No (inline fallback only) |
+| `--liminis-editor-h2-color` | `--slashmd-h2-color` | Text color of level-2 (`##`) headings. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-h2-indent` | `--slashmd-h2-indent` | Left margin of level-2 (`##`) headings. | Structural | No (inline fallback only) |
+| `--liminis-editor-h3-color` | `--slashmd-h3-color` | Text color of level-3 (`###`) headings. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-h3-indent` | `--slashmd-h3-indent` | Left margin of level-3 (`###`) headings. | Structural | No (inline fallback only) |
+| `--liminis-editor-h4-color` | `--slashmd-h4-color` | Text color of level-4 (`####`) headings. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-h4-indent` | `--slashmd-h4-indent` | Left margin of level-4 (`####`) headings. | Structural | No (inline fallback only) |
+| `--liminis-editor-h5-color` | `--slashmd-h5-color` | Text color of level-5 (`#####`) headings. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-h5-indent` | `--slashmd-h5-indent` | Left margin of level-5 (`#####`) headings. | Structural | No (inline fallback only) |
+| `--liminis-editor-input-bg` | `--vscode-input-bg` | Background of the toolbar link-input field. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-inputValidation-errorBackground` | `--vscode-inputValidation-errorBackground` | Background of inline validation-error messages. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-italic-color` | `--slashmd-italic-color` | Text color of italic (`*text*`) markdown spans. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-link` | `--vscode-link` | Text color of in-document links. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-menu-background` | `--vscode-menu-background` | Background of context menus (block, selection and correction menus). | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-menu-border` | `--vscode-menu-border` | Border color of context menus. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-menu-foreground` | `--vscode-menu-foreground` | Text color of context menu items. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-menu-selectionBackground` | `--vscode-menu-selectionBackground` | Background of a hovered/selected context menu item. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-menu-separatorBackground` | `--vscode-menu-separatorBackground` | Color of separator lines inside context menus. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-muted-100` | `--color-muted-100` | Background of the C4 diagram layout-toggle buttons when inactive. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-muted-foreground` | `--color-muted-foreground` | Icon/text color of the C4 diagram layout-toggle buttons when inactive. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-notificationsInfoIcon-foreground` | `--vscode-notificationsInfoIcon-foreground` | Color of informational icons in inline notifications. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-primary` | `--color-primary` | Icon/text color of the C4 diagram layout-toggle buttons when active. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-primary-100` | `--color-primary-100` | Background of the C4 diagram layout-toggle buttons when active. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-selection` | `--vscode-selection` | Background color of selected/highlighted text. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-token-comment` | `--slashmd-token-comment` | Syntax-highlight color for comments in fenced code blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-token-function` | `--slashmd-token-function` | Syntax-highlight color for function names in fenced code blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-token-keyword` | `--slashmd-token-keyword` | Syntax-highlight color for keywords in fenced code blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-token-operator` | `--slashmd-token-operator` | Syntax-highlight color for operators in fenced code blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-token-property` | `--slashmd-token-property` | Syntax-highlight color for object properties in fenced code blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-token-punctuation` | `--slashmd-token-punctuation` | Syntax-highlight color for punctuation in fenced code blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-token-selector` | `--slashmd-token-selector` | Syntax-highlight color for CSS selectors in fenced code blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-token-variable` | `--slashmd-token-variable` | Syntax-highlight color for variables in fenced code blocks. | Cosmetic | No (inline fallback only) |
+| `--liminis-editor-toolbar-hoverBackground` | `--vscode-toolbar-hoverBackground` | Background of a toolbar button on hover. | Cosmetic | No (inline fallback only) |
 <!-- theming-tokens:end -->
 
 **A worked example.** To match a host's own palette, override a subset of
@@ -318,8 +320,11 @@ the old names keeps working unchanged** — every renamed token resolves
 `--liminis-editor-x` first, then falls back to its specific previous name,
 so nothing breaks silently on upgrade. The old prefixes are deprecated as of
 `0.2.0` and will be removed in a future major release; migrate at your own
-pace by renaming the properties you override to their `--liminis-editor-*`
-equivalents from the table above.
+pace using the table above's **Previous name** column, which lists each
+renamed property's exact old name — the mapping isn't always a mechanical
+prefix swap (`--checkbox-border` became `--liminis-editor-checkbox-border`,
+not `--liminis-editor-border`, to avoid colliding with `--vscode-border`'s
+new name), so look it up rather than deriving it.
 
 ## Annotations
 
