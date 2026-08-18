@@ -94,11 +94,11 @@ interface AppProps {
   onActivateAnnotation?: (id: string) => void;
   annotationEditorHandleRef?: MutableRefObject<AnnotationEditorHandle | null>;
   annotationLogger?: { warn: (message: string, ...args: unknown[]) => void };
-  /** Override className on the root div (default: "min-h-screen p-0"). */
+  /** Override className on the root div (default: "editor-app-root"). */
   className?: string;
 }
 
-export function App({ editable = true, autoFocus = false, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, wikiLinkPromotion, onSelectionContextMenu, onSubstitutionDetected, sweepRef, annotationKinds, annotations, activeAnnotationId, scrollToAnnotation, onCreateAnnotation, onActivateAnnotation, annotationEditorHandleRef, annotationLogger, className = 'min-h-screen p-0' }: AppProps) {
+export function App({ editable = true, autoFocus = false, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, wikiLinkPromotion, onSelectionContextMenu, onSubstitutionDetected, sweepRef, annotationKinds, annotations, activeAnnotationId, scrollToAnnotation, onCreateAnnotation, onActivateAnnotation, annotationEditorHandleRef, annotationLogger, className = 'editor-app-root' }: AppProps) {
   const { bridge, logger } = useEditorHost();
   const log = useMemo(() => logger('slashmd/App'), [logger]);
   const { requestInit, applyTextEdits } = useHostMessages();
@@ -263,7 +263,7 @@ export function App({ editable = true, autoFocus = false, content: propContent, 
 
   if (content === null) {
     return (
-      <div className="flex items-center justify-center gap-3 min-h-screen text-[var(--vscode-foreground)] opacity-70">
+      <div className="editor-loading">
         <div className="loading-spinner" />
         <span>Loading document...</span>
       </div>
@@ -273,7 +273,7 @@ export function App({ editable = true, autoFocus = false, content: propContent, 
   return (
     <div className={className}>
       {error && (
-        <div className="fixed top-0 left-0 right-0 px-4 py-2 bg-red-500 text-white text-center z-[1000]" role="alert">
+        <div className="editor-error-banner" role="alert">
           {error}
         </div>
       )}
