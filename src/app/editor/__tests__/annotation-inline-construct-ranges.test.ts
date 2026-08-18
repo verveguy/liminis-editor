@@ -174,7 +174,7 @@ describe('inline-construct-safe live ranges (#970 defect 2)', () => {
     ['ordered item', '1. See [the docs](https://example.com) now\n'],
     ['blockquote', '> See [the docs](https://example.com) now\n'],
     ['heading', '## See [the docs](https://example.com) now\n'],
-    ['table cell', '| Col |\n| - |\n| See [the docs](https://example.com) now |\n'],
+    ['table cell', '| Col |\n| --- |\n| See [the docs](https://example.com) now |\n'],
   ])('recovers a whole link inside a %s', (_name, md) => {
     expect(recoveredSlice(md, 'See [the docs](https://example.com) now')).toBe('See [the docs](https://example.com) now');
   });

@@ -853,6 +853,49 @@ it isn't silent — so the fix here is to document and pin the behaviour, not pr
   generated from the actual pipeline output, not hand-predicted, per this corpus's own
   convention.
 
+## The `60-*` fixture set
+
+Fixed [#60](https://github.com/verveguy/liminis-editor/issues/60): `stringifyMarkdown`
+rendered every GFM table delimiter-row cell down to `markdown-table`'s library-enforced
+minimum — a bare `-`, or `:-`/`-:`/`:-:` with alignment colons — regardless of how the
+source table was written. A table authored with the conventional three-hyphen delimiter
+(`| --- | --- |`), the form GFM, `remark-stringify`, and Prettier all produce, was
+rewritten to `| - | - |` on the first serialize, churning a table nobody actually
+edited. `tablePipeAlign: false` (see `stringify.ts`'s `gfmToMarkdown()` call), the option
+this codebase deliberately sets to avoid column-width padding, is also what forces this
+dash-count minimum in `markdown-table` — there's no separate option for one without the
+other. Fixed with `widenTableDelimiterDashes()`, a text-level post-process (the same
+pattern already used elsewhere in `stringify.ts` for other `mdast-util` quirks) that
+widens the library's exact single-dash form up to three hyphens, skipping fenced
+code/inline code/math regions so a verbatim block that happens to contain a
+delimiter-row-shaped line isn't touched. Column alignment itself was already correct
+(fixed for #907) and is untouched by this change.
+
+- **`60-table-conventional-three-hyphen.md`**: a plain two-column table with no
+  alignment, delimiter already at the conventional `---` width. Byte-identical, fixed
+  point.
+- **`60-table-width-padded-delimiter.md`** + `.expected.md`: a table authored with
+  width-padded delimiters (`|-------|-----------|`) that also drop the pipe-padding
+  spaces GFM conventionally uses. Canonicalizes to the standard single-space-padded,
+  three-hyphen form — byte-exact preservation of arbitrary delimiter widths is a
+  documented non-goal (see the issue's Assumptions), consistent with this corpus's
+  general willingness to accept one-time canonicalization in exchange for a stable fixed
+  point. The `.expected.md` content is generated from the actual pipeline output, not
+  hand-predicted, per this corpus's own convention.
+- **`60-table-all-alignment-kinds.md`**: all four alignment kinds (left, center, right,
+  none) in one table, conventional three-hyphen delimiters with colons. Byte-identical,
+  fixed point — a regression guard for the pre-existing, unrelated alignment-preservation
+  behavior (#907) alongside the new dash-width fix.
+- **`60-table-empty-cells.md`**: empty header-row and body-row cells. Byte-identical,
+  fixed point.
+
+The two `known-defects/other-table-*` fixtures and several incidentally-affected
+fixtures elsewhere in this corpus (list-item block content, blank-line-before-list,
+colon-paragraph joins) carried tables using the old single-dash form purely to match the
+pre-fix defect; those were updated in place to the conventional three-hyphen form
+alongside this fix. Their alignment-preservation-related `known-defects` classification
+is unchanged — only their delimiter row's hyphen count moved.
+
 ## Diagnosing a failure
 
 On mismatch, the test throws with a unified diff between expected and actual content
