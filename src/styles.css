@@ -2344,6 +2344,87 @@ body {
   }
 }
 
+/* ===== Document Outline Styles ===== */
+
+.editor-outline {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.editor-outline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.editor-outline-item {
+  margin: 0;
+}
+
+.editor-outline-item-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: var(--vscode-foreground);
+  opacity: 0.7;
+  text-align: left;
+  cursor: pointer;
+  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.editor-outline-item-button:hover {
+  opacity: 1;
+  background: var(--vscode-code-bg);
+}
+
+.editor-outline-item-active .editor-outline-item-button {
+  opacity: 1;
+  color: var(--vscode-link);
+}
+
+.editor-outline-indicator {
+  flex: 0 0 auto;
+  width: 2px;
+  align-self: stretch;
+  border-radius: 1px;
+  background: transparent;
+}
+
+.editor-outline-item-active .editor-outline-indicator {
+  background: var(--vscode-link);
+}
+
+.editor-outline-item-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Indent by heading level (H1-H5; the editor theme has no H6 class to indent). */
+.editor-outline-item[data-outline-level="1"] .editor-outline-item-button {
+  padding-left: 8px;
+}
+
+.editor-outline-item[data-outline-level="2"] .editor-outline-item-button {
+  padding-left: 20px;
+}
+
+.editor-outline-item[data-outline-level="3"] .editor-outline-item-button {
+  padding-left: 32px;
+}
+
+.editor-outline-item[data-outline-level="4"] .editor-outline-item-button {
+  padding-left: 44px;
+}
+
+.editor-outline-item[data-outline-level="5"] .editor-outline-item-button {
+  padding-left: 56px;
+}
+
 /* ============================================================
    Print Styles for Editor Content
    ============================================================
