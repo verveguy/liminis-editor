@@ -7,7 +7,17 @@
 
 ## Background
 
-The `--vscode-*` prefix records where this code came from — a VS Code extension — not where it is going. On a public package it now reads as a dependency on VS Code that does not exist: of the 59 CSS custom properties `src/` consumes today (per the generated inventory from #50, `scripts/lib/theming-tokens.mjs`), 24 carry the `--vscode-*` prefix, named after an editor the adopter may never have used, in a package whose README does not mention VS Code at all. The other 35 already use non-VS-Code names (`--slashmd-*`, `--color-*`, `--checkbox-*`).
+The theming vocabulary `src/` consumes is not a single, coherent set of names — it is a patchwork of four origin-tracking prefixes, none of which is the package's own. Measured on current `main`, of the 59 CSS custom properties consumed (per the generated inventory from #50, `scripts/lib/theming-tokens.mjs`):
+
+| prefix | count |
+|---|---|
+| `--slashmd-*` | 30 |
+| `--vscode-*` | 24 |
+| `--color-*` | 4 |
+| `--checkbox-*` | 1 |
+| **total** | **59** |
+
+`--vscode-*` records that this code came from a VS Code extension; `--slashmd-*` — the largest group — records the name of the upstream project this editor was derived from. Neither reflects where the code is going, and `--slashmd-*` arguably reads as more misleading than `--vscode-*`: it implies a relationship to a project named "slashmd" that means nothing to an adopter and does not exist for them, whereas `--vscode-*` is at least a recognisable theming convention. The defect this issue addresses is the inconsistency itself — four unrelated naming vocabularies for one theming surface — not any single prefix in isolation.
 
 Decision taken: rename in a breaking release rather than hedge the names in documentation now. Documenting the current names (#50) was deliberately not an endorsement of them.
 
@@ -15,17 +25,17 @@ This rename shares its release with #49 (drop the Tailwind requirement). `packag
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Public package adopter sees a vocabulary that reflects the package, not an unrelated editor (Priority: P1)
+### User Story 1 - Public package adopter sees a vocabulary that reflects the package, not an unrelated editor or upstream project (Priority: P1)
 
-An engineer installs `@liminis/editor` and reads the token reference to theme it. Today every property in the vocabulary this issue covers is prefixed `--vscode-*`, implying a VS Code dependency the package does not have. With this change, the in-scope properties carry a package-owned prefix (`--liminis-editor-*`, unless a better one emerges during the work) instead.
+An engineer installs `@liminis/editor` and reads the token reference to theme it. Today the properties in the vocabulary this issue covers are split across four inconsistent prefixes (`--slashmd-*`, `--vscode-*`, `--color-*`, `--checkbox-*`), naming an editor and an upstream project the adopter may never have heard of. With this change, the in-scope properties carry a package-owned prefix (`--liminis-editor-*`, unless a better one emerges during the work) instead.
 
 **Why this priority**: This is the core problem statement in the issue.
 
-**Independent Test**: Read the regenerated token reference in `README.md` and confirm no in-scope property (per the resolution of the open scope question below) still carries the `--vscode-*` prefix.
+**Independent Test**: Read the regenerated token reference in `README.md` and confirm no in-scope property (per the resolution of the open scope question below) still carries one of the old prefixes.
 
 **Acceptance Scenarios**:
 
-1. **Given** the rename is complete, **When** a reader opens the generated token table in `README.md`, **Then** every in-scope property name carries the package-owned prefix, not `--vscode-*`.
+1. **Given** the rename is complete, **When** a reader opens the generated token table in `README.md`, **Then** every in-scope property name carries the package-owned prefix, not `--vscode-*`, `--slashmd-*`, `--color-*`, or `--checkbox-*`.
 2. **Given** the rename is complete, **When** the drift guard (`tests/theming-contract.test.ts`) runs, **Then** it passes against the renamed property names with no manual edits required to keep it green.
 
 ---
@@ -41,8 +51,8 @@ liminis-app and Zusammen currently supply `--vscode-*` custom properties to them
 **Acceptance Scenarios**:
 
 1. **Given** a recommendation and reasoning for one of clean break / fallback layer / dual-accepted-with-deprecation, **When** the rename ships, **Then** the chosen story is implemented consistently across all in-scope properties, not applied to some and not others.
-2. **Given** the chosen compatibility story allows old names to keep working, **When** a host supplies only `--vscode-*` names post-upgrade, **Then** its theme continues to resolve as it did before the rename.
-3. **Given** any host supplying only `--vscode-*` names post-upgrade under a clean-break story, **When** the release notes for `0.2.0` are read, **Then** the silent loss of theming is called out prominently, not buried.
+2. **Given** the chosen compatibility story allows old names to keep working, **When** a host supplies only old-prefix names post-upgrade, **Then** its theme continues to resolve as it did before the rename.
+3. **Given** any host supplying only old-prefix names post-upgrade under a clean-break story, **When** the release notes for `0.2.0` are read, **Then** the silent loss of theming is called out prominently, not buried.
 
 ---
 
@@ -83,7 +93,7 @@ liminis-app and Zusammen are the two hosts currently supplying `--vscode-*` toke
 
 ### Key Entities
 
-- **Custom Property Token**: a CSS custom property consumed somewhere in `src/` via `var()`, per the #50 inventory. Attributes: current name, target name (if in scope for rename), and whether it is a `--vscode-*`-family property or another family (`--slashmd-*`, `--color-*`, `--checkbox-*`).
+- **Custom Property Token**: a CSS custom property consumed somewhere in `src/` via `var()`, per the #50 inventory. Attributes: current name, target name (if in scope for rename), and which of the four current naming families it belongs to (`--vscode-*`, `--slashmd-*`, `--color-*`, `--checkbox-*`).
 
 ## Success Criteria *(mandatory)*
 
@@ -97,10 +107,10 @@ liminis-app and Zusammen are the two hosts currently supplying `--vscode-*` toke
 
 ## Assumptions
 
-- The consumed-token count is 59, not the 60 figure inherited from a pre-#50-correction estimate; of those 59, 24 currently carry the `--vscode-*` prefix and 35 already use other families (`--slashmd-*`, `--color-*`, `--checkbox-*`), per direct extraction with `scripts/lib/theming-tokens.mjs`.
+- The consumed-token count is 59: 30 `--slashmd-*`, 24 `--vscode-*`, 4 `--color-*`, and 1 `--checkbox-*`, per direct extraction with `scripts/lib/theming-tokens.mjs` on current `main`. The originally-cited count of 60 included `--vscode-text`, a typo since removed by #52.
 - `--liminis-editor-*` is the working assumption for the package-owned prefix; the issue itself allows a better name to emerge during the work, and this spec does not pin it further.
 - The specific implementation mechanism for the compatibility story (e.g., exact fallback nesting, deprecation warning delivery) is a technical decision for the Research/Plan stage; this spec constrains only its observable behavior (FR-003, FR-007) and the requirement that it be chosen deliberately and justified.
-- "Update the two in-house consumers" means updating liminis-app and Zusammen to supply the new token names where they currently supply `--vscode-*` names; it does not imply any other change to those applications.
+- "Update the two in-house consumers" means updating liminis-app and Zusammen to supply the new token names where they currently supply old-prefix names; it does not imply any other change to those applications.
 
 ## Out of Scope
 
@@ -113,4 +123,5 @@ liminis-app and Zusammen are the two hosts currently supplying `--vscode-*` toke
 
 - Issue #49 — the sibling breaking change sharing the `0.2.0` release; this issue must not duplicate its version bump or cut its own release.
 - Issue #50 — generated token inventory (`scripts/lib/theming-tokens.mjs`) and drift guard (`tests/theming-contract.test.ts`) this rename depends on, must use as its worklist, and must keep passing.
+- Issue #52 — removed the `--vscode-text` typo, correcting the consumed-token count from 60 to 59.
 - `README.md` — the generated theming reference (between the `<!-- theming-tokens:start/end -->` markers) that moves with the rename.
