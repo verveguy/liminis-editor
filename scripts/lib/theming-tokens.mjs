@@ -69,25 +69,30 @@ const TOKEN_RE = /--[a-zA-Z0-9-]+/.source
  */
 function consumptionSitesIn(text) {
   const nameRe = new RegExp(`^\\s*(${TOKEN_RE})\\s*(,)?`)
+  const openingFallbackRe = new RegExp(`^\\s*var\\(\\s*(${TOKEN_RE})`)
   const sites = []
-  const stack = [] // { type: 'var', siteIndex } | { type: 'other' }, innermost last
+  const stack = [] // { type: 'var' } | { type: 'other' }, innermost last
   let i = 0
   const n = text.length
   while (i < n) {
     if (text.startsWith('var(', i)) {
-      const match = nameRe.exec(text.slice(i + 4))
+      const rest = text.slice(i + 4)
+      const match = nameRe.exec(rest)
       if (match) {
         const depth = stack.reduce((count, frame) => count + (frame.type === 'var' ? 1 : 0), 0)
-        const site = { name: match[1], hasFallback: Boolean(match[2]), depth, immediateFallback: null }
-        const siteIndex = sites.push(site) - 1
-        for (let k = stack.length - 1; k >= 0; k--) {
-          if (stack[k].type === 'var') {
-            const parent = sites[stack[k].siteIndex]
-            if (parent.immediateFallback === null) parent.immediateFallback = site.name
-            break
-          }
+        // immediateFallback only counts a nested var() that the fallback argument
+        // *opens with* (whitespace aside) — e.g. `var(--x, var(--y))`. A nested
+        // var() that appears later in the fallback, behind other text, does not
+        // count (e.g. `var(--x, 1px solid var(--y))` does not "open with" --y),
+        // since that fallback would not resolve to a bare previous-name value.
+        let immediateFallback = null
+        if (match[2]) {
+          const opening = openingFallbackRe.exec(rest.slice(match[0].length))
+          if (opening) immediateFallback = opening[1]
         }
-        stack.push({ type: 'var', siteIndex })
+        const site = { name: match[1], hasFallback: Boolean(match[2]), depth, immediateFallback }
+        sites.push(site)
+        stack.push({ type: 'var' })
         i += 4
         continue
       }
