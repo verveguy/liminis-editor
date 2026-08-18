@@ -58,7 +58,7 @@ liminis-app and Zusammen currently supply `--vscode-*` custom properties to them
 
 ### User Story 3 - The in-house consumers keep working (Priority: P2)
 
-liminis-app and Zusammen are the two hosts currently supplying `--vscode-*` tokens to this package. With this change, both are updated to supply the package-owned names so their themes are not left depending on a compatibility fallback indefinitely.
+liminis-app and Zusammen are the two in-house hosts of this package. With this change, each is updated to supply the package-owned names wherever it currently supplies an old-prefix name, so neither is left depending on a compatibility fallback indefinitely. (Verified during implementation: liminis-app supplies none of the four old-prefix families today, so this requirement is satisfied for it with no code change; Zusammen's vendored copy did carry old-prefix names and was ported — see FR-006's Assumptions note below.)
 
 **Why this priority**: Explicitly scoped in the issue; these are the only two hosts the issue's authors can directly verify and fix themselves.
 
@@ -85,7 +85,7 @@ liminis-app and Zusammen are the two hosts currently supplying `--vscode-*` toke
 - **FR-003**: A fallback-layer compatibility story MUST be implemented consistently across every one of the 59 properties: each renamed property MUST resolve through a fallback chain — the new `--liminis-editor-*` name first, then that property's specific previous name (`--slashmd-*`, `--vscode-*`, `--color-*`, or `--checkbox-*`, whichever it actually was), then the property's existing default — so a host supplying only the old name continues to theme exactly as it did before the rename.
 - **FR-004**: The generated token reference in `README.md` (from #50) MUST be regenerated to reflect the renamed properties, so it cannot go stale relative to the rename.
 - **FR-005**: The drift guard (`tests/theming-contract.test.ts`, from #50) MUST continue to pass against the renamed property names.
-- **FR-006**: The two in-house consumers, liminis-app and Zusammen, MUST be updated to supply the package-owned token names.
+- **FR-006**: The two in-house consumers, liminis-app and Zusammen, MUST be updated to supply the package-owned token names wherever they currently supply an old-prefix name (see Assumptions — this is a no-op for a consumer that supplies none).
 - **FR-007**: The `0.2.0` release notes MUST document that the old property names are deprecated and will be removed in a future major release, so hosts relying on the fallback know to migrate ahead of that removal, even though the fallback itself means no host loses theming at this release.
 - **FR-008**: This work MUST NOT bump the version in `package.json` — it is already `0.2.0`, set by #49, and is held unreleased so one release carries both breaking changes.
 - **FR-009**: The release note for this change MUST be written as part of the shared `0.2.0` release notes, alongside #49's, not as a standalone version entry.
