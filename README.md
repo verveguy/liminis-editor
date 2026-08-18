@@ -214,6 +214,122 @@ the real path may be under `node_modules/.pnpm/` — pointing `@source` at the
 symlinked path works, but verify a distinctive utility class actually appears in
 your generated CSS rather than assuming it.
 
+### Theming: CSS custom properties
+
+The editor's colors, borders and a few layout metrics are all CSS custom
+properties, following a VS Code-style vocabulary (`--vscode-*`) plus a handful
+of `--slashmd-*`, `--color-*` and `--checkbox-*` tokens for editor-specific
+markup. Every one of them ships with a default (`:root` / `.dark` in
+`styles.css`) or an inline fallback, so the editor renders correctly with no
+host configuration at all — the table below exists so you can *override* a
+palette, not so you can complete one.
+
+**Kind** distinguishes tokens that only affect appearance (`Cosmetic`) from
+the handful that also affect layout (`Structural` — heading indents and the
+base font). **Has a default** marks tokens with a `:root`/`.dark` declaration
+in `styles.css`; the rest resolve purely from the inline `var(--x, fallback)`
+at their call sites.
+
+This table is generated from `src/` by `node scripts/generate-theming-docs.mjs`
+and checked for staleness in CI (`tests/theming-contract.test.ts`) — a `var(--x)`
+added to the source without regenerating this block fails the build. Do not
+hand-edit the rows between the markers below. See ADR-085 for how the
+generation and drift guard work.
+
+<!-- theming-tokens:start -->
+| Custom property | Kind | Has a default |
+| --- | --- | --- |
+| `--checkbox-border` | Cosmetic | Yes |
+| `--color-muted-100` | Cosmetic | No (inline fallback only) |
+| `--color-muted-foreground` | Cosmetic | No (inline fallback only) |
+| `--color-primary` | Cosmetic | No (inline fallback only) |
+| `--color-primary-100` | Cosmetic | No (inline fallback only) |
+| `--slashmd-bold-color` | Cosmetic | Yes |
+| `--slashmd-callout-caution-bg` | Cosmetic | Yes |
+| `--slashmd-callout-caution-border` | Cosmetic | Yes |
+| `--slashmd-callout-important-bg` | Cosmetic | Yes |
+| `--slashmd-callout-important-border` | Cosmetic | Yes |
+| `--slashmd-callout-note-bg` | Cosmetic | Yes |
+| `--slashmd-callout-note-border` | Cosmetic | Yes |
+| `--slashmd-callout-tip-bg` | Cosmetic | Yes |
+| `--slashmd-callout-tip-border` | Cosmetic | Yes |
+| `--slashmd-callout-warning-bg` | Cosmetic | Yes |
+| `--slashmd-callout-warning-border` | Cosmetic | Yes |
+| `--slashmd-h1-color` | Cosmetic | Yes |
+| `--slashmd-h1-indent` | Structural | Yes |
+| `--slashmd-h2-color` | Cosmetic | Yes |
+| `--slashmd-h2-indent` | Structural | Yes |
+| `--slashmd-h3-color` | Cosmetic | Yes |
+| `--slashmd-h3-indent` | Structural | Yes |
+| `--slashmd-h4-color` | Cosmetic | Yes |
+| `--slashmd-h4-indent` | Structural | Yes |
+| `--slashmd-h5-color` | Cosmetic | Yes |
+| `--slashmd-h5-indent` | Structural | Yes |
+| `--slashmd-italic-color` | Cosmetic | Yes |
+| `--slashmd-token-comment` | Cosmetic | Yes |
+| `--slashmd-token-function` | Cosmetic | Yes |
+| `--slashmd-token-keyword` | Cosmetic | Yes |
+| `--slashmd-token-operator` | Cosmetic | Yes |
+| `--slashmd-token-property` | Cosmetic | Yes |
+| `--slashmd-token-punctuation` | Cosmetic | Yes |
+| `--slashmd-token-selector` | Cosmetic | Yes |
+| `--slashmd-token-variable` | Cosmetic | Yes |
+| `--vscode-background` | Cosmetic | Yes |
+| `--vscode-border` | Cosmetic | Yes |
+| `--vscode-button-background` | Cosmetic | No (inline fallback only) |
+| `--vscode-button-foreground` | Cosmetic | No (inline fallback only) |
+| `--vscode-code-bg` | Cosmetic | Yes |
+| `--vscode-errorForeground` | Cosmetic | No (inline fallback only) |
+| `--vscode-external-link` | Cosmetic | Yes |
+| `--vscode-focus-border` | Cosmetic | No (inline fallback only) |
+| `--vscode-focusBorder` | Cosmetic | No (inline fallback only) |
+| `--vscode-font-family` | Structural | Yes |
+| `--vscode-font-size` | Structural | Yes |
+| `--vscode-foreground` | Cosmetic | Yes |
+| `--vscode-foreground-muted` | Cosmetic | No (inline fallback only) |
+| `--vscode-input-bg` | Cosmetic | No (inline fallback only) |
+| `--vscode-inputValidation-errorBackground` | Cosmetic | No (inline fallback only) |
+| `--vscode-link` | Cosmetic | Yes |
+| `--vscode-menu-background` | Cosmetic | No (inline fallback only) |
+| `--vscode-menu-border` | Cosmetic | No (inline fallback only) |
+| `--vscode-menu-foreground` | Cosmetic | No (inline fallback only) |
+| `--vscode-menu-selectionBackground` | Cosmetic | No (inline fallback only) |
+| `--vscode-menu-separatorBackground` | Cosmetic | No (inline fallback only) |
+| `--vscode-notificationsInfoIcon-foreground` | Cosmetic | No (inline fallback only) |
+| `--vscode-selection` | Cosmetic | Yes |
+| `--vscode-toolbar-hoverBackground` | Cosmetic | No (inline fallback only) |
+<!-- theming-tokens:end -->
+
+**A worked example.** To match a host's own palette, override a subset of
+tokens after importing `styles.css` — no rebuild of the editor required:
+
+```css
+@import '@liminis/editor/styles.css';
+
+:root {
+  --vscode-foreground: #1a1a2e;
+  --vscode-border: #d0d0e0;
+  --vscode-link: #4b3fce;
+  --vscode-code-bg: #f4f4fb;
+}
+
+.dark {
+  --vscode-foreground: #eaeaf5;
+  --vscode-border: #3a3a55;
+  --vscode-link: #9d90ff;
+  --vscode-code-bg: #1e1e2e;
+}
+```
+
+Only the tokens you override need to change — everything else keeps the
+package default. `--vscode-foreground` and `--vscode-border` are the two most
+widely referenced tokens, so they're usually the highest-value place to start.
+
+> The `--vscode-*` prefix reflects where these names came from, not where the
+> package is going — a future `0.2.0` may rename the vocabulary to something
+> package-owned. The names above are correct and stable for the `0.1.x` series;
+> this note is a heads-up, not a hedge.
+
 ## Annotations
 
 An annotation is a range-anchored marker over document text whose anchor
