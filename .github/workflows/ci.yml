@@ -24,6 +24,12 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
+      # Note the gap with `engines.node` in package.json, which says `>=22`:
+      # every job here runs 24 only. 22 is claimed because it is Active LTS and
+      # nothing in the dependency graph needs more, but it is supported by
+      # intent rather than by test. Closing that gap means matrixing this job
+      # over [22, 24] — worth doing if a consumer reports actually running 22,
+      # and not worth the CI minutes before then.
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

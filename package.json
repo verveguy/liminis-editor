@@ -18,6 +18,10 @@
   ],
   "//packageManager": "Not cosmetic. This field used to live in the monorepo root manifest and did not travel with the package, so `pnpm/action-setup` had no version to read and CI failed before installing anything. It is also what pins the pnpm that resolves the lockfile.",
   "packageManager": "pnpm@10.33.0",
+  "//engines": "A support statement, not a technical floor. Nothing in the dependency graph needs it — the highest `engines.node` among runtime dependencies is `>= 14.6` (yaml), and 18 of 21 declare none at all. It says which runtimes this package is maintained against: Node 20 reached end of life on 24 March 2026, and 22 and 24 are Active LTS. CI and the release both run 24, so 22 is supported by intent rather than by test — see the note in .github/workflows/ci.yml. Consumers get a warning rather than a hard failure unless they set engine-strict.",
+  "engines": {
+    "node": ">=22"
+  },
   "type": "module",
   "//entrypoints": "These point at dist/ here, in the checked-in manifest, and must stay that way. They lived under `publishConfig` until 0.1.1 so that in-workspace consumers could resolve raw TypeScript, and that silently shipped a broken 0.1.0: `publishConfig` manifest-field overrides (main/types/exports) are a pnpm and yarn feature, and npm honours `publishConfig` only for config values like access, registry and tag. `npm publish` therefore published src/ paths while `files` shipped only dist/, so every entry point resolved to a file that was not in the tarball. What is published is now exactly what is written here, and scripts/verify-package.mjs packs with the same client that publishes so the two cannot diverge again. See docs/decisions/adr-078.md.",
   "main": "./dist/index.js",
