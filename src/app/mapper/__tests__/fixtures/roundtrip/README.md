@@ -888,6 +888,18 @@ delimiter-row-shaped line isn't touched. Column alignment itself was already cor
   behavior (#907) alongside the new dash-width fix.
 - **`60-table-empty-cells.md`**: empty header-row and body-row cells. Byte-identical,
   fixed point.
+- **`60-table-in-blockquote.md`**: a table nested inside a blockquote, where every line
+  (including the delimiter row) carries a `> ` prefix. Byte-identical, fixed point —
+  regression guard for a gap CodeRabbit caught in review: the delimiter-row matcher
+  originally anchored on `[ \t]*\|` and never matched a blockquote-prefixed line, so
+  tables inside blockquotes silently kept their un-widened single-dash delimiters. Fixed
+  by allowing a leading run of `>` markers (with surrounding spaces/tabs) before the
+  matcher's opening pipe.
+- **`60-table-protected-regions.md`**: a delimiter-row-shaped line inside an inline code
+  span, a `$$...$$` math block, and a fenced code block, all in the same document as a
+  real table. Byte-identical, fixed point — regression guard (also from CodeRabbit
+  review) confirming the verbatim-region skip logic leaves protected content's
+  single-dash form untouched while still widening the real table.
 
 The two `known-defects/other-table-*` fixtures and several incidentally-affected
 fixtures elsewhere in this corpus (list-item block content, blank-line-before-list,

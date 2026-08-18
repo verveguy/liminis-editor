@@ -272,11 +272,14 @@ function normalizeWikiLinkNodes(node: any): any {
  * bookkeeping needed. Skips fenced code blocks, inline code spans, and math
  * regions, mirroring the intraword-underscore post-process below, so a
  * fenced block that happens to contain a line shaped like a delimiter row
- * is not rewritten.
+ * is not rewritten. The delimiter-row cell also allows a leading run of
+ * `>` blockquote markers (each optionally preceded/followed by spaces or
+ * tabs) before the opening pipe, since a table nested in a blockquote (or a
+ * blockquote-wrapped list) serializes with a `> ` prefix on every line.
  */
 function widenTableDelimiterDashes(markdown: string): string {
   return markdown.replace(
-    /^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[ \t]*$|(`+)[^\n]*?\2|\$\$[\s\S]*?\$\$|\$[^\n$]*?\$|^([ \t]*\|(?:\s*:?-:?\s*\|)+[ \t]*)$/gmu,
+    /^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[ \t]*$|(`+)[^\n]*?\2|\$\$[\s\S]*?\$\$|\$[^\n$]*?\$|^((?:[ \t]*>)*[ \t]*\|(?:\s*:?-:?\s*\|)+[ \t]*)$/gmu,
     (match, _fenceRun, _inlineOpen, delimiterRow) =>
       delimiterRow === undefined ? match : delimiterRow.replace(/-/g, '---')
   );
