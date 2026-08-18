@@ -4,7 +4,7 @@
  * scattered across `src/`, none of them listed anywhere a host could read
  * without grepping 2,477 lines of `styles.css`.
  *
- * This suite is the drift guard the issue asks for, and asserts two things:
+ * This suite is the drift guard the issue asks for, and asserts three things:
  *
  * 1. The token table generated into `README.md` names exactly the set of
  *    tokens `src/` actually consumes — no more, no less. Add a `var(--x)`
@@ -13,10 +13,13 @@
  *    a `:root`/`.dark` default in `styles.css`, or an inline fallback at every
  *    call site. This is exactly the rule issue #52 broke (a token with
  *    neither, which silently drops its declaration rather than erroring).
+ * 3. Every consumed token has a curated, non-empty description of what it
+ *    controls (FR-003) — a token added without one fails CI rather than
+ *    shipping a blank "Controls" cell.
  *
- * Both failure modes are demonstrated by mutation below, not merely asserted
- * to work — a fixture directory under `os.tmpdir()` is given a deliberate
- * violation, and the guard is checked to actually flag it.
+ * All three failure modes are demonstrated by mutation below, not merely
+ * asserted to work — a fixture directory under `os.tmpdir()` is given a
+ * deliberate violation, and the guard is checked to actually flag it.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
@@ -29,6 +32,7 @@ import {
   defaultedTokens,
   resolvesWithoutHost,
   parseDocumentedTokens,
+  describe as describeToken,
 } from '../scripts/lib/theming-tokens.mjs';
 import { renderThemingBlock, withThemingBlock } from '../scripts/generate-theming-docs.mjs';
 
@@ -91,6 +95,19 @@ describe('theming contract: every consumed token resolves with no host configura
   });
 });
 
+describe('theming contract: every consumed token has a human-readable description', () => {
+  it('has a non-empty TOKEN_DESCRIPTIONS entry (FR-003) for every token src/ consumes', () => {
+    const consumed = new Set(buildInventory(SRC_ROOT, STYLES_CSS_PATH).map((row) => row.name));
+    const undescribed = [...consumed].filter((name) => !describeToken(name));
+
+    expect(
+      undescribed,
+      'consumed but missing a TOKEN_DESCRIPTIONS entry in scripts/lib/theming-tokens.mjs — ' +
+        'FR-003 requires every documented property to state what it controls',
+    ).toEqual([]);
+  });
+});
+
 describe('theming contract: README table is not stale', () => {
   it('regenerating the token table from current source produces the committed content', () => {
     const regenerated = withThemingBlock(readme(), renderThemingBlock());
@@ -134,6 +151,23 @@ describe('theming contract: mutation tests (the guard actually fires)', () => {
     const undocumented = [...consumed].filter((name) => !documented.has(name));
 
     expect(undocumented).toEqual(['--undocumented-token']);
+  });
+
+  it('flags a token with no TOKEN_DESCRIPTIONS entry', () => {
+    const fixtureRoot = makeFixtureRoot();
+    const stylesPath = join(fixtureRoot, 'styles.css');
+    writeFileSync(stylesPath, ':root {\n  --checkbox-border: red;\n}\n');
+    mkdirSync(join(fixtureRoot, 'app'));
+    writeFileSync(
+      join(fixtureRoot, 'app', 'Widget.tsx'),
+      "export const Widget = () => <div style={{ color: 'var(--checkbox-border)' }} />;\n" +
+        "export const Rogue = () => <div style={{ color: 'var(--never-described-token)' }} />;\n",
+    );
+
+    const consumed = new Set(buildInventory(fixtureRoot, stylesPath).map((row) => row.name));
+    const undescribed = [...consumed].filter((name) => !describeToken(name));
+
+    expect(undescribed).toEqual(['--never-described-token']);
   });
 
   it('flags a token with neither a default nor a fallback at every call site', () => {

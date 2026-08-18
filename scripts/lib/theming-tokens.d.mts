@@ -23,6 +23,7 @@ export interface InventoryRow {
   resolves: boolean;
   hasDefault: boolean;
   classification: Classification;
+  description: string | undefined;
 }
 
 export function stripCssComments(text: string): string;
@@ -35,6 +36,7 @@ export function resolvesWithoutHost(
   defaulted: Set<string>,
 ): boolean;
 export function classify(name: string, properties?: Set<string>): Classification;
+export function describe(name: string): string | undefined;
 export function buildInventory(srcRoot: string, stylesCssPath: string): InventoryRow[];
 export function renderTokenTable(inventory: InventoryRow[]): string;
 export function parseDocumentedTokens(markdownBlock: string): Set<string>;

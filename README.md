@@ -224,6 +224,7 @@ markup. Every one of them ships with a default (`:root` / `.dark` in
 host configuration at all — the table below exists so you can *override* a
 palette, not so you can complete one.
 
+**Controls** is a short description of what the token actually affects.
 **Kind** distinguishes tokens that only affect appearance (`Cosmetic`) from
 the handful that also affect layout (`Structural` — heading indents and the
 base font). **Has a default** marks tokens with a `:root`/`.dark` declaration
@@ -237,67 +238,67 @@ hand-edit the rows between the markers below. See ADR-085 for how the
 generation and drift guard work.
 
 <!-- theming-tokens:start -->
-| Custom property | Kind | Has a default |
-| --- | --- | --- |
-| `--checkbox-border` | Cosmetic | Yes |
-| `--color-muted-100` | Cosmetic | No (inline fallback only) |
-| `--color-muted-foreground` | Cosmetic | No (inline fallback only) |
-| `--color-primary` | Cosmetic | No (inline fallback only) |
-| `--color-primary-100` | Cosmetic | No (inline fallback only) |
-| `--slashmd-bold-color` | Cosmetic | Yes |
-| `--slashmd-callout-caution-bg` | Cosmetic | Yes |
-| `--slashmd-callout-caution-border` | Cosmetic | Yes |
-| `--slashmd-callout-important-bg` | Cosmetic | Yes |
-| `--slashmd-callout-important-border` | Cosmetic | Yes |
-| `--slashmd-callout-note-bg` | Cosmetic | Yes |
-| `--slashmd-callout-note-border` | Cosmetic | Yes |
-| `--slashmd-callout-tip-bg` | Cosmetic | Yes |
-| `--slashmd-callout-tip-border` | Cosmetic | Yes |
-| `--slashmd-callout-warning-bg` | Cosmetic | Yes |
-| `--slashmd-callout-warning-border` | Cosmetic | Yes |
-| `--slashmd-h1-color` | Cosmetic | Yes |
-| `--slashmd-h1-indent` | Structural | Yes |
-| `--slashmd-h2-color` | Cosmetic | Yes |
-| `--slashmd-h2-indent` | Structural | Yes |
-| `--slashmd-h3-color` | Cosmetic | Yes |
-| `--slashmd-h3-indent` | Structural | Yes |
-| `--slashmd-h4-color` | Cosmetic | Yes |
-| `--slashmd-h4-indent` | Structural | Yes |
-| `--slashmd-h5-color` | Cosmetic | Yes |
-| `--slashmd-h5-indent` | Structural | Yes |
-| `--slashmd-italic-color` | Cosmetic | Yes |
-| `--slashmd-token-comment` | Cosmetic | Yes |
-| `--slashmd-token-function` | Cosmetic | Yes |
-| `--slashmd-token-keyword` | Cosmetic | Yes |
-| `--slashmd-token-operator` | Cosmetic | Yes |
-| `--slashmd-token-property` | Cosmetic | Yes |
-| `--slashmd-token-punctuation` | Cosmetic | Yes |
-| `--slashmd-token-selector` | Cosmetic | Yes |
-| `--slashmd-token-variable` | Cosmetic | Yes |
-| `--vscode-background` | Cosmetic | Yes |
-| `--vscode-border` | Cosmetic | Yes |
-| `--vscode-button-background` | Cosmetic | No (inline fallback only) |
-| `--vscode-button-foreground` | Cosmetic | No (inline fallback only) |
-| `--vscode-code-bg` | Cosmetic | Yes |
-| `--vscode-errorForeground` | Cosmetic | No (inline fallback only) |
-| `--vscode-external-link` | Cosmetic | Yes |
-| `--vscode-focus-border` | Cosmetic | No (inline fallback only) |
-| `--vscode-focusBorder` | Cosmetic | No (inline fallback only) |
-| `--vscode-font-family` | Structural | Yes |
-| `--vscode-font-size` | Structural | Yes |
-| `--vscode-foreground` | Cosmetic | Yes |
-| `--vscode-foreground-muted` | Cosmetic | No (inline fallback only) |
-| `--vscode-input-bg` | Cosmetic | No (inline fallback only) |
-| `--vscode-inputValidation-errorBackground` | Cosmetic | No (inline fallback only) |
-| `--vscode-link` | Cosmetic | Yes |
-| `--vscode-menu-background` | Cosmetic | No (inline fallback only) |
-| `--vscode-menu-border` | Cosmetic | No (inline fallback only) |
-| `--vscode-menu-foreground` | Cosmetic | No (inline fallback only) |
-| `--vscode-menu-selectionBackground` | Cosmetic | No (inline fallback only) |
-| `--vscode-menu-separatorBackground` | Cosmetic | No (inline fallback only) |
-| `--vscode-notificationsInfoIcon-foreground` | Cosmetic | No (inline fallback only) |
-| `--vscode-selection` | Cosmetic | Yes |
-| `--vscode-toolbar-hoverBackground` | Cosmetic | No (inline fallback only) |
+| Custom property | Controls | Kind | Has a default |
+| --- | --- | --- | --- |
+| `--checkbox-border` | Border color of unchecked task-list checkboxes. | Cosmetic | Yes |
+| `--color-muted-100` | Background of the C4 diagram layout-toggle buttons when inactive. | Cosmetic | No (inline fallback only) |
+| `--color-muted-foreground` | Icon/text color of the C4 diagram layout-toggle buttons when inactive. | Cosmetic | No (inline fallback only) |
+| `--color-primary` | Icon/text color of the C4 diagram layout-toggle buttons when active. | Cosmetic | No (inline fallback only) |
+| `--color-primary-100` | Background of the C4 diagram layout-toggle buttons when active. | Cosmetic | No (inline fallback only) |
+| `--slashmd-bold-color` | Text color of bold (`**text**`) markdown spans. | Cosmetic | Yes |
+| `--slashmd-callout-caution-bg` | Background of "caution" callout blocks. | Cosmetic | Yes |
+| `--slashmd-callout-caution-border` | Left border accent of "caution" callout blocks. | Cosmetic | Yes |
+| `--slashmd-callout-important-bg` | Background of "important" callout blocks. | Cosmetic | Yes |
+| `--slashmd-callout-important-border` | Left border accent of "important" callout blocks. | Cosmetic | Yes |
+| `--slashmd-callout-note-bg` | Background of "note" callout blocks. | Cosmetic | Yes |
+| `--slashmd-callout-note-border` | Left border accent of "note" callout blocks. | Cosmetic | Yes |
+| `--slashmd-callout-tip-bg` | Background of "tip" callout blocks. | Cosmetic | Yes |
+| `--slashmd-callout-tip-border` | Left border accent of "tip" callout blocks. | Cosmetic | Yes |
+| `--slashmd-callout-warning-bg` | Background of "warning" callout blocks. | Cosmetic | Yes |
+| `--slashmd-callout-warning-border` | Left border accent of "warning" callout blocks. | Cosmetic | Yes |
+| `--slashmd-h1-color` | Text color of level-1 (`#`) headings. | Cosmetic | Yes |
+| `--slashmd-h1-indent` | Left margin of level-1 (`#`) headings. | Structural | Yes |
+| `--slashmd-h2-color` | Text color of level-2 (`##`) headings. | Cosmetic | Yes |
+| `--slashmd-h2-indent` | Left margin of level-2 (`##`) headings. | Structural | Yes |
+| `--slashmd-h3-color` | Text color of level-3 (`###`) headings. | Cosmetic | Yes |
+| `--slashmd-h3-indent` | Left margin of level-3 (`###`) headings. | Structural | Yes |
+| `--slashmd-h4-color` | Text color of level-4 (`####`) headings. | Cosmetic | Yes |
+| `--slashmd-h4-indent` | Left margin of level-4 (`####`) headings. | Structural | Yes |
+| `--slashmd-h5-color` | Text color of level-5 (`#####`) headings. | Cosmetic | Yes |
+| `--slashmd-h5-indent` | Left margin of level-5 (`#####`) headings. | Structural | Yes |
+| `--slashmd-italic-color` | Text color of italic (`*text*`) markdown spans. | Cosmetic | Yes |
+| `--slashmd-token-comment` | Syntax-highlight color for comments in fenced code blocks. | Cosmetic | Yes |
+| `--slashmd-token-function` | Syntax-highlight color for function names in fenced code blocks. | Cosmetic | Yes |
+| `--slashmd-token-keyword` | Syntax-highlight color for keywords in fenced code blocks. | Cosmetic | Yes |
+| `--slashmd-token-operator` | Syntax-highlight color for operators in fenced code blocks. | Cosmetic | Yes |
+| `--slashmd-token-property` | Syntax-highlight color for object properties in fenced code blocks. | Cosmetic | Yes |
+| `--slashmd-token-punctuation` | Syntax-highlight color for punctuation in fenced code blocks. | Cosmetic | Yes |
+| `--slashmd-token-selector` | Syntax-highlight color for CSS selectors in fenced code blocks. | Cosmetic | Yes |
+| `--slashmd-token-variable` | Syntax-highlight color for variables in fenced code blocks. | Cosmetic | Yes |
+| `--vscode-background` | Base background color of the editor surface and its popovers/menus. | Cosmetic | Yes |
+| `--vscode-border` | Default border color used throughout the editor chrome. | Cosmetic | Yes |
+| `--vscode-button-background` | Background of primary action buttons (e.g. the correction panel's "Apply" button). | Cosmetic | No (inline fallback only) |
+| `--vscode-button-foreground` | Text color of primary action buttons. | Cosmetic | No (inline fallback only) |
+| `--vscode-code-bg` | Background of inline code spans and fenced code blocks. | Cosmetic | Yes |
+| `--vscode-errorForeground` | Text color for error and validation messages. | Cosmetic | No (inline fallback only) |
+| `--vscode-external-link` | Text color of links that point outside the document. | Cosmetic | Yes |
+| `--vscode-focus-border` | Border color of the toolbar link-input field when focused. | Cosmetic | No (inline fallback only) |
+| `--vscode-focusBorder` | Color of the drag-and-drop position indicator while reordering blocks. | Cosmetic | No (inline fallback only) |
+| `--vscode-font-family` | Base font family for the editor content. | Structural | Yes |
+| `--vscode-font-size` | Base font size for the editor content. | Structural | Yes |
+| `--vscode-foreground` | Default text color throughout the editor. | Cosmetic | Yes |
+| `--vscode-foreground-muted` | Hover border color for the frontmatter tray's raw-view toggle. | Cosmetic | No (inline fallback only) |
+| `--vscode-input-bg` | Background of the toolbar link-input field. | Cosmetic | No (inline fallback only) |
+| `--vscode-inputValidation-errorBackground` | Background of inline validation-error messages. | Cosmetic | No (inline fallback only) |
+| `--vscode-link` | Text color of in-document links. | Cosmetic | Yes |
+| `--vscode-menu-background` | Background of context menus (block, selection and correction menus). | Cosmetic | No (inline fallback only) |
+| `--vscode-menu-border` | Border color of context menus. | Cosmetic | No (inline fallback only) |
+| `--vscode-menu-foreground` | Text color of context menu items. | Cosmetic | No (inline fallback only) |
+| `--vscode-menu-selectionBackground` | Background of a hovered/selected context menu item. | Cosmetic | No (inline fallback only) |
+| `--vscode-menu-separatorBackground` | Color of separator lines inside context menus. | Cosmetic | No (inline fallback only) |
+| `--vscode-notificationsInfoIcon-foreground` | Color of informational icons in inline notifications. | Cosmetic | No (inline fallback only) |
+| `--vscode-selection` | Background color of selected/highlighted text. | Cosmetic | Yes |
+| `--vscode-toolbar-hoverBackground` | Background of a toolbar button on hover. | Cosmetic | No (inline fallback only) |
 <!-- theming-tokens:end -->
 
 **A worked example.** To match a host's own palette, override a subset of
