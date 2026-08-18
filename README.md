@@ -194,26 +194,6 @@ Note the contrast with the failure above: forgetting the *import* fails
 silently, while adding it without a declaration fails loudly at compile time.
 Neither is a package defect, but only one of them tells you what is wrong.
 
-### If you use Tailwind
-
-Some of the editor's markup also uses Tailwind utility classes. Tailwind v4
-generates utilities by scanning your source, and **its automatic source
-detection skips `node_modules`** — so without telling it where to look, those
-classes are simply absent. Again: silent, not an error.
-
-Add an explicit `@source` for the package's built output in the CSS file where
-you import Tailwind:
-
-```css
-@import "tailwindcss";
-@source "../node_modules/@liminis/editor/dist";
-```
-
-Adjust the relative path to point at your installed copy. In a pnpm workspace
-the real path may be under `node_modules/.pnpm/` — pointing `@source` at the
-symlinked path works, but verify a distinctive utility class actually appears in
-your generated CSS rather than assuming it.
-
 ### Theming: CSS custom properties
 
 The editor's colors, borders and a few layout metrics are all CSS custom
@@ -327,9 +307,9 @@ package default. `--vscode-foreground` and `--vscode-border` are the two most
 widely referenced tokens, so they're usually the highest-value place to start.
 
 > The `--vscode-*` prefix reflects where these names came from, not where the
-> package is going — a future `0.2.0` may rename the vocabulary to something
-> package-owned. The names above are correct and stable for the `0.1.x` series;
-> this note is a heads-up, not a hedge.
+> package is going — a future minor version may rename the vocabulary to
+> something package-owned. The names above are correct and stable for the
+> `0.1.x` series; this note is a heads-up, not a hedge.
 
 ## Annotations
 
