@@ -48,6 +48,8 @@ import { FrontmatterPlugin } from './FrontmatterPlugin';
 import { WikiLinkExistencePlugin } from './WikiLinkExistencePlugin';
 import { WikiLinkFormatPlugin } from './WikiLinkFormatPlugin';
 import { AnchorScrollPlugin } from './AnchorScrollPlugin';
+import { OutlinePlugin } from './OutlinePlugin';
+import type { DocumentOutlineHandle } from './documentOutline';
 import { SelectionContextMenuPlugin } from './SelectionContextMenuPlugin';
 import type { SelectionContextMenuEvent } from './SelectionContextMenuPlugin';
 import { CorrectionPanelPlugin } from './CorrectionPanelPlugin';
@@ -156,6 +158,15 @@ interface EditorProps {
   annotationEditorHandleRef?: MutableRefObject<AnnotationEditorHandle | null>;
   /** Injected logger, so the package never imports a host logger (FR-010). */
   annotationLogger?: { warn: (message: string, ...args: unknown[]) => void };
+
+  /**
+   * Connects this editor to a `<DocumentOutline handle={…}>` rendered
+   * anywhere the host chooses (issue #69). Create with
+   * `createDocumentOutlineHandle()` and pass the same object to both — an
+   * unsupplied handle mounts no outline plugin at all, so an outline-less
+   * consumer pays nothing for it.
+   */
+  documentOutlineHandle?: DocumentOutlineHandle;
 }
 
 const editorTheme = {
@@ -656,6 +667,7 @@ export function Editor({
   onActivateAnnotation,
   annotationEditorHandleRef,
   annotationLogger,
+  documentOutlineHandle,
 }: EditorProps) {
   // Annotations are on only when the host configured at least one kind
   // (FR-004). Everything annotation-specific hangs off this flag, including
@@ -864,6 +876,7 @@ export function Editor({
             <WikiLinkExistencePlugin />
             <WikiLinkFormatPlugin />
             <AnchorScrollPlugin />
+            {documentOutlineHandle && <OutlinePlugin handle={documentOutlineHandle} />}
             <SelectionContextMenuPlugin
               onSelectionContextMenu={onSelectionContextMenu}
               // Only kinds that actually ask for a context-menu affordance:
