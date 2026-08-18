@@ -18,9 +18,10 @@ consecutive ones.
   `.editor-container`). Hosts no longer need Tailwind installed, configured,
   or scanning this package's sources at all. See ADR-086. (#49)
 
-- **The theming vocabulary is renamed off `--vscode-*` to a package-owned
-  prefix, `--liminis-editor-*`.** All 59 CSS custom properties consumed by
-  `src/` — previously split across four inconsistent prefixes (`--slashmd-*`
+- **The theming vocabulary is renamed off `--vscode-*`, `--slashmd-*`,
+  `--color-*` and `--checkbox-*` to a single package-owned prefix,
+  `--liminis-editor-*`.** All 59 CSS custom properties consumed by `src/` —
+  previously split across those four inconsistent prefixes (`--slashmd-*`
   30, `--vscode-*` 24, `--color-*` 4, `--checkbox-*` 1) — are now documented
   and consumed under a single `--liminis-editor-*` prefix. See ADR-087.
   (#51)
