@@ -109,10 +109,6 @@ liminis-app and Zusammen are the two hosts currently supplying `--vscode-*` toke
 - Any change to #49's scope (dropping the Tailwind requirement).
 - Adding new custom properties, new `styles.css` defaults, or documentation not already implied by the rename (that groundwork was #50's).
 
-## Open Questions
-
-- [ ] Does "rename all consumed properties" mean every custom property consumed in `src/` regardless of naming family (all 59, including the 35 already named `--slashmd-*`, `--color-*`, and `--checkbox-*`), or only the `--vscode-*` family that the issue's Background specifically identifies as the naming problem (24 of the 59)? The issue's Scope section says "all 60 consumed properties" — a count that predates #50's corrected inventory — while its Why section argues specifically against the VS Code framing, not against the other families' names.
-
 ## Source References
 
 - Issue #49 — the sibling breaking change sharing the `0.2.0` release; this issue must not duplicate its version bump or cut its own release.
