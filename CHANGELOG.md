@@ -39,7 +39,19 @@ consecutive ones.
   `README.md`'s "Migrating from the old names" section for the full
   previous-name -> new-name mapping.
 
-  `liminis-app` required no change (it supplied none of the old-prefix
-  overrides). Zusammen's vendored copy of the editor source and its
-  `index.css` were ported to the new names in
-  [verveguy/zusammen#125](https://github.com/verveguy/zusammen/issues/125).
+  Neither known consumer has migrated, and both keep working — which is the
+  fallback layer doing exactly the job it exists for. Measured rather than
+  assumed, at the time of writing:
+
+  - `liminis-app` supplies two of the four `--color-*` properties this
+    package consumes: `--color-primary` (itself aliased to `var(--primary)`)
+    and `--color-muted-foreground`. Those overrides continue to apply through
+    the fallback chain.
+  - Zusammen supplies 19 `--vscode-*` overrides in
+    `app/src/renderer/index.css`, and is still on `^0.1.1`. It picks this
+    release up when it upgrades, with its theming intact.
+
+  [verveguy/zusammen#125](https://github.com/verveguy/zusammen/issues/125) was
+  filed to port the rename into a vendored copy of this package's source. It
+  is closed as completed, but no code changed: that vendored copy no longer
+  exists, because Zusammen now installs from the registry.
