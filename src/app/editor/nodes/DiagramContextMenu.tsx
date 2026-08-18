@@ -121,11 +121,11 @@ export function DiagramContextMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
 
-  const bgColor = `var(--vscode-menu-background, ${isDark ? '#252526' : '#ffffff'})`;
-  const borderColor = `var(--vscode-menu-border, ${isDark ? '#454545' : '#d4d4d4'})`;
-  const textColor = `var(--vscode-menu-foreground, ${isDark ? '#cccccc' : '#333333'})`;
-  const hoverBg = `var(--vscode-menu-selectionBackground, ${isDark ? '#094771' : '#e8e8e8'})`;
-  const separatorColor = `var(--vscode-menu-separatorBackground, ${isDark ? '#454545' : '#d4d4d4'})`;
+  const bgColor = `var(--liminis-editor-menu-background, var(--vscode-menu-background, ${isDark ? '#252526' : '#ffffff'}))`;
+  const borderColor = `var(--liminis-editor-menu-border, var(--vscode-menu-border, ${isDark ? '#454545' : '#d4d4d4'}))`;
+  const textColor = `var(--liminis-editor-menu-foreground, var(--vscode-menu-foreground, ${isDark ? '#cccccc' : '#333333'}))`;
+  const hoverBg = `var(--liminis-editor-menu-selectionBackground, var(--vscode-menu-selectionBackground, ${isDark ? '#094771' : '#e8e8e8'}))`;
+  const separatorColor = `var(--liminis-editor-menu-separatorBackground, var(--vscode-menu-separatorBackground, ${isDark ? '#454545' : '#d4d4d4'}))`;
 
   // Close on click outside or Escape
   useEffect(() => {

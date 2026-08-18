@@ -8,6 +8,13 @@
 export interface ConsumptionSite {
   file: string;
   hasFallback: boolean;
+  /**
+   * The token name immediately nested inside this site's fallback, if its
+   * fallback opens with another `var(--y...)` call — null otherwise. For a
+   * renamed (#51) token this is the previous-family name the fallback
+   * chain preserves; checked against `PREVIOUS_NAME` by the drift guard.
+   */
+  immediateFallback: string | null;
 }
 
 export interface ConsumedTokenEntry {
@@ -34,6 +41,11 @@ export function resolvesWithoutHost(
   name: string,
   consumed: Map<string, ConsumedTokenEntry>,
   defaulted: Set<string>,
+): boolean;
+export const PREVIOUS_NAME: Record<string, string>;
+export function resolvesToPreviousName(
+  name: string,
+  consumed: Map<string, ConsumedTokenEntry>,
 ): boolean;
 export function classify(name: string, properties?: Set<string>): Classification;
 export function describe(name: string): string | undefined;
