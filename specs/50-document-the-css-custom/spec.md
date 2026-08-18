@@ -11,13 +11,14 @@ The package has a real theming system — CSS custom properties consumed through
 
 | | |
 |---|---|
-| distinct custom properties consumed by `src/` | **60** |
-| defaults defined in `styles.css` `:root` | **21** |
+| distinct custom properties consumed by `src/` | **59** |
+| defaults defined in `styles.css` (`:root`/`.dark`) | **40** |
+| always carrying an inline `var(--x, fallback)` | **19** |
 | documented in `README.md` or `docs/` | **0** |
 
 The most-used: `--vscode-foreground` (53 references), `--vscode-border` (41), `--vscode-link` (28), `--vscode-code-bg` (28).
 
-An adopter installs the package, imports `styles.css` as instructed, supplies nothing, and hits roughly 39 unresolved properties. Unresolved custom properties do not error — they fall back to inherited or initial values — so the editor renders, looks wrong in ways that are hard to attribute, and offers no way to discover what to set.
+An adopter installs the package, imports `styles.css` as instructed, supplies nothing, and the editor renders correctly: defaults and inline fallbacks between them cover every one of the 59 consumed properties. (An earlier draft of this issue estimated 60 tokens and roughly 39 unresolved; direct extraction from source corrects both — see Assumptions.) The problem this issue solves is discoverability, not resolution: unresolved custom properties don't error, they silently fall back, so a genuine gap would be invisible rather than loud — but there is no such gap today, and nothing lists what may be overridden.
 
 The editor is thoroughly themeable and nobody outside this repository can tell. Both of the obvious next improvements — shipping more defaults, and renaming the `--vscode-*` vocabulary (tracked separately in #51) — are improvements to a contract nobody can currently read. Writing the contract down is the cheapest step, unblocks adopters immediately, and produces the inventory that #51 will need in order to be complete rather than approximate.
 
@@ -85,14 +86,14 @@ A future contributor adds a new `var(--something)` in `src/`, or removes the las
 
 ### Measurable Outcomes
 
-- **SC-001**: The published token reference lists every property actually consumed in `src/` at merge time (currently 60), with zero omissions.
+- **SC-001**: The published token reference lists every property actually consumed in `src/` at merge time (currently 59), with zero omissions.
 - **SC-002**: A reader can theme the editor to a different visual style using only `README.md`, without opening `styles.css` or any file under `src/`.
 - **SC-003**: The drift guard fails when a property is consumed but undocumented, and fails when a property is documented but no longer consumed — both demonstrated, not merely described, before this change merges.
 - **SC-004**: Zero custom-property renames and zero new `styles.css` defaults are introduced by this change.
 
 ## Assumptions
 
-- "Distinct custom properties consumed by `src/`" spans every naming family present in the source, not only `--vscode-*`. Direct inspection of `src/` confirms only 25 of the 60 consumed properties carry the `--vscode-*` prefix; the remainder are `--slashmd-*` (syntax-highlighting tokens, heading colors/indents, callout colors), `--color-*`, and `--checkbox-*`. The issue's acceptance criteria pin the total at 60, which is only reachable by documenting all families — this spec adopts that reading. The issue's out-of-scope note about the `--vscode-*` rename (#51) applies specifically to that one family; it does not imply the other families are excluded from this issue's documentation scope.
+- "Distinct custom properties consumed by `src/`" spans every naming family present in the source, not only `--vscode-*`. Direct inspection of `src/` confirms only 24 of the 59 consumed properties carry the `--vscode-*` prefix; the remainder are `--slashmd-*` (syntax-highlighting tokens, heading colors/indents, callout colors), `--color-*`, and `--checkbox-*`. The issue's acceptance criteria pin the total at 60 (a figure this spec's own extraction, and the implementation's generated inventory, both correct to 59 — see ADR-085) — reachable only by documenting all families regardless of the exact count; this spec adopts that reading. The issue's out-of-scope note about the `--vscode-*` rename (#51) applies specifically to that one family; it does not imply the other families are excluded from this issue's documentation scope.
 - "Structural versus cosmetic" is a coarse, per-property classification; the issue does not define the boundary precisely. This spec requires every property to receive one of the two labels and leaves the specific line-drawing to the Plan/Implement stages.
 - The drift guard's implementation mechanism (parsing approach, test framework, exact location) is a technical decision for the Research/Plan stage; this spec constrains only its observable behavior (FR-007, FR-008).
 - The existing `docs/` directory (`annotations.md`, `editor-api.md`, etc.) is not a substitute location for the token reference — the issue requires it in `README.md`.
@@ -100,7 +101,7 @@ A future contributor adds a new `var(--something)` in `src/`, or removes the las
 ## Out of Scope
 
 - Renaming any `--vscode-*` (or other family's) custom property name — the `--vscode-*` rename is tracked separately in #51.
-- Adding the roughly 39 currently-missing defaults for unset custom properties to `styles.css`.
+- Adding new defaults to `styles.css` for consumed properties that currently rely on an inline fallback. (Measurement found no property that lacks both a default and a fallback, aside from the #52 typo fixed independently before this issue's implementation — there is no defaults gap to sweep.)
 - Any demo or site theme-switcher UI control.
 - Introducing new custom properties not already consumed by `src/`.
 
