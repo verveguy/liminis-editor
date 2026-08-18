@@ -866,10 +866,14 @@ this codebase deliberately sets to avoid column-width padding, is also what forc
 dash-count minimum in `markdown-table` — there's no separate option for one without the
 other. Fixed with `widenTableDelimiterDashes()`, a text-level post-process (the same
 pattern already used elsewhere in `stringify.ts` for other `mdast-util` quirks) that
-widens the library's exact single-dash form up to three hyphens, skipping fenced
-code/inline code/math regions so a verbatim block that happens to contain a
-delimiter-row-shaped line isn't touched. Column alignment itself was already correct
-(fixed for #907) and is untouched by this change.
+widens the library's exact single-dash form up to three hyphens. Rather than rewriting
+every line that merely *looks* delimiter-shaped, it only ever considers the second line
+of a contiguous run of pipe-led lines — the position a GFM delimiter row is always in —
+so a body row whose cells' content happens to be a bare `-` (which renders identically to
+a delimiter row) is never mistaken for one and rewritten. Lines inside fenced code blocks
+or `$$...$$` math blocks are excluded from that run entirely, so a verbatim block that
+happens to contain a line shaped like a delimiter row isn't touched either. Column
+alignment itself was already correct (fixed for #907) and is untouched by this change.
 
 - **`60-table-conventional-three-hyphen.md`**: a plain two-column table with no
   alignment, delimiter already at the conventional `---` width. Byte-identical, fixed
@@ -900,6 +904,14 @@ delimiter-row-shaped line isn't touched. Column alignment itself was already cor
   real table. Byte-identical, fixed point — regression guard (also from CodeRabbit
   review) confirming the verbatim-region skip logic leaves protected content's
   single-dash form untouched while still widening the real table.
+- **`60-table-dash-only-body-cells.md`**: a table whose body row's cells are each
+  literally just `-`, which renders identically to a delimiter row. Byte-identical, fixed
+  point — regression guard for a data-corruption bug GitHub Copilot caught in review: the
+  original shape-only matcher would widen *any* delimiter-shaped line anywhere in the
+  output, including this body row, silently turning a user's `-` cell content into `---`.
+  Fixed by restricting widening to the second line of each pipe-led run (the position a
+  delimiter row is structurally guaranteed to be at), never a later row regardless of its
+  shape.
 
 The two `known-defects/other-table-*` fixtures and several incidentally-affected
 fixtures elsewhere in this corpus (list-item block content, blank-line-before-list,
