@@ -139,9 +139,48 @@ body {
   }
 }
 
-/* Editor inner wrapper - used for hover state targeting of drag handles */
+/* Loading state - centered spinner + label, dimmed, fills viewport */
+.editor-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  min-height: 100vh;
+  color: var(--vscode-foreground);
+  opacity: 0.7;
+}
+
+/* Error banner - fixed to top, spans full width, above editor content */
+.editor-error-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 0.5rem 1rem;
+  background: oklch(63.7% 0.237 25.331);
+  color: #fff;
+  text-align: center;
+  z-index: 1000;
+}
+
+/* App root wrapper - default className for the top-level container */
+.editor-app-root {
+  min-height: 100vh;
+}
+
+/* Editor content column - centered, fixed max width with left/right gutters */
+.editor-container {
+  position: relative;
+  max-width: 800px;
+  margin-left: 1.25rem;
+  margin-right: 0.25rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Editor inner wrapper - positioned ancestor for drag handles, also targeted by hover state rules */
 .editor-inner {
-  /* Layout handled by Tailwind - this class exists for CSS hover rules */
+  position: relative;
 }
 
 /* Editor content area */
