@@ -5,7 +5,7 @@
    ```
 
    | Mode | Command |
-   | - | - |
+   | --- | --- |
    | dev | npm run dev |
 
    > Tip: dev mode enables hot reload.

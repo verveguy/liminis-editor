@@ -101,10 +101,7 @@ describe('MarkNode transparency on export (#43)', () => {
   });
 
   it('a mark wrapping text inside a table cell serializes identically', async () => {
-    // Uses a single-dash separator (`| - |`), not `---`: mdast-util-to-markdown
-    // normalizes table separators to the minimal width regardless of marks —
-    // a pre-existing, unrelated round-trip quirk this test must not trip over.
-    const md = '| A | B |\n| - | - |\n| one | target cell text |\n';
+    const md = '| A | B |\n| --- | --- |\n| one | target cell text |\n';
     const wrapped = await exportMarkdown(md, () => wrapPlainTextInMark('target cell'));
     expect(wrapped).toBe(md);
   });
