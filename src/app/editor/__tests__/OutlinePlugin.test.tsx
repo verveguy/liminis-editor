@@ -103,9 +103,12 @@ describe('OutlinePlugin heading derivation', () => {
         h1.append($createTextNode('Introduction'))
         root.append(h1)
 
-        // Skipped level: h1 -> h3.
+        // Skipped level: h1 -> h3. Text has no Markdown delimiters, so a
+        // pass mistakenly matching on literal backticks rather than actually
+        // reducing the code-formatted node to plain text can't accidentally
+        // pass this assertion.
         const h3 = $createHeadingNode('h3')
-        const code = $createTextNode('inline `code`').setFormat('code')
+        const code = $createTextNode('inline code').setFormat('code')
         h3.append($createTextNode('See '), code)
         root.append(h3)
 
@@ -123,7 +126,7 @@ describe('OutlinePlugin heading derivation', () => {
     const snapshot = handle.getSnapshot()
     expect(snapshot.entries).toEqual([
       { index: 0, level: 1, text: 'Introduction' },
-      { index: 1, level: 3, text: 'See inline `code`' },
+      { index: 1, level: 3, text: 'See inline code' },
       { index: 2, level: 2, text: 'Introduction' },
       { index: 3, level: 5, text: 'Deeply nested' },
     ])
@@ -272,7 +275,11 @@ describe('OutlinePlugin scrollToHeading (FR-003 / US1-AC2)', () => {
     target.getBoundingClientRect = () => ({ top: 500 }) as DOMRect
 
     act(() => handle.scrollToHeading(1))
-    expect(scrollTo).toHaveBeenCalledTimes(1)
+    // Asserts the H2 entry's own computed position (top 500 -> scrollTo 484,
+    // per `scrollElementIntoView`'s margin), not just that some scroll
+    // happened — a call count alone would also pass for a scroll to H1 or an
+    // arbitrary offset.
+    expect(scrollTo).toHaveBeenCalledWith({ top: 484, behavior: 'smooth' })
   })
 
   it('no-ops once the editor has unmounted', async () => {

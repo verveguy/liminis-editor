@@ -41,6 +41,10 @@ describe('DocumentOutline', () => {
     const { getByText } = render(<DocumentOutline handle={handle} />)
 
     expect(getByText('Introduction')).toBeTruthy()
+    // Indentation is keyed off `data-outline-level`, distinct per entry — a
+    // flat (unindented) render would still pass a text-only assertion.
+    expect(getByText('Introduction').closest('li')?.getAttribute('data-outline-level')).toBe('1')
+    expect(getByText('Details').closest('li')?.getAttribute('data-outline-level')).toBe('2')
     const detailsButton = getByText('Details').closest('button')!
     fireEvent.click(detailsButton)
 
