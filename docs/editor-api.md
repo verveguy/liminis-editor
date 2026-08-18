@@ -59,6 +59,58 @@ All optional; supplying `annotationKinds` is what turns the mechanism on. See
 | `annotationEditorHandleRef` | `MutableRefObject<AnnotationEditorHandle \| null>` | Imperative handle for the mounted editor's live marks. |
 | `annotationLogger` | `{ warn(message, ...args): void }` | Injected, so the package never imports a host logger. |
 
+## Document outline
+
+A live, navigable "on this page" heading list (issue #69) — `<Editor>` owns
+the Lexical document and its heading DOM, so the package derives entries and
+implements scroll-to-heading; you decide whether, where, and how the outline
+is shown.
+
+```tsx
+import { useState } from 'react'
+import { Editor, DocumentOutline, createDocumentOutlineHandle } from '@liminis/editor'
+
+function MyEditorWithOutline() {
+  // Create once per editor instance — the same object connects the two
+  // components. A second editor on the same page needs its own handle.
+  const [outlineHandle] = useState(() => createDocumentOutlineHandle())
+
+  return (
+    <div style={{ display: 'flex' }}>
+      <Editor
+        initialContent={markdown}
+        onChange={setMarkdown}
+        documentOutlineHandle={outlineHandle}
+      />
+      <aside>
+        <DocumentOutline handle={outlineHandle} />
+      </aside>
+    </div>
+  )
+}
+```
+
+| Prop | Type | Notes |
+|---|---|---|
+| `<Editor>`'s `documentOutlineHandle` | `DocumentOutlineHandle` | Connects this editor instance to a `<DocumentOutline>`. Omit it and no outline plugin mounts at all — an outline-less consumer pays nothing for it. |
+| `<DocumentOutline>`'s `handle` | `DocumentOutlineHandle` | The same object passed to `<Editor>`. |
+| `<DocumentOutline>`'s `className` | `string` | Additional class on the outer `<nav>`, for your own placement/layout. |
+
+`createDocumentOutlineHandle()` returns the shared controller: a React
+external store (`subscribe`/`getSnapshot`, so `<DocumentOutline>` re-renders
+live as the reader scrolls and the document changes) plus an imperative
+`scrollToHeading(index)`. You never call its methods directly — `<Editor>`
+feeds it, `<DocumentOutline>` reads it.
+
+- Entries are H1–H5 headings in document order, indented by level, with
+  inline formatting (including inline code) reduced to plain text. Identity
+  is by position, not text, so duplicate headings are handled correctly.
+- The active entry — the heading at the top of the viewport — is tracked as
+  the reader scrolls and kept visible within the outline itself.
+- `<DocumentOutline>` renders nothing when the document has no headings.
+- Visibility, placement, width-gating, and any collapse/persistence are
+  entirely up to you — `<DocumentOutline>` imposes no layout policy.
+
 ## The host seam
 
 The package boundary is drawn at **persistence**: text ranges, marks, rendering
