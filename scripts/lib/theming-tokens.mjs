@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Shared extraction logic for the theming-contract inventory (verveguy/liminis-editor#50).
+ * Shared extraction logic for the theming-contract inventory (verveguy/liminis-editor#50,
+ * renamed off the --vscode-, --slashmd-, --color- and --checkbox- prefixes by #51).
  *
  * `scripts/generate-theming-docs.mjs` (writes the README table) and
  * `tests/theming-contract.test.ts` (the drift guard) both import this module
@@ -52,28 +53,73 @@ const TOKEN_RE = /--[a-zA-Z0-9-]+/.source
 
 /**
  * Every `var(--token` consumption site found in `text`, comment-stripped
- * first. A site is `{ name, hasFallback }` — `hasFallback` is true iff the
- * token name is immediately followed by a comma, which is all that's needed
- * to know a fallback value is present; the fallback expression itself
- * (which may itself contain nested `var(...)` or `rgba(...)`) is never
- * parsed.
+ * first, walked with a paren-aware scanner so each site carries its `var()`
+ * nesting depth and, if its fallback opens with another `var(--y...)` call,
+ * that call's token name as `immediateFallback`.
+ *
+ * The rename (#51) chains every consumption site as
+ * `var(--liminis-editor-x, var(--old-name-x, ...))`, so a naive flat regex
+ * (matching every `var(--x` occurrence regardless of nesting) would count
+ * the old, deprecated name as a second, independently "consumed" token at
+ * every one of the 59 sites — doubling the README/description-maintenance
+ * surface and violating #51's SC-001 ("a previous-family name appears only
+ * as a fallback, never as the primary consumed name"). Depth lets callers
+ * keep only depth-0 (primary) sites; `immediateFallback` is what the #51
+ * drift-guard check (FR-011) compares against `PREVIOUS_NAME`.
  */
 function consumptionSitesIn(text) {
-  const re = new RegExp(`var\\(\\s*(${TOKEN_RE})\\s*(,)?`, 'g')
+  const nameRe = new RegExp(`^\\s*(${TOKEN_RE})\\s*(,)?`)
+  const openingFallbackRe = new RegExp(`^\\s*var\\(\\s*(${TOKEN_RE})`)
   const sites = []
-  let match
-  while ((match = re.exec(text))) {
-    sites.push({ name: match[1], hasFallback: Boolean(match[2]) })
+  const stack = [] // { type: 'var' } | { type: 'other' }, innermost last
+  let i = 0
+  const n = text.length
+  while (i < n) {
+    if (text.startsWith('var(', i)) {
+      const rest = text.slice(i + 4)
+      const match = nameRe.exec(rest)
+      if (match) {
+        const depth = stack.reduce((count, frame) => count + (frame.type === 'var' ? 1 : 0), 0)
+        // immediateFallback only counts a nested var() that the fallback argument
+        // *opens with* (whitespace aside) — e.g. `var(--x, var(--y))`. A nested
+        // var() that appears later in the fallback, behind other text, does not
+        // count (e.g. `var(--x, 1px solid var(--y))` does not "open with" --y),
+        // since that fallback would not resolve to a bare previous-name value.
+        let immediateFallback = null
+        if (match[2]) {
+          const opening = openingFallbackRe.exec(rest.slice(match[0].length))
+          if (opening) immediateFallback = opening[1]
+        }
+        const site = { name: match[1], hasFallback: Boolean(match[2]), depth, immediateFallback }
+        sites.push(site)
+        stack.push({ type: 'var' })
+        i += 4
+        continue
+      }
+    }
+    if (text[i] === '(') {
+      stack.push({ type: 'other' })
+      i++
+      continue
+    }
+    if (text[i] === ')') {
+      if (stack.length > 0) stack.pop()
+      i++
+      continue
+    }
+    i++
   }
   return sites
 }
 
 /**
  * A CSS property name immediately preceding a `var(--token` reference on the
- * same source line, e.g. `color` in `color: var(--vscode-foreground);`.
- * Returns `null` when the token is reached indirectly (assigned to a JS
- * variable first, then interpolated elsewhere) — classification treats that
- * as "no signal" rather than guessing.
+ * same source line, e.g. `color` in `color: var(--liminis-editor-foreground, ...)`.
+ * Non-greedy matching means this always captures the first (depth-0) `var()`
+ * on the line, never a nested fallback reference. Returns `null` when the
+ * token is reached indirectly (assigned to a JS variable first, then
+ * interpolated elsewhere) — classification treats that as "no signal"
+ * rather than guessing.
  */
 function propertyHintsIn(text) {
   const hints = new Map() // token name -> Set<property>
@@ -90,37 +136,44 @@ function propertyHintsIn(text) {
 }
 
 /**
- * Scan `srcRoot` for every custom property `var(--...)` consumes.
- * Returns a `Map<name, { files: Set<string>, sites: Array<{file, hasFallback}>, properties: Set<string> }>`.
+ * Scan `srcRoot` for every custom property `var(--...)` consumes at the
+ * top level (depth 0) of a `var()` fallback chain — i.e. the primary name a
+ * host is meant to theme, not a nested previous-name fallback (see
+ * `consumptionSitesIn`). Returns a
+ * `Map<name, { files: Set<string>, sites: Array<{file, hasFallback, immediateFallback}>, properties: Set<string> }>`.
  */
 export function consumedTokens(srcRoot) {
   const cssFiles = listFiles(srcRoot, CSS_EXTENSIONS)
   const jsFiles = listFiles(srcRoot, JS_EXTENSIONS)
+  const files = [...cssFiles, ...jsFiles]
+
+  const stripped = new Map()
+  for (const file of cssFiles) stripped.set(file, stripCssComments(readFileSync(file, 'utf-8')))
+  for (const file of jsFiles) stripped.set(file, stripJsComments(readFileSync(file, 'utf-8')))
+
   const tokens = new Map()
 
-  const record = (file, stripped) => {
-    for (const site of consumptionSitesIn(stripped)) {
+  // Pass 1: primary (depth-0) consumption sites populate the map.
+  for (const file of files) {
+    for (const site of consumptionSitesIn(stripped.get(file))) {
+      if (site.depth !== 0) continue
       if (!tokens.has(site.name)) {
         tokens.set(site.name, { files: new Set(), sites: [], properties: new Set() })
       }
       const entry = tokens.get(site.name)
       entry.files.add(file)
-      entry.sites.push({ file, hasFallback: site.hasFallback })
-    }
-    const hints = propertyHintsIn(stripped)
-    for (const [name, properties] of hints) {
-      if (!tokens.has(name)) {
-        tokens.set(name, { files: new Set(), sites: [], properties: new Set() })
-      }
-      for (const property of properties) tokens.get(name).properties.add(property)
+      entry.sites.push({ file, hasFallback: site.hasFallback, immediateFallback: site.immediateFallback })
     }
   }
 
-  for (const file of cssFiles) {
-    record(file, stripCssComments(readFileSync(file, 'utf-8')))
-  }
-  for (const file of jsFiles) {
-    record(file, stripJsComments(readFileSync(file, 'utf-8')))
+  // Pass 2: property hints attach only to names already in the primary map
+  // — a hint for a nested (previous-name) reference is discarded.
+  for (const file of files) {
+    const hints = propertyHintsIn(stripped.get(file))
+    for (const [name, properties] of hints) {
+      if (!tokens.has(name)) continue
+      for (const property of properties) tokens.get(name).properties.add(property)
+    }
   }
 
   return tokens
@@ -131,7 +184,10 @@ export function consumedTokens(srcRoot) {
  * comment-stripped. A declaration is `--name:` — deliberately not restricted
  * to `:root`/`.dark`, since the `@media print` block also declares a subset
  * and this repo's "defined in styles.css" count is a flat "declared
- * anywhere" count.
+ * anywhere" count. Per #51's compatibility design, defaults stay declared
+ * under each token's previous (pre-rename) name — only consumption sites
+ * were rewritten to the new `--liminis-editor-*` name — so this continues to
+ * report defaults keyed by the old names.
  */
 export function defaultedTokens(stylesCssPath) {
   const text = stripCssComments(readFileSync(stylesCssPath, 'utf-8'))
@@ -158,75 +214,165 @@ export function resolvesWithoutHost(name, consumed, defaulted) {
 }
 
 /**
+ * New `--liminis-editor-*` name -> the specific previous name it replaced
+ * (#51). An explicit, checked-in table rather than derived by convention:
+ * the drift guard (FR-011) needs the reverse mapping (new name -> which of
+ * the four old families it actually was) to verify every renamed token's
+ * consumption sites preserve a fallback to that exact previous name, and
+ * that isn't something "strip the new prefix" can reconstruct on its own.
+ *
+ * One collision required a deliberate suffix change: `--checkbox-border`
+ * and `--vscode-border` both strip to the bare suffix `border`; the
+ * checkbox token keeps `checkbox-border` so the two remain distinct names.
+ */
+export const PREVIOUS_NAME = {
+  '--liminis-editor-background': '--vscode-background',
+  '--liminis-editor-bold-color': '--slashmd-bold-color',
+  '--liminis-editor-border': '--vscode-border',
+  '--liminis-editor-button-background': '--vscode-button-background',
+  '--liminis-editor-button-foreground': '--vscode-button-foreground',
+  '--liminis-editor-callout-caution-bg': '--slashmd-callout-caution-bg',
+  '--liminis-editor-callout-caution-border': '--slashmd-callout-caution-border',
+  '--liminis-editor-callout-important-bg': '--slashmd-callout-important-bg',
+  '--liminis-editor-callout-important-border': '--slashmd-callout-important-border',
+  '--liminis-editor-callout-note-bg': '--slashmd-callout-note-bg',
+  '--liminis-editor-callout-note-border': '--slashmd-callout-note-border',
+  '--liminis-editor-callout-tip-bg': '--slashmd-callout-tip-bg',
+  '--liminis-editor-callout-tip-border': '--slashmd-callout-tip-border',
+  '--liminis-editor-callout-warning-bg': '--slashmd-callout-warning-bg',
+  '--liminis-editor-callout-warning-border': '--slashmd-callout-warning-border',
+  '--liminis-editor-checkbox-border': '--checkbox-border',
+  '--liminis-editor-code-bg': '--vscode-code-bg',
+  '--liminis-editor-errorForeground': '--vscode-errorForeground',
+  '--liminis-editor-external-link': '--vscode-external-link',
+  '--liminis-editor-focus-border': '--vscode-focus-border',
+  '--liminis-editor-focusBorder': '--vscode-focusBorder',
+  '--liminis-editor-font-family': '--vscode-font-family',
+  '--liminis-editor-font-size': '--vscode-font-size',
+  '--liminis-editor-foreground': '--vscode-foreground',
+  '--liminis-editor-foreground-muted': '--vscode-foreground-muted',
+  '--liminis-editor-h1-color': '--slashmd-h1-color',
+  '--liminis-editor-h1-indent': '--slashmd-h1-indent',
+  '--liminis-editor-h2-color': '--slashmd-h2-color',
+  '--liminis-editor-h2-indent': '--slashmd-h2-indent',
+  '--liminis-editor-h3-color': '--slashmd-h3-color',
+  '--liminis-editor-h3-indent': '--slashmd-h3-indent',
+  '--liminis-editor-h4-color': '--slashmd-h4-color',
+  '--liminis-editor-h4-indent': '--slashmd-h4-indent',
+  '--liminis-editor-h5-color': '--slashmd-h5-color',
+  '--liminis-editor-h5-indent': '--slashmd-h5-indent',
+  '--liminis-editor-input-bg': '--vscode-input-bg',
+  '--liminis-editor-inputValidation-errorBackground': '--vscode-inputValidation-errorBackground',
+  '--liminis-editor-italic-color': '--slashmd-italic-color',
+  '--liminis-editor-link': '--vscode-link',
+  '--liminis-editor-menu-background': '--vscode-menu-background',
+  '--liminis-editor-menu-border': '--vscode-menu-border',
+  '--liminis-editor-menu-foreground': '--vscode-menu-foreground',
+  '--liminis-editor-menu-selectionBackground': '--vscode-menu-selectionBackground',
+  '--liminis-editor-menu-separatorBackground': '--vscode-menu-separatorBackground',
+  '--liminis-editor-muted-100': '--color-muted-100',
+  '--liminis-editor-muted-foreground': '--color-muted-foreground',
+  '--liminis-editor-notificationsInfoIcon-foreground': '--vscode-notificationsInfoIcon-foreground',
+  '--liminis-editor-primary': '--color-primary',
+  '--liminis-editor-primary-100': '--color-primary-100',
+  '--liminis-editor-selection': '--vscode-selection',
+  '--liminis-editor-token-comment': '--slashmd-token-comment',
+  '--liminis-editor-token-function': '--slashmd-token-function',
+  '--liminis-editor-token-keyword': '--slashmd-token-keyword',
+  '--liminis-editor-token-operator': '--slashmd-token-operator',
+  '--liminis-editor-token-property': '--slashmd-token-property',
+  '--liminis-editor-token-punctuation': '--slashmd-token-punctuation',
+  '--liminis-editor-token-selector': '--slashmd-token-selector',
+  '--liminis-editor-token-variable': '--slashmd-token-variable',
+  '--liminis-editor-toolbar-hoverBackground': '--vscode-toolbar-hoverBackground',
+}
+
+/**
+ * True iff `name` is not a renamed (#51) token, or every one of its
+ * consumption sites in `consumed` carries an immediate nested fallback to
+ * exactly its `PREVIOUS_NAME` entry. This is the FR-011 invariant: a
+ * renamed property introduced without a preserved fallback to its previous
+ * name must fail the drift guard rather than merge undetected.
+ */
+export function resolvesToPreviousName(name, consumed) {
+  const previous = PREVIOUS_NAME[name]
+  if (!previous) return true
+  const entry = consumed.get(name)
+  if (!entry || entry.sites.length === 0) return false
+  return entry.sites.every((site) => site.immediateFallback === previous)
+}
+
+/**
  * Short, human-readable descriptions of what each token controls (FR-003).
  * Hand-curated — token names alone don't reliably convey purpose (compare
- * `--vscode-focus-border` and `--vscode-focusBorder`, two distinct tokens
- * used in different components) — but the set of *keys* is verified against
- * the generated inventory by `describe()` below and by the drift-guard test,
- * so a new token without a description fails CI rather than silently
- * shipping an empty "Controls" cell.
+ * `--liminis-editor-focus-border` and `--liminis-editor-focusBorder`, two
+ * distinct tokens used in different components) — but the set of *keys* is
+ * verified against the generated inventory by `describe()` below and by the
+ * drift-guard test, so a new token without a description fails CI rather
+ * than silently shipping an empty "Controls" cell.
  */
 const TOKEN_DESCRIPTIONS = {
-  '--checkbox-border': 'Border color of unchecked task-list checkboxes.',
-  '--color-muted-100': 'Background of the C4 diagram layout-toggle buttons when inactive.',
-  '--color-muted-foreground': 'Icon/text color of the C4 diagram layout-toggle buttons when inactive.',
-  '--color-primary': 'Icon/text color of the C4 diagram layout-toggle buttons when active.',
-  '--color-primary-100': 'Background of the C4 diagram layout-toggle buttons when active.',
-  '--slashmd-bold-color': 'Text color of bold (`**text**`) markdown spans.',
-  '--slashmd-callout-caution-bg': 'Background of "caution" callout blocks.',
-  '--slashmd-callout-caution-border': 'Left border accent of "caution" callout blocks.',
-  '--slashmd-callout-important-bg': 'Background of "important" callout blocks.',
-  '--slashmd-callout-important-border': 'Left border accent of "important" callout blocks.',
-  '--slashmd-callout-note-bg': 'Background of "note" callout blocks.',
-  '--slashmd-callout-note-border': 'Left border accent of "note" callout blocks.',
-  '--slashmd-callout-tip-bg': 'Background of "tip" callout blocks.',
-  '--slashmd-callout-tip-border': 'Left border accent of "tip" callout blocks.',
-  '--slashmd-callout-warning-bg': 'Background of "warning" callout blocks.',
-  '--slashmd-callout-warning-border': 'Left border accent of "warning" callout blocks.',
-  '--slashmd-h1-color': 'Text color of level-1 (`#`) headings.',
-  '--slashmd-h1-indent': 'Left margin of level-1 (`#`) headings.',
-  '--slashmd-h2-color': 'Text color of level-2 (`##`) headings.',
-  '--slashmd-h2-indent': 'Left margin of level-2 (`##`) headings.',
-  '--slashmd-h3-color': 'Text color of level-3 (`###`) headings.',
-  '--slashmd-h3-indent': 'Left margin of level-3 (`###`) headings.',
-  '--slashmd-h4-color': 'Text color of level-4 (`####`) headings.',
-  '--slashmd-h4-indent': 'Left margin of level-4 (`####`) headings.',
-  '--slashmd-h5-color': 'Text color of level-5 (`#####`) headings.',
-  '--slashmd-h5-indent': 'Left margin of level-5 (`#####`) headings.',
-  '--slashmd-italic-color': 'Text color of italic (`*text*`) markdown spans.',
-  '--slashmd-token-comment': 'Syntax-highlight color for comments in fenced code blocks.',
-  '--slashmd-token-function': 'Syntax-highlight color for function names in fenced code blocks.',
-  '--slashmd-token-keyword': 'Syntax-highlight color for keywords in fenced code blocks.',
-  '--slashmd-token-operator': 'Syntax-highlight color for operators in fenced code blocks.',
-  '--slashmd-token-property': 'Syntax-highlight color for object properties in fenced code blocks.',
-  '--slashmd-token-punctuation': 'Syntax-highlight color for punctuation in fenced code blocks.',
-  '--slashmd-token-selector': 'Syntax-highlight color for CSS selectors in fenced code blocks.',
-  '--slashmd-token-variable': 'Syntax-highlight color for variables in fenced code blocks.',
-  '--vscode-background': 'Base background color of the editor surface and its popovers/menus.',
-  '--vscode-border': 'Default border color used throughout the editor chrome.',
-  '--vscode-button-background': 'Background of primary action buttons (e.g. the correction panel\'s "Apply" button).',
-  '--vscode-button-foreground': 'Text color of primary action buttons.',
-  '--vscode-code-bg': 'Background of inline code spans and fenced code blocks.',
-  '--vscode-errorForeground': 'Text color for error and validation messages.',
-  '--vscode-external-link': 'Text color of links that point outside the document.',
-  '--vscode-focus-border': 'Border color of the toolbar link-input field when focused.',
-  '--vscode-focusBorder': 'Color of the drag-and-drop position indicator while reordering blocks.',
-  '--vscode-font-family': 'Base font family for the editor content.',
-  '--vscode-font-size': 'Base font size for the editor content.',
-  '--vscode-foreground': 'Default text color throughout the editor.',
-  '--vscode-foreground-muted': 'Hover border color for the frontmatter tray\'s raw-view toggle.',
-  '--vscode-input-bg': 'Background of the toolbar link-input field.',
-  '--vscode-inputValidation-errorBackground': 'Background of inline validation-error messages.',
-  '--vscode-link': 'Text color of in-document links.',
-  '--vscode-menu-background': 'Background of context menus (block, selection and correction menus).',
-  '--vscode-menu-border': 'Border color of context menus.',
-  '--vscode-menu-foreground': 'Text color of context menu items.',
-  '--vscode-menu-selectionBackground': 'Background of a hovered/selected context menu item.',
-  '--vscode-menu-separatorBackground': 'Color of separator lines inside context menus.',
-  '--vscode-notificationsInfoIcon-foreground': 'Color of informational icons in inline notifications.',
-  '--vscode-selection': 'Background color of selected/highlighted text.',
-  '--vscode-toolbar-hoverBackground': 'Background of a toolbar button on hover.',
-};
+  '--liminis-editor-background': 'Base background color of the editor surface and its popovers/menus.',
+  '--liminis-editor-bold-color': 'Text color of bold (`**text**`) markdown spans.',
+  '--liminis-editor-border': 'Default border color used throughout the editor chrome.',
+  '--liminis-editor-button-background':
+    'Background of primary action buttons (e.g. the correction panel\'s "Apply" button).',
+  '--liminis-editor-button-foreground': 'Text color of primary action buttons.',
+  '--liminis-editor-callout-caution-bg': 'Background of "caution" callout blocks.',
+  '--liminis-editor-callout-caution-border': 'Left border accent of "caution" callout blocks.',
+  '--liminis-editor-callout-important-bg': 'Background of "important" callout blocks.',
+  '--liminis-editor-callout-important-border': 'Left border accent of "important" callout blocks.',
+  '--liminis-editor-callout-note-bg': 'Background of "note" callout blocks.',
+  '--liminis-editor-callout-note-border': 'Left border accent of "note" callout blocks.',
+  '--liminis-editor-callout-tip-bg': 'Background of "tip" callout blocks.',
+  '--liminis-editor-callout-tip-border': 'Left border accent of "tip" callout blocks.',
+  '--liminis-editor-callout-warning-bg': 'Background of "warning" callout blocks.',
+  '--liminis-editor-callout-warning-border': 'Left border accent of "warning" callout blocks.',
+  '--liminis-editor-checkbox-border': 'Border color of unchecked task-list checkboxes.',
+  '--liminis-editor-code-bg': 'Background of inline code spans and fenced code blocks.',
+  '--liminis-editor-errorForeground': 'Text color for error and validation messages.',
+  '--liminis-editor-external-link': 'Text color of links that point outside the document.',
+  '--liminis-editor-focus-border': 'Border color of the toolbar link-input field when focused.',
+  '--liminis-editor-focusBorder': 'Color of the drag-and-drop position indicator while reordering blocks.',
+  '--liminis-editor-font-family': 'Base font family for the editor content.',
+  '--liminis-editor-font-size': 'Base font size for the editor content.',
+  '--liminis-editor-foreground': 'Default text color throughout the editor.',
+  '--liminis-editor-foreground-muted': 'Hover border color for the frontmatter tray\'s raw-view toggle.',
+  '--liminis-editor-h1-color': 'Text color of level-1 (`#`) headings.',
+  '--liminis-editor-h1-indent': 'Left margin of level-1 (`#`) headings.',
+  '--liminis-editor-h2-color': 'Text color of level-2 (`##`) headings.',
+  '--liminis-editor-h2-indent': 'Left margin of level-2 (`##`) headings.',
+  '--liminis-editor-h3-color': 'Text color of level-3 (`###`) headings.',
+  '--liminis-editor-h3-indent': 'Left margin of level-3 (`###`) headings.',
+  '--liminis-editor-h4-color': 'Text color of level-4 (`####`) headings.',
+  '--liminis-editor-h4-indent': 'Left margin of level-4 (`####`) headings.',
+  '--liminis-editor-h5-color': 'Text color of level-5 (`#####`) headings.',
+  '--liminis-editor-h5-indent': 'Left margin of level-5 (`#####`) headings.',
+  '--liminis-editor-input-bg': 'Background of the toolbar link-input field.',
+  '--liminis-editor-inputValidation-errorBackground': 'Background of inline validation-error messages.',
+  '--liminis-editor-italic-color': 'Text color of italic (`*text*`) markdown spans.',
+  '--liminis-editor-link': 'Text color of in-document links.',
+  '--liminis-editor-menu-background': 'Background of context menus (block, selection and correction menus).',
+  '--liminis-editor-menu-border': 'Border color of context menus.',
+  '--liminis-editor-menu-foreground': 'Text color of context menu items.',
+  '--liminis-editor-menu-selectionBackground': 'Background of a hovered/selected context menu item.',
+  '--liminis-editor-menu-separatorBackground': 'Color of separator lines inside context menus.',
+  '--liminis-editor-muted-100': 'Background of the C4 diagram layout-toggle buttons when inactive.',
+  '--liminis-editor-muted-foreground': 'Icon/text color of the C4 diagram layout-toggle buttons when inactive.',
+  '--liminis-editor-notificationsInfoIcon-foreground': 'Color of informational icons in inline notifications.',
+  '--liminis-editor-primary': 'Icon/text color of the C4 diagram layout-toggle buttons when active.',
+  '--liminis-editor-primary-100': 'Background of the C4 diagram layout-toggle buttons when active.',
+  '--liminis-editor-selection': 'Background color of selected/highlighted text.',
+  '--liminis-editor-token-comment': 'Syntax-highlight color for comments in fenced code blocks.',
+  '--liminis-editor-token-function': 'Syntax-highlight color for function names in fenced code blocks.',
+  '--liminis-editor-token-keyword': 'Syntax-highlight color for keywords in fenced code blocks.',
+  '--liminis-editor-token-operator': 'Syntax-highlight color for operators in fenced code blocks.',
+  '--liminis-editor-token-property': 'Syntax-highlight color for object properties in fenced code blocks.',
+  '--liminis-editor-token-punctuation': 'Syntax-highlight color for punctuation in fenced code blocks.',
+  '--liminis-editor-token-selector': 'Syntax-highlight color for CSS selectors in fenced code blocks.',
+  '--liminis-editor-token-variable': 'Syntax-highlight color for variables in fenced code blocks.',
+  '--liminis-editor-toolbar-hoverBackground': 'Background of a toolbar button on hover.',
+}
 
 /**
  * Short, human-readable description of what `name` controls (FR-003).
@@ -302,18 +448,26 @@ export function buildInventory(srcRoot, stylesCssPath) {
       hasDefault: defaulted.has(name),
       classification: classify(name, consumed.get(name).properties),
       description: describe(name),
+      previousName: PREVIOUS_NAME[name] ?? null,
     }))
 }
 
 const CLASSIFICATION_LABEL = { structural: 'Structural', cosmetic: 'Cosmetic' }
 
-/** Render the inventory as a GitHub-flavored markdown table. */
+/**
+ * Render the inventory as a GitHub-flavored markdown table, including the
+ * `PREVIOUS_NAME` a renamed (#51) token replaced — so a reader migrating an
+ * old override can find its `--liminis-editor-*` equivalent directly in this
+ * table rather than needing to guess at (or be pointed elsewhere for) the
+ * prefix-stripping convention, which isn't 1:1 for every token (see the
+ * `--checkbox-border`/`--vscode-border` collision in `PREVIOUS_NAME`'s docs).
+ */
 export function renderTokenTable(inventory) {
   const header =
-    '| Custom property | Controls | Kind | Has a default |\n| --- | --- | --- | --- |'
+    '| Custom property | Previous name | Controls | Kind | Has a default |\n| --- | --- | --- | --- | --- |'
   const rows = inventory.map(
     (row) =>
-      `| \`${row.name}\` | ${row.description ?? '_undocumented — add an entry to TOKEN_DESCRIPTIONS_'} | ${CLASSIFICATION_LABEL[row.classification]} | ${row.hasDefault ? 'Yes' : 'No (inline fallback only)'} |`,
+      `| \`${row.name}\` | ${row.previousName ? `\`${row.previousName}\`` : '—'} | ${row.description ?? '_undocumented — add an entry to TOKEN_DESCRIPTIONS_'} | ${CLASSIFICATION_LABEL[row.classification]} | ${row.hasDefault ? 'Yes' : 'No (inline fallback only)'} |`,
   )
   return [header, ...rows].join('\n')
 }

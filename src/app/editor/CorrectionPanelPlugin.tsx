@@ -39,10 +39,10 @@ const panelStyle = (): React.CSSProperties => {
     padding: '12px',
     minWidth: '280px',
     maxWidth: '360px',
-    background: `var(--vscode-menu-background, ${dark ? '#252526' : '#ffffff'})`,
-    border: `1px solid var(--vscode-menu-border, ${dark ? '#454545' : '#d4d4d4'})`,
+    background: `var(--liminis-editor-menu-background, var(--vscode-menu-background, ${dark ? '#252526' : '#ffffff'}))`,
+    border: `1px solid var(--liminis-editor-menu-border, var(--vscode-menu-border, ${dark ? '#454545' : '#d4d4d4'}))`,
     boxShadow: dark ? '0 4px 16px rgba(0,0,0,0.4)' : '0 4px 16px rgba(0,0,0,0.15)',
-    color: `var(--vscode-menu-foreground, ${dark ? '#cccccc' : '#333333'})`,
+    color: `var(--liminis-editor-menu-foreground, var(--vscode-menu-foreground, ${dark ? '#cccccc' : '#333333'}))`,
     fontFamily: 'system-ui, -apple-system, sans-serif',
     fontSize: '13px',
   };
@@ -282,8 +282,8 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
   if (!isOpen) return null;
 
   const dark = isDark();
-  const borderColor = `var(--vscode-menu-border, ${dark ? '#454545' : '#d4d4d4'})`;
-  const hoverBg = `var(--vscode-menu-selectionBackground, ${dark ? '#094771' : '#e8e8e8'})`;
+  const borderColor = `var(--liminis-editor-menu-border, var(--vscode-menu-border, ${dark ? '#454545' : '#d4d4d4'}))`;
+  const hoverBg = `var(--liminis-editor-menu-selectionBackground, var(--vscode-menu-selectionBackground, ${dark ? '#094771' : '#e8e8e8'}))`;
   const mutedColor = dark ? '#888888' : '#999999';
   const inputBg = dark ? '#1e1e1e' : '#f5f5f5';
   const warningBg = dark ? '#4a3500' : '#fff8e1';
@@ -296,13 +296,13 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
     cursor: 'pointer',
     border: `1px solid ${borderColor}`,
     background: 'transparent',
-    color: `var(--vscode-menu-foreground, ${dark ? '#cccccc' : '#333333'})`,
+    color: `var(--liminis-editor-menu-foreground, var(--vscode-menu-foreground, ${dark ? '#cccccc' : '#333333'}))`,
   };
 
   const btnPrimary: React.CSSProperties = {
     ...btnBase,
-    background: `var(--vscode-button-background, ${dark ? '#0e639c' : '#007acc'})`,
-    color: `var(--vscode-button-foreground, #ffffff)`,
+    background: `var(--liminis-editor-button-background, var(--vscode-button-background, ${dark ? '#0e639c' : '#007acc'}))`,
+    color: `var(--liminis-editor-button-foreground, var(--vscode-button-foreground, #ffffff))`,
     border: 'none',
     opacity: isSubmitting ? 0.6 : 1,
   };
@@ -408,7 +408,7 @@ export function CorrectionPanelPlugin(): JSX.Element | null {
             borderRadius: '4px',
             border: `1px solid ${borderColor}`,
             background: inputBg,
-            color: `var(--vscode-menu-foreground, ${dark ? '#cccccc' : '#333333'})`,
+            color: `var(--liminis-editor-menu-foreground, var(--vscode-menu-foreground, ${dark ? '#cccccc' : '#333333'}))`,
             fontSize: '13px',
             boxSizing: 'border-box',
           }}
@@ -494,7 +494,7 @@ function SuggestionItem({
         cursor: 'pointer',
         fontSize: '13px',
         borderRadius: '3px',
-        color: `var(--vscode-menu-foreground, ${dark ? '#cccccc' : '#333333'})`,
+        color: `var(--liminis-editor-menu-foreground, var(--vscode-menu-foreground, ${dark ? '#cccccc' : '#333333'}))`,
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLElement).style.background = hoverBg;
