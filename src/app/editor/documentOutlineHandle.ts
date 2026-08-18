@@ -33,11 +33,24 @@ export interface DocumentOutlineSnapshot {
 }
 
 /**
+ * Not exported, so nothing outside this module can reference it. Its only
+ * purpose is to make `DocumentOutlineHandle` nominal instead of structural:
+ * without it, any object with matching method names would type-check as a
+ * handle, and `OutlinePlugin`'s cast to `OutlineHandleImpl` (to reach
+ * `connect`/`disconnect`/`publish`) would throw at runtime for a hand-rolled
+ * one. Only `OutlineHandleImpl`, constructed exclusively by
+ * `createDocumentOutlineHandle()`, can supply this property.
+ */
+const HANDLE_BRAND = Symbol('DocumentOutlineHandle');
+
+/**
  * The public surface a consumer reads and passes around. Create one with
  * `createDocumentOutlineHandle()` and pass the same instance to both
  * `<Editor documentOutlineHandle>` and `<DocumentOutline handle>`.
  */
 export interface DocumentOutlineHandle {
+  /** Brand only, not a real property to read — see `HANDLE_BRAND`. */
+  readonly [HANDLE_BRAND]: true;
   /** React external-store subscription — see `useSyncExternalStore`. */
   subscribe(onStoreChange: () => void): () => void;
   /** React external-store snapshot. Stable by reference until the outline actually changes. */
@@ -67,6 +80,7 @@ function snapshotsEqual(a: DocumentOutlineSnapshot, b: DocumentOutlineSnapshot):
  * directly on this class.
  */
 export class OutlineHandleImpl implements DocumentOutlineHandle {
+  readonly [HANDLE_BRAND] = true as const;
   private snapshot: DocumentOutlineSnapshot = EMPTY_SNAPSHOT;
   private readonly listeners = new Set<() => void>();
   private scrollImpl: ((index: number) => void) | null = null;
