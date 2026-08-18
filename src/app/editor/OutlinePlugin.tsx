@@ -40,19 +40,20 @@ function readHeadingEntries(): OutlineEntry[] {
  */
 export function OutlinePlugin({ handle }: { handle: DocumentOutlineHandle }): null {
   const [editor] = useLexicalComposerContext();
-  // Safe: every `DocumentOutlineHandle` a host can construct comes from
-  // `createDocumentOutlineHandle()`, which always returns an `OutlineHandleImpl`.
+  // Safe: `DocumentOutlineHandle`'s private brand (see documentOutlineHandle.ts)
+  // makes it nominal, so only an `OutlineHandleImpl` from
+  // `createDocumentOutlineHandle()` can type-check as one here.
   const impl = handle as OutlineHandleImpl;
 
   useEffect(() => {
     let entries: OutlineEntry[] = [];
     let activeIndex: number | null = null;
-    // The scroll target starts as `window` and is redirected to the real
-    // scrollable ancestor as soon as one is discoverable (see
-    // `reattachScrollListener`). Fixing it once at mount would miss the
-    // container entirely on a host whose scroll container isn't resolvable
-    // yet at that instant (e.g. before any heading has rendered).
-    let scrollTarget: HTMLElement | Window = window;
+    // No listener is attached until `reattachScrollListener` resolves a
+    // first target — `null`, not `window`, so that a document whose scroll
+    // container falls back to `window` still gets a listener attached (a
+    // pre-resolved `window` initial value would equal that same fallback and
+    // the early-return below would skip attaching one at all).
+    let scrollTarget: HTMLElement | Window | null = null;
 
     const publish = () => {
       impl.publish({ entries, activeIndex });
@@ -101,7 +102,7 @@ export function OutlinePlugin({ handle }: { handle: DocumentOutlineHandle }): nu
       const firstHeading = rootElement?.querySelector<HTMLElement>(HEADING_SELECTOR) ?? null;
       const nextTarget: HTMLElement | Window = firstHeading ? scrollContainerFor(firstHeading) ?? window : window;
       if (nextTarget === scrollTarget) return;
-      scrollTarget.removeEventListener('scroll', scheduleUpdateActive);
+      scrollTarget?.removeEventListener('scroll', scheduleUpdateActive);
       nextTarget.addEventListener('scroll', scheduleUpdateActive, { passive: true });
       scrollTarget = nextTarget;
     };
@@ -128,7 +129,7 @@ export function OutlinePlugin({ handle }: { handle: DocumentOutlineHandle }): nu
 
     return () => {
       unregisterUpdateListener();
-      scrollTarget.removeEventListener('scroll', scheduleUpdateActive);
+      scrollTarget?.removeEventListener('scroll', scheduleUpdateActive);
       if (scheduledFrame) cancelAnimationFrame(scheduledFrame);
       impl.disconnect();
     };
