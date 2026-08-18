@@ -128,10 +128,12 @@ remove headings, and confirm the outline updates to match without requiring a re
   the viewport as the document scrolls (scroll-spy), and keep the active entry visible
   within the outline.
 - **FR-005**: The widget MUST update as the document's headings change.
-- **FR-006**: The widget MUST NOT hardcode host DOM ids or assume a specific scroll
-  container. The editor's scroll container / element positions MUST reach it through
-  the editor-host seam (or be owned by the package), so it works for any consumer's
-  layout.
+- **FR-006**: The widget MUST NOT *require* specific host DOM ids or assume a specific
+  scroll container — it MUST discover the scroll container generically (e.g. by walking
+  DOM ancestors for the nearest actually-scrolling one) so it works for any consumer's
+  layout, even if it also checks a small set of known host ids as a fast path before
+  falling back. The editor's scroll container / element positions MUST reach it through
+  the editor-host seam (or be owned by the package).
 - **FR-007**: The widget MUST render nothing when the document has no headings.
 - **FR-008**: Visibility, placement, width-gating, and any collapse/persistence are the
   consumer's concern — the widget MUST NOT impose them.
