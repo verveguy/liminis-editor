@@ -15,7 +15,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { $getRoot, $createTextNode, type LexicalEditor } from 'lexical'
 import { $createHeadingNode } from '@lexical/rich-text'
 import { OutlinePlugin } from '../OutlinePlugin'
-import { createDocumentOutlineHandle, type DocumentOutlineHandle } from '../documentOutline'
+import { createDocumentOutlineHandle, type DocumentOutlineHandle } from '../documentOutlineHandle'
 import { editorNodes } from '../../mapper/__tests__/roundtrip-test-utils'
 
 const HEADING_THEME = {

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot } from 'lexical';
 import { $isHeadingNode } from '@lexical/rich-text';
-import { OutlineHandleImpl, type DocumentOutlineHandle, type OutlineEntry } from './documentOutline';
+import { OutlineHandleImpl, type DocumentOutlineHandle, type OutlineEntry } from './documentOutlineHandle';
 import { scrollContainerFor, scrollElementIntoView } from './scrollContainer';
 
 const HEADING_SELECTOR = [

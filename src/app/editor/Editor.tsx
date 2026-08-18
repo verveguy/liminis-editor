@@ -49,7 +49,7 @@ import { WikiLinkExistencePlugin } from './WikiLinkExistencePlugin';
 import { WikiLinkFormatPlugin } from './WikiLinkFormatPlugin';
 import { AnchorScrollPlugin } from './AnchorScrollPlugin';
 import { OutlinePlugin } from './OutlinePlugin';
-import type { DocumentOutlineHandle } from './documentOutline';
+import type { DocumentOutlineHandle } from './documentOutlineHandle';
 import { SelectionContextMenuPlugin } from './SelectionContextMenuPlugin';
 import type { SelectionContextMenuEvent } from './SelectionContextMenuPlugin';
 import { CorrectionPanelPlugin } from './CorrectionPanelPlugin';
