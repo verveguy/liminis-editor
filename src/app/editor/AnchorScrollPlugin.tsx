@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import type { LexicalEditor } from 'lexical';
 import { useEditorHost } from '../../host/context';
+import { scrollElementIntoView } from './scrollContainer';
 
 /**
  * Reduce text to a GitHub-style anchor slug so a link fragment matches a heading
@@ -21,26 +22,6 @@ function normalizeForMatch(text: string): string {
     .trim()
     .replace(/[\s-]+/g, '-') // spaces and dash runs → single hyphen
     .replace(/^-+|-+$/g, ''); // trim stray hyphens
-}
-
-/**
- * Find the scrollable container for a heading: the known editor scroll ids first,
- * then the nearest ancestor that actually scrolls (robust to host markup).
- */
-function scrollContainerFor(heading: HTMLElement): HTMLElement | null {
-  // Assumes the two known ids are never nested inside one another; neither
-  // known host does. If that ever changes, the closer one should win instead.
-  const byId =
-    heading.closest('#editor-scroll-container') ||
-    heading.closest('#editor-panel-scroll-container');
-  if (byId) return byId as HTMLElement;
-  let el: HTMLElement | null = heading.parentElement;
-  while (el) {
-    const overflowY = getComputedStyle(el).overflowY;
-    if (/(auto|scroll)/.test(overflowY) && el.scrollHeight > el.clientHeight) return el;
-    el = el.parentElement;
-  }
-  return null;
 }
 
 /**
@@ -67,22 +48,7 @@ function scrollToHeading(editor: LexicalEditor, anchor: string): boolean {
   );
   if (!heading) return false;
 
-  const container = scrollContainerFor(heading);
-  if (container) {
-    // rect-based offset is robust regardless of the heading's offsetParent;
-    // leave a small margin so the heading sits near the top, not flush against it.
-    const MARGIN = 16;
-    const top = Math.max(
-      0,
-      heading.getBoundingClientRect().top -
-        container.getBoundingClientRect().top +
-        container.scrollTop -
-        MARGIN
-    );
-    container.scrollTo({ top, behavior: 'smooth' });
-  } else {
-    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
+  scrollElementIntoView(heading);
   return true;
 }
 
