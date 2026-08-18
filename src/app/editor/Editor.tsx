@@ -809,8 +809,8 @@ export function Editor({
   return (
     <AssetContext.Provider value={assetContextValue}>
       <LexicalComposer initialConfig={initialConfig}>
-        <div className="relative max-w-[800px] ml-5 mr-1 pl-6 pr-6">
-          <div className="editor-inner relative">
+        <div className="editor-container">
+          <div className="editor-inner">
             <RichTextPlugin
               contentEditable={
                 <ContentEditable className="editor-input" aria-label="Markdown editor" />
