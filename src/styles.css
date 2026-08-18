@@ -166,6 +166,7 @@ body {
 /* App root wrapper - default className for the top-level container */
 .editor-app-root {
   min-height: 100vh;
+  padding: 0;
 }
 
 /* Editor content column - centered, fixed max width with left/right gutters */

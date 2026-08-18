@@ -187,8 +187,10 @@ remains.
 - Adopting Tailwind as a peer dependency to gain theming — explicitly
   considered and rejected in favor of the existing runtime CSS-variable API
   (see #50).
-- Authoring or amending ADRs (flagged as a possible follow-up in Assumptions,
-  not required here).
+- ~~Authoring or amending ADRs~~ — flagged in Assumptions as a Plan-stage
+  decision, not a spec-level requirement. Plan determined it was warranted:
+  `docs/decisions/adr-086.md` documents this reversal, amending ADR-075 and
+  ADR-078.
 
 ## Source References
 
