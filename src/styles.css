@@ -2369,7 +2369,7 @@ body {
   padding: 4px 8px;
   border: none;
   background: transparent;
-  color: var(--vscode-foreground);
+  color: var(--liminis-editor-foreground, var(--vscode-foreground));
   opacity: 0.7;
   text-align: left;
   cursor: pointer;
@@ -2378,12 +2378,12 @@ body {
 
 .editor-outline-item-button:hover {
   opacity: 1;
-  background: var(--vscode-code-bg);
+  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
 }
 
 .editor-outline-item-active .editor-outline-item-button {
   opacity: 1;
-  color: var(--vscode-link);
+  color: var(--liminis-editor-link, var(--vscode-link));
 }
 
 .editor-outline-indicator {
@@ -2395,7 +2395,7 @@ body {
 }
 
 .editor-outline-item-active .editor-outline-indicator {
-  background: var(--vscode-link);
+  background: var(--liminis-editor-link, var(--vscode-link));
 }
 
 .editor-outline-item-text {
