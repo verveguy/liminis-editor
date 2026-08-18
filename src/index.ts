@@ -36,6 +36,19 @@ export { Editor } from './app/editor'
 export type { SweepFn } from './app/editor/AmbientCorrectionPlugin'
 export type { SelectionContextMenuEvent } from './app/editor/SelectionContextMenuPlugin'
 
+// --- Document outline (issue #69) -------------------------------------------
+// `createDocumentOutlineHandle()` makes the controller shared between one
+// `<Editor documentOutlineHandle={…}>` and one `<DocumentOutline handle={…}>`
+// — create it once per editor instance and pass the same object to both.
+export { DocumentOutline } from './app/editor/DocumentOutline'
+export type { DocumentOutlineProps } from './app/editor/DocumentOutline'
+export { createDocumentOutlineHandle } from './app/editor/documentOutlineHandle'
+export type {
+  DocumentOutlineHandle,
+  DocumentOutlineSnapshot,
+  OutlineEntry,
+} from './app/editor/documentOutlineHandle'
+
 // --- Annotations, React surface (ADR-077) ---------------------------------
 // The kind-configuration types a host needs to turn the mechanism on, plus the
 // create-event shape. The DOM-free anchor model, resolver and marker-target
