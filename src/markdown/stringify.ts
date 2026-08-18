@@ -256,6 +256,32 @@ function normalizeWikiLinkNodes(node: any): any {
   return node;
 }
 
+/**
+ * Widen every GFM table delimiter-row cell mdast-util-to-markdown emits at
+ * its library-enforced minimum (a bare `-`, or `:-`, `-:`, `:-:` with
+ * alignment colons) up to the conventional three-hyphen form GFM,
+ * remark-stringify, and Prettier all produce (`---`, `:---`, `---:`,
+ * `:---:`). `tablePipeAlign: false` (see the gfmToMarkdown() call below) is
+ * the one option controlling both column-width padding and this dash-count
+ * minimum in markdown-table — there is no way to keep the former's "no
+ * cell-width padding" behavior while asking for the latter's wider default
+ * separately, so this text-level post-process patches it after the fact
+ * (#60). Only the exact single-dash form the library deterministically
+ * emits is matched, so an already-conventional line (3+ dashes) never
+ * matches and is left untouched — idempotence for free, with no extra
+ * bookkeeping needed. Skips fenced code blocks, inline code spans, and math
+ * regions, mirroring the intraword-underscore post-process below, so a
+ * fenced block that happens to contain a line shaped like a delimiter row
+ * is not rewritten.
+ */
+function widenTableDelimiterDashes(markdown: string): string {
+  return markdown.replace(
+    /^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[ \t]*$|(`+)[^\n]*?\2|\$\$[\s\S]*?\$\$|\$[^\n$]*?\$|^([ \t]*\|(?:\s*:?-:?\s*\|)+[ \t]*)$/gmu,
+    (match, _fenceRun, _inlineOpen, delimiterRow) =>
+      delimiterRow === undefined ? match : delimiterRow.replace(/-/g, '---')
+  );
+}
+
 export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): string {
   // Pre-process: add checkbox text to ordered list items (GFM only outputs for unordered)
   let processedRoot = addCheckboxTextToOrderedLists(root);
@@ -364,6 +390,13 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
       },
     ],
   });
+
+  // Post-process: widen table delimiter-row dashes to the conventional
+  // three-hyphen width (#60). Must run first, before any of the other
+  // backslash-stripping/restoring post-processes below, since none of them
+  // touch dashes and this step's own verbatim-region skip logic is simplest
+  // to reason about against toMarkdown()'s raw output.
+  result = widenTableDelimiterDashes(result);
 
   // Post-process: convert escaped spaces back to regular spaces
   // mdast-util-to-markdown escapes leading/trailing spaces at paragraph
