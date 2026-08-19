@@ -21,7 +21,9 @@ There is also no app-side workaround available to a host. Marks render as `@lexi
 
 This blocks [verveguy/zusammen#126](https://github.com/verveguy/zusammen/issues/126) ("Comments as margin notes aligned to the text"), which cannot be built at all without a positional API for existing marks. It is not a Zusammen-specific need: any host that wants to align UI to annotated text — a margin rail, a minimap, a connector line — needs the same capability. The `rect` already delivered on the create event shows the package accepts that hosts position UI against marks; it currently just stops after the first one.
 
-This must ship in a published release, not just land on `main`: #126 consumes `@liminis/editor` from the registry, so the capability is not usable downstream until a `0.2.x` version containing it is published.
+This must ship in a published release, not just land on `main`: #126 consumes `@liminis/editor` from the registry, so the capability is not usable downstream until a published version containing it is available.
+
+Release coordination (decided): `package.json` on `main` is already at `0.2.0`, unreleased, and already carries two breaking changes — #49 (drops the Tailwind requirement) and #51 (renames the theming vocabulary to `--liminis-editor-*`). This capability joins that same `0.2.0` release by decision, so `liminis-app` and Zusammen absorb one round of downstream work instead of two. This issue MUST NOT bump the version, and MUST NOT cut or publish the release itself — the release is cut by hand once this and the other `0.2.0` changes are merged.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -71,7 +73,10 @@ A host that renders UI for many annotations at once (e.g. a margin rail listing 
 - **FR-003**: For an annotation whose live marks span multiple sibling `MarkNode`s, the method MUST return one rect per constituent node (`DOMRect[]`), not a single merged rect, so the host — not the package — decides how to combine them (union, first line, etc.).
 - **FR-004**: The method MUST return a snapshot of current geometry as of the call; it MUST NOT return cached or stale geometry from a prior call, scroll position, or layout state.
 - **FR-005**: The method MUST NOT throw when queried with an id that has no currently live mark (unknown id, removed annotation, or not yet rendered).
-- **FR-006**: This capability MUST be included in a published `0.2.x` release of `@liminis/editor` — landing on `main` alone does not satisfy the issue, since #126 consumes the package from the registry, not from `main`.
+- **FR-006**: This capability MUST land within the existing unreleased `0.2.0` version already set by #49 — this issue MUST NOT bump `package.json`'s version. Landing on `main` alone does not satisfy the issue, since #126 consumes the package from the registry, not from `main`; the capability must be part of what eventually gets published.
+- **FR-007**: This addition MUST be documented in `CHANGELOG.md`'s existing `## 0.2.0 (unreleased)` section, as a new entry under a non-breaking "Added" heading (this capability is additive, not breaking) — not as a new version section.
+- **FR-008**: This issue MUST NOT cut a release, publish to npm, or create a release tag — the release is cut by hand once this and the other `0.2.0` changes (#49, #51) are merged.
+- **FR-009**: Any `CHANGELOG.md` or spec content describing the migration or upgrade status of `liminis-app` or Zusammen MUST be verified against those repositories directly, or omitted if it cannot be verified from this repository — not inferred. This follows the precedent of #72, which corrected two false claims of this kind already present in the `0.2.0` entry.
 
 ### Key Entities
 
@@ -85,12 +90,13 @@ A host that renders UI for many annotations at once (e.g. a margin rail listing 
 - **SC-002**: For an annotation spanning multiple sibling `MarkNode`s, the host receives one rect per constituent node, sufficient to compute a union or select an individual line.
 - **SC-003**: Two calls separated by a scroll, resize, or edit return geometry consistent with the DOM state at the time of each respective call (no staleness from caching).
 - **SC-004**: A host can request geometry for a specific subset of annotation ids, or for all currently live annotations in one call, without issuing one call per annotation.
-- **SC-005**: The capability is available to downstream consumers via a published `0.2.x` version of `@liminis/editor` on the registry, not only on `main`.
+- **SC-005**: The capability lands within the existing unreleased `0.2.0` version (no version bump) and is documented in `CHANGELOG.md`'s `## 0.2.0 (unreleased)` section under a non-breaking "Added" heading, ready to reach downstream consumers when that release is published.
 
 ## Assumptions
 
 - The API is added to the existing `AnnotationEditorHandle` surface (alongside `removeMarksForAnnotation` and `collectLiveAnchorSnapshots`) rather than introduced as a new export; this matches the issue's proposed shape and the existing handle's role as the place positional/mutating operations on live marks live. Whether it instead belongs on the host-services seam is one of the deferred questions below, and Plan may revisit this.
 - The editor does not virtualize document content (marks scrolled out of the current viewport remain attached to the DOM and continue to yield valid, if off-screen, `getBoundingClientRect()` results) — carried from the issue's framing; Research should confirm this holds.
+- `0.2.0` already carries #49 and #51's breaking changes and is unreleased; this capability is additive and joins that same release by explicit decision rather than triggering its own version.
 
 ## Out of Scope
 
@@ -98,8 +104,10 @@ A host that renders UI for many annotations at once (e.g. a margin rail listing 
 - Deciding **coordinate space**: viewport-relative (raw `getBoundingClientRect`) vs. relative to the editor's scroll container. Explicitly left to Plan.
 - Deciding **surface placement**: whether this method lives on the annotation host handle or becomes a positional member of the host-services seam (a question raised because #69 deliberately kept scroll-container discovery package-local, and this is the second consumer wanting something positional). Explicitly left to Plan.
 - Any change to `AnnotationCreateEvent.rect` or the creation-time rect delivery path — this issue is only about geometry for marks that already exist.
-- Cutting or publishing the `0.2.x` release itself (the mechanics of versioning/publishing) — FR-006/SC-005 require the capability to *be part of* a published release, not that this issue perform the release.
+- Bumping `package.json`'s version — it is already `0.2.0`, set by #49, and this work must not change it (FR-006).
+- Cutting or publishing the `0.2.0` release, or creating its release tag — done by hand once this issue and the other `0.2.0` changes (#49, #51) are merged (FR-008).
 - Re-pointing #126's `blocked by` dependency from #69 to this issue — a bookkeeping action on a downstream repository, not part of this issue's implementation.
+- Making or correcting any other claims about `liminis-app` or Zusammen's migration status beyond what this issue can verify directly — see FR-009.
 
 ## Source References
 
@@ -110,3 +118,6 @@ A host that renders UI for many annotations at once (e.g. a margin rail listing 
 - `src/app/editor/AnchorScrollPlugin.tsx` — existing internal scroll-container discovery, relevant to the deferred coordinate-space question.
 - Issue #69 (closed) — deliberately kept scroll-container discovery package-local rather than adding host-seam surface; relevant precedent for the deferred surface-placement question.
 - verveguy/zusammen#126 — the downstream consumer blocked by this issue; its `blocked by` dependency should be re-pointed here once this issue is filed (tracked as a downstream bookkeeping action, out of scope here).
+- Issue #49 and Issue #51 — the two breaking changes already sharing the unreleased `0.2.0` release that this capability joins; this issue must not duplicate or interfere with their version bump.
+- `CHANGELOG.md`'s `## 0.2.0 (unreleased)` section — where this capability's entry is added, under a non-breaking "Added" heading.
+- Issue #72 — corrected two false claims about downstream consumer migration in the `0.2.0` CHANGELOG entry; sets the bar for verifying (or omitting) any cross-repo claim made here (FR-009).
