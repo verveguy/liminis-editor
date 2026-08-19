@@ -3,7 +3,7 @@
 All notable changes to `@liminis/editor` are documented here. This project
 follows [Semantic Versioning](https://semver.org/).
 
-## 0.2.0 (unreleased)
+## 0.2.0 — 2026-08-19
 
 Two breaking changes share this release, held together deliberately so
 `liminis-app` and Zusammen absorb one breaking upgrade instead of two
