@@ -58,6 +58,9 @@ describe('App forwards documentOutlineHandle to Editor (issue #80 US1)', () => {
       fireEvent.click(detailsButton)
 
       expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+      // Not just that something scrolled — that it was the Details heading itself.
+      const scrolledElement = scrollIntoView.mock.contexts[0] as HTMLElement
+      expect(scrolledElement.textContent).toBe('Details')
     } finally {
       scrollIntoView.mockRestore()
     }
