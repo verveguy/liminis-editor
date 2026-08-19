@@ -83,7 +83,7 @@ describe('editor/app forwarding contract: every EditorProps member is reachable 
 
   it('has a non-empty reason for every EDITOR_INTERNAL_PROPS entry', () => {
     const empty = Object.entries(EDITOR_INTERNAL_PROPS)
-      .filter(([, reason]) => !reason || !reason.trim())
+      .filter(([, reason]) => !reason?.trim())
       .map(([name]) => name);
 
     expect(
