@@ -111,6 +111,28 @@ feeds it, `<DocumentOutline>` reads it.
 - Visibility, placement, width-gating, and any collapse/persistence are
   entirely up to you — `<DocumentOutline>` imposes no layout policy.
 
+Most consumers embed this package via `<App>`, not `<Editor>` directly —
+`<App>` forwards `documentOutlineHandle` straight through to its inner
+`<Editor>`, so the same handle wires up an outline there too:
+
+```tsx
+import { useState } from 'react'
+import { App, DocumentOutline, createDocumentOutlineHandle } from '@liminis/editor'
+
+function MyAppWithOutline() {
+  const [outlineHandle] = useState(() => createDocumentOutlineHandle())
+
+  return (
+    <div style={{ display: 'flex' }}>
+      <App documentOutlineHandle={outlineHandle} />
+      <aside>
+        <DocumentOutline handle={outlineHandle} />
+      </aside>
+    </div>
+  )
+}
+```
+
 ## The host seam
 
 The package boundary is drawn at **persistence**: text ranges, marks, rendering
