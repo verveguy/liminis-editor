@@ -18,6 +18,7 @@ jobs:
   # when something ordinary is wrong.
   checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -69,6 +70,7 @@ jobs:
   # checks job does.
   package-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       # This job packs a tarball and installs an external fixture, so it runs
@@ -102,6 +104,7 @@ jobs:
   # same way a real external adopter installs the package (FR-009).
   examples-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -143,6 +146,13 @@ jobs:
   # its own retry budget (below) without slowing the fast build job down.
   electron-shell-e2e:
     runs-on: ubuntu-latest
+    # A real Electron launch is the least deterministic job here, and it has
+    # twice hung in "Build example shells" and run to GitHub's 360-minute
+    # default (#51, #73). That is not just wasted runner time: it outlasts
+    # Fabrik's CI-wait gate, which pauses the issue and needs a human to
+    # restart it. A healthy run is ~2m, so 15 cannot trip on a slow day and
+    # turns a hang into an ordinary retryable failure.
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
