@@ -51,6 +51,29 @@ describe('DocumentOutline', () => {
     expect(scrollToHeading).toHaveBeenCalledWith(1)
   })
 
+  it('calls onEntrySelect with the clicked entry, alongside scrollToHeading (issue #84)', () => {
+    const handle = createDocumentOutlineHandle()
+    const impl = handle as OutlineHandleImpl
+    act(() => {
+      impl.publish({
+        entries: [
+          { index: 0, level: 1, text: 'Introduction', line: 1 },
+          { index: 1, level: 2, text: 'Details', line: 3 },
+        ],
+        activeIndex: null,
+      })
+    })
+
+    const scrollToHeading = vi.spyOn(handle, 'scrollToHeading')
+    const onEntrySelect = vi.fn()
+    const { getByText } = render(<DocumentOutline handle={handle} onEntrySelect={onEntrySelect} />)
+
+    fireEvent.click(getByText('Details').closest('button')!)
+
+    expect(scrollToHeading).toHaveBeenCalledWith(1)
+    expect(onEntrySelect).toHaveBeenCalledWith({ index: 1, level: 2, text: 'Details', line: 3 })
+  })
+
   it('marks the active entry (FR-004)', () => {
     const handle = createDocumentOutlineHandle()
     const impl = handle as OutlineHandleImpl

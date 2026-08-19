@@ -95,6 +95,7 @@ function MyEditorWithOutline() {
 | `<Editor>`'s `documentOutlineHandle` | `DocumentOutlineHandle` | Connects this editor instance to a `<DocumentOutline>`. Omit it and no outline plugin mounts at all — an outline-less consumer pays nothing for it. |
 | `<DocumentOutline>`'s `handle` | `DocumentOutlineHandle` | The same object passed to `<Editor>`. |
 | `<DocumentOutline>`'s `className` | `string` | Additional class on the outer `<nav>`, for your own placement/layout. |
+| `<DocumentOutline>`'s `onEntrySelect` | `(entry: OutlineEntry) => void` | Optional. Fires with the clicked entry in addition to `handle.scrollToHeading`. Mainly useful on the markdown-derived path (below), where `scrollToHeading` no-ops. |
 
 `createDocumentOutlineHandle()` returns the shared controller: a React
 external store (`subscribe`/`getSnapshot`, so `<DocumentOutline>` re-renders
@@ -167,7 +168,12 @@ function MyRawModeWithOutline({ markdown }: { markdown: string }) {
         onFirstVisibleLineChange={(line) => outlineHandle.setActiveLine(line)}
       />
       <aside>
-        <DocumentOutline handle={outlineHandle} />
+        <DocumentOutline
+          handle={outlineHandle}
+          // `handle.scrollToHeading` no-ops on this path (no Lexical editor
+          // to scroll) — use `entry.line` against your own editor instead.
+          onEntrySelect={(entry) => myRawEditorRef.current?.scrollToLine(entry.line)}
+        />
       </aside>
     </div>
   )
@@ -181,11 +187,11 @@ function MyRawModeWithOutline({ markdown }: { markdown: string }) {
   changes.
 - Each markdown-derived entry additionally carries a 1-based `line` —
   matching mdast's `position.start.line` — since a raw-mode host has no
-  Lexical tree to scroll instead. Use `entry.line` directly against your own
-  editor to implement click-to-scroll (`<DocumentOutline>`'s click handler
+  Lexical tree to scroll instead. `<DocumentOutline>`'s own click handling
   calls `handle.scrollToHeading(entry.index)`, which is a no-op on this path
-  since there's no Lexical editor to scroll — read `entry.line` from
-  `handle.getSnapshot().entries[index]` in your own click handler instead).
+  since there's no Lexical editor to scroll; pass `onEntrySelect` to receive
+  the clicked entry and scroll your own editor via `entry.line`, as shown
+  above.
 - `handle.setActiveLine(line)` resolves which entry's heading line the
   supplied line falls within or after (and before the next heading's line),
   and publishes it as the active entry — the raw-mode equivalent of the
