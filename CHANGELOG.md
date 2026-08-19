@@ -17,10 +17,13 @@ follows [Semantic Versioning](https://semver.org/).
   Lexical path's scroll-spy. Each markdown-derived entry carries a 1-based
   `line` (mdast's `position.start.line`), which a raw-mode host can scroll
   its own (non-Lexical) editor by. `deriveOutlineFromMarkdown` and
-  `resolveActiveOutlineIndex` are also exported standalone. The existing
-  Lexical/WYSIWYG path (`OutlinePlugin`, `<Editor documentOutlineHandle>`) is
-  unchanged. See `docs/editor-api.md`'s "Raw-mode / markdown-derived
-  entries" section. (#84)
+  `resolveActiveOutlineIndex` are also exported standalone. `<DocumentOutline>`
+  gains an optional `onEntrySelect` prop, fired with the clicked entry
+  alongside `handle.scrollToHeading` — needed on the markdown-derived path,
+  where `scrollToHeading` no-ops with no Lexical editor to scroll. The
+  existing Lexical/WYSIWYG path (`OutlinePlugin`, `<Editor
+  documentOutlineHandle>`) is unchanged. See `docs/editor-api.md`'s "Raw-mode
+  / markdown-derived entries" section. (#84)
 
 ## 0.2.1 — 2026-08-19
 
