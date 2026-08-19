@@ -32,6 +32,10 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # A hang here strands a release with its tag already cut, so cap it too.
+    # Higher than the CI jobs because this one runs the full suite, the
+    # package verification and the build before publishing.
+    timeout-minutes: 20
 
     steps:
       # This job installs dependencies and runs their lifecycle scripts, so the
