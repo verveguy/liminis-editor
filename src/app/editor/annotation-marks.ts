@@ -753,6 +753,49 @@ export function markElementsByAnnotationId(
 }
 
 /**
+ * Current on-screen geometry (#73) for every live mark of the requested
+ * annotations, keyed by annotation id — one `DOMRect` per constituent
+ * `MarkNode`, in document order, computed fresh at call time via
+ * `getBoundingClientRect()` (viewport-relative, matching the only existing
+ * precedent for rect delivery in this package, `AnnotationCreateEvent.rect`
+ * in `AnnotationPlugin.tsx`). Ids with no currently live mark are simply
+ * absent from the result, never an error.
+ *
+ * `ids` omitted (or `undefined`) returns geometry for every annotation that
+ * currently has at least one live mark, mirroring
+ * {@link collectLiveAnchorSnapshots}'s own "no ids given -> collect every
+ * live id" behavior.
+ *
+ * Two different annotation ids can legitimately return an identical rect:
+ * overlapping annotations may share one `MarkNode` (`MarkNode.getIDs()` can
+ * hold more than one id), and that shared element's rect is reported under
+ * each id it carries. That is expected, not a bug.
+ */
+export function getMarkRects(editor: LexicalEditor, ids?: readonly string[]): Map<string, DOMRect[]> {
+  return editor.getEditorState().read(() => {
+    let targetIds: Set<string>;
+    if (ids === undefined) {
+      targetIds = new Set<string>();
+      for (const markNode of collectMarkNodesInOrder($getRoot())) {
+        for (const id of markNode.getIDs()) targetIds.add(id);
+      }
+    } else {
+      targetIds = new Set(ids);
+    }
+
+    const elementsById = markElementsByAnnotationId(editor, targetIds);
+    const rectsById = new Map<string, DOMRect[]>();
+    for (const [id, elements] of elementsById) {
+      rectsById.set(
+        id,
+        elements.map((element) => element.getBoundingClientRect()),
+      );
+    }
+    return rectsById;
+  });
+}
+
+/**
  * Removes every `MarkNode` wrapping `id` (annotation deleted, or composer
  * cancelled before submit). A mark shared with other annotation ids
  * (overlapping annotations) keeps its other ids and stays in the tree; a mark
