@@ -3,6 +3,18 @@
 All notable changes to `@liminis/editor` are documented here. This project
 follows [Semantic Versioning](https://semver.org/).
 
+## 0.3.0 (unreleased)
+
+### Added
+
+- **`<App>` now forwards `documentOutlineHandle` to its inner `<Editor>`.**
+  Issue #69 added `documentOutlineHandle` to `EditorProps` but not to
+  `AppProps`, so `<App>` consumers — most consumers, since `<App>` rather
+  than `<Editor>` is what's typically embedded — had no way to reach the
+  document outline. Pass `documentOutlineHandle` to `<App>` the same way you
+  would to `<Editor>`; see `docs/editor-api.md`'s Document Outline section
+  for the `<App>` example. (#80)
+
 ## 0.2.0 — 2026-08-19
 
 Two breaking changes share this release, held together deliberately so
