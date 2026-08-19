@@ -4,6 +4,7 @@ import type { SelectionContextMenuEvent } from './editor/SelectionContextMenuPlu
 import type { SweepFn } from './editor/AmbientCorrectionPlugin';
 import type { AnnotationCreateEvent } from './editor/AnnotationPlugin';
 import type { Annotation, AnnotationEditorHandle, AnnotationKindConfigs } from '../annotations/types';
+import type { DocumentOutlineHandle } from './editor/documentOutlineHandle';
 import type { WikiLinkPromotionMode } from './mapper/lexicalToMdast';
 import type { HostToUIMessage, SlashMDSettings, TextEdit, ThemeOverrides } from '../types';
 import { useEditorHost } from '../host/context';
@@ -94,11 +95,18 @@ interface AppProps {
   onActivateAnnotation?: (id: string) => void;
   annotationEditorHandleRef?: MutableRefObject<AnnotationEditorHandle | null>;
   annotationLogger?: { warn: (message: string, ...args: unknown[]) => void };
+  /**
+   * Connects the inner `<Editor>` to a `<DocumentOutline handle={…}>` rendered
+   * anywhere the host chooses (issue #69/#80). Create with
+   * `createDocumentOutlineHandle()` and pass the same object to both — an
+   * unsupplied handle mounts no outline plugin at all.
+   */
+  documentOutlineHandle?: DocumentOutlineHandle;
   /** Override className on the root div (default: "editor-app-root"). */
   className?: string;
 }
 
-export function App({ editable = true, autoFocus = false, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, wikiLinkPromotion, onSelectionContextMenu, onSubstitutionDetected, sweepRef, annotationKinds, annotations, activeAnnotationId, scrollToAnnotation, onCreateAnnotation, onActivateAnnotation, annotationEditorHandleRef, annotationLogger, className = 'editor-app-root' }: AppProps) {
+export function App({ editable = true, autoFocus = false, content: propContent, onChange: propOnChange, filePath, resolveLocalAsset, wikiLinkPromotion, onSelectionContextMenu, onSubstitutionDetected, sweepRef, annotationKinds, annotations, activeAnnotationId, scrollToAnnotation, onCreateAnnotation, onActivateAnnotation, annotationEditorHandleRef, annotationLogger, documentOutlineHandle, className = 'editor-app-root' }: AppProps) {
   const { bridge, logger } = useEditorHost();
   const log = useMemo(() => logger('slashmd/App'), [logger]);
   const { requestInit, applyTextEdits } = useHostMessages();
@@ -302,6 +310,7 @@ export function App({ editable = true, autoFocus = false, content: propContent, 
         onActivateAnnotation={onActivateAnnotation}
         annotationEditorHandleRef={annotationEditorHandleRef}
         annotationLogger={annotationLogger}
+        documentOutlineHandle={documentOutlineHandle}
       />
     </div>
   );
