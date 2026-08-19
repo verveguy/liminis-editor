@@ -55,3 +55,15 @@ consecutive ones.
   filed to port the rename into a vendored copy of this package's source. It
   is closed as completed, but no code changed: that vendored copy no longer
   exists, because Zusammen now installs from the registry.
+
+### Added
+
+- **`AnnotationEditorHandle` gains `getMarkRects(annotationIds?)`**, exposing
+  current on-screen geometry for existing annotation marks — a host can now
+  look up where an already-created annotation is rendered, not just the
+  one-shot rect delivered at creation time. Returns a `Map<string, DOMRect[]>`
+  keyed by annotation id, one `DOMRect` per constituent `MarkNode` (a
+  multi-block annotation spans several), computed fresh from
+  `getBoundingClientRect()` on every call. Omitting `annotationIds` returns
+  geometry for every annotation with a currently live mark; an id with no
+  live mark is simply absent, never an error. (#73)
