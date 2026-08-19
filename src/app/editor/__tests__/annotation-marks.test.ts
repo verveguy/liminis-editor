@@ -458,10 +458,13 @@ describe('getMarkRects (#73)', () => {
     const md = 'just some text\n';
     const { editor, element } = await mountEditor(md);
     wrapNativeRangeInMark(editor, domRangeForText(element, 'some'), 'c1');
+    wrapNativeRangeInMark(editor, domRangeForText(element, 'text'), 'removed');
+    removeMarksForAnnotation(editor, 'removed');
 
     const rects = getMarkRects(editor, ['c1', 'never-created', 'removed']);
     expect([...rects.keys()]).toEqual(['c1']);
     expect(rects.has('never-created')).toBe(false);
+    expect(rects.has('removed')).toBe(false);
   });
 
   it('returns geometry for every live annotation when ids is omitted', async () => {
