@@ -26,9 +26,12 @@ import { stringifyMarkdown } from '../../../markdown/stringify';
 import { editorNodes } from '../../mapper/__tests__/roundtrip-test-utils';
 import { captureAnchor } from '../../../annotations/anchor-model';
 import { resolveAnchor } from '../../../annotations/anchor-resolver';
+import { registerMarkOverlapResolver } from '../mark-overlap-resolver';
 import {
   collectLiveAnchorSnapshots,
+  getMarkRects,
   hasLiveMark,
+  markElementsForId,
   placeMarkForAnchor,
   readAnchorFields,
   removeMarksForAnnotation,
@@ -409,6 +412,102 @@ describe('collectLiveAnchorSnapshots (FR-006)', () => {
 
     const staleMarkdown = 'Something else entirely, unrelated to the live tree.\n';
     expect(collectLiveAnchorSnapshots(editor, staleMarkdown).get('c1')).toBeUndefined();
+  });
+});
+
+/**
+ * Stubs `getBoundingClientRect` on every element in `elements` with a distinct,
+ * recognizable rect — the established per-element idiom (`host-plugins.test.tsx`),
+ * since jsdom/happy-dom always report a zeroed rect otherwise. Each element's
+ * stub always returns the *same* rect object, so two calls compare equal by
+ * reference (`toJSON` is a fresh closure per element, but stable across calls).
+ */
+function stubRects(elements: HTMLElement[]): void {
+  elements.forEach((element, index) => {
+    const rect = { x: index * 10, y: 0, top: 0, left: index * 10, right: index * 10 + 5, bottom: 5, width: 5, height: 5, toJSON: () => ({}) } as DOMRect;
+    element.getBoundingClientRect = () => rect;
+  });
+}
+
+describe('getMarkRects (#73)', () => {
+  it("matches the mark element's own getBoundingClientRect for a single-MarkNode annotation", async () => {
+    const md = 'hello big world end\n';
+    const { editor, element } = await mountEditor(md);
+    wrapNativeRangeInMark(editor, domRangeForText(element, 'big'), 'c1');
+    const markElements = markElementsForId(editor, 'c1');
+    stubRects(markElements);
+
+    const rects = getMarkRects(editor, ['c1']);
+    expect(rects.get('c1')).toEqual([markElements[0].getBoundingClientRect()]);
+  });
+
+  it('returns one rect per constituent MarkNode for a multi-block annotation, in document order', async () => {
+    const md = '# Heading\n\nA paragraph below it.\n';
+    const { editor, element } = await mountEditor(md);
+    wrapNativeRangeInMark(editor, domRangeForText(element, 'Heading'), 'c1');
+    wrapNativeRangeInMark(editor, domRangeForText(element, 'paragraph'), 'c1');
+    const markElements = markElementsForId(editor, 'c1');
+    expect(markElements).toHaveLength(2);
+    stubRects(markElements);
+
+    const rects = getMarkRects(editor, ['c1']);
+    expect(rects.get('c1')).toEqual(markElements.map((el) => el.getBoundingClientRect()));
+  });
+
+  it('does not throw and simply omits an id with no currently live mark', async () => {
+    const md = 'just some text\n';
+    const { editor, element } = await mountEditor(md);
+    wrapNativeRangeInMark(editor, domRangeForText(element, 'some'), 'c1');
+    wrapNativeRangeInMark(editor, domRangeForText(element, 'text'), 'removed');
+    removeMarksForAnnotation(editor, 'removed');
+
+    const rects = getMarkRects(editor, ['c1', 'never-created', 'removed']);
+    expect([...rects.keys()]).toEqual(['c1']);
+    expect(rects.has('never-created')).toBe(false);
+    expect(rects.has('removed')).toBe(false);
+  });
+
+  it('returns geometry for every live annotation when ids is omitted', async () => {
+    const md = 'alpha beta gamma\n';
+    const { editor, element } = await mountEditor(md);
+    wrapNativeRangeInMark(editor, domRangeForText(element, 'alpha'), 'c1');
+    wrapNativeRangeInMark(editor, domRangeForText(element, 'gamma'), 'c2');
+
+    const rects = getMarkRects(editor);
+    expect([...rects.keys()].sort()).toEqual(['c1', 'c2']);
+  });
+
+  it('reports the same rect under each id for two annotations sharing one MarkNode', async () => {
+    const md = 'shared text between two comments\n';
+    const { editor, element } = await mountEditor(md);
+    // Unnests overlapping marks onto one shared MarkNode with both ids — the
+    // same mechanism AnnotationSurface registers via MarkOverlapResolverPlugin;
+    // without it, two wraps over the same range simply nest.
+    registerMarkOverlapResolver(editor);
+    const range1 = domRangeForText(element, 'shared text');
+    wrapNativeRangeInMark(editor, range1, 'c1');
+    // Re-locate after the first wrap split the text node.
+    const range2 = domRangeForText(element, 'shared text');
+    wrapNativeRangeInMark(editor, range2, 'c2');
+    const markElements = markElementsForId(editor, 'c1');
+    expect(markElements).toEqual(markElementsForId(editor, 'c2'));
+    stubRects(markElements);
+
+    const rects = getMarkRects(editor, ['c1', 'c2']);
+    expect(rects.get('c1')).toEqual(rects.get('c2'));
+  });
+
+  it('reflects current DOM state rather than a value cached from an earlier call (FR-004)', async () => {
+    const md = 'hello world end\n';
+    const { editor, element } = await mountEditor(md);
+    wrapNativeRangeInMark(editor, domRangeForText(element, 'world'), 'c1');
+    const [markElement] = markElementsForId(editor, 'c1');
+
+    markElement.getBoundingClientRect = () => ({ x: 1, y: 1, top: 1, left: 1, right: 6, bottom: 6, width: 5, height: 5, toJSON: () => ({}) });
+    expect(getMarkRects(editor, ['c1']).get('c1')![0].x).toBe(1);
+
+    markElement.getBoundingClientRect = () => ({ x: 2, y: 2, top: 2, left: 2, right: 7, bottom: 7, width: 5, height: 5, toJSON: () => ({}) });
+    expect(getMarkRects(editor, ['c1']).get('c1')![0].x).toBe(2);
   });
 });
 
