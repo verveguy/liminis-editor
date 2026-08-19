@@ -500,10 +500,10 @@ describe('getMarkRects (#73)', () => {
     wrapNativeRangeInMark(editor, domRangeForText(element, 'world'), 'c1');
     const [markElement] = markElementsForId(editor, 'c1');
 
-    markElement.getBoundingClientRect = () => ({ x: 1, y: 1, top: 1, left: 1, right: 6, bottom: 6, width: 5, height: 5, toJSON: () => ({}) }) as DOMRect;
+    markElement.getBoundingClientRect = () => ({ x: 1, y: 1, top: 1, left: 1, right: 6, bottom: 6, width: 5, height: 5, toJSON: () => ({}) });
     expect(getMarkRects(editor, ['c1']).get('c1')![0].x).toBe(1);
 
-    markElement.getBoundingClientRect = () => ({ x: 2, y: 2, top: 2, left: 2, right: 7, bottom: 7, width: 5, height: 5, toJSON: () => ({}) }) as DOMRect;
+    markElement.getBoundingClientRect = () => ({ x: 2, y: 2, top: 2, left: 2, right: 7, bottom: 7, width: 5, height: 5, toJSON: () => ({}) });
     expect(getMarkRects(editor, ['c1']).get('c1')![0].x).toBe(2);
   });
 });
