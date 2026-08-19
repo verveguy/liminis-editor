@@ -3,6 +3,25 @@
 All notable changes to `@liminis/editor` are documented here. This project
 follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- **`DocumentOutlineHandle` gains a markdown-derived entry source.** Issue
+  #69's extraction dropped raw-mode support: an outline was only possible
+  where a Lexical `<Editor>` is mounted. `handle.publishFromMarkdown(markdown)`
+  now derives H1–H5 entries from markdown text alone — no Lexical editor, no
+  DOM — using the same detection and text-extraction rules as the existing
+  Lexical path, and `handle.setActiveLine(line)` resolves and highlights the
+  active entry from a supplied source line, the raw-mode equivalent of the
+  Lexical path's scroll-spy. Each markdown-derived entry carries a 1-based
+  `line` (mdast's `position.start.line`), which a raw-mode host can scroll
+  its own (non-Lexical) editor by. `deriveOutlineFromMarkdown` and
+  `resolveActiveOutlineIndex` are also exported standalone. The existing
+  Lexical/WYSIWYG path (`OutlinePlugin`, `<Editor documentOutlineHandle>`) is
+  unchanged. See `docs/editor-api.md`'s "Raw-mode / markdown-derived
+  entries" section. (#84)
+
 ## 0.2.1 — 2026-08-19
 
 ### Added
