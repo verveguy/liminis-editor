@@ -120,11 +120,16 @@ import { useState } from 'react'
 import { App, DocumentOutline, createDocumentOutlineHandle } from '@liminis/editor'
 
 function MyAppWithOutline() {
+  const [markdown, setMarkdown] = useState('# Introduction')
   const [outlineHandle] = useState(() => createDocumentOutlineHandle())
 
   return (
     <div style={{ display: 'flex' }}>
-      <App documentOutlineHandle={outlineHandle} />
+      <App
+        content={markdown}
+        onChange={setMarkdown}
+        documentOutlineHandle={outlineHandle}
+      />
       <aside>
         <DocumentOutline handle={outlineHandle} />
       </aside>
