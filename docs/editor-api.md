@@ -56,7 +56,7 @@ All optional; supplying `annotationKinds` is what turns the mechanism on. See
 | `scrollToAnnotation` | `{ id: string; nonce: number } \| null` | Host-driven scroll signal. Bump `nonce` to re-scroll to the same id. |
 | `onCreateAnnotation` | `(event: AnnotationCreateEvent) => void` | Fires when a user creates one via a kind's create affordance. |
 | `onActivateAnnotation` | `(id: string) => void` | Fires when a marker is activated. Your app opens its own panel. |
-| `annotationEditorHandleRef` | `MutableRefObject<AnnotationEditorHandle \| null>` | Imperative handle for the mounted editor's live marks. |
+| `annotationEditorHandleRef` | `MutableRefObject<AnnotationEditorHandle \| null>` | Imperative handle for the mounted editor's live marks: `removeMarksForAnnotation`, `collectLiveAnchorSnapshots`, and `getMarkRects(annotationIds?)` — current on-screen `DOMRect[]` per annotation id (one rect per constituent mark, omitted ids means "every live annotation"), for a host positioning UI against annotated text. |
 | `annotationLogger` | `{ warn(message, ...args): void }` | Injected, so the package never imports a host logger. |
 
 ## Document outline

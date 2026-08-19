@@ -213,4 +213,20 @@ export interface AnnotationEditorHandle {
   removeMarksForAnnotation: (annotationId: string) => void
   /** The current live range of every marked passage, keyed by annotation id. */
   collectLiveAnchorSnapshots: (markdownText: string) => Map<string, AnchorRange>
+  /**
+   * Current on-screen geometry for existing, currently-rendered annotation
+   * marks (#73), keyed by annotation id — one `DOMRect` per constituent
+   * `MarkNode` (a multi-block annotation spans several sibling nodes), in
+   * document order. Computed fresh at call time from `getBoundingClientRect()`
+   * (viewport-relative, not scroll-container-relative); never cached.
+   *
+   * `annotationIds` omitted returns geometry for every annotation with at
+   * least one currently live mark. An id with no live mark (unknown, removed,
+   * or not yet rendered) is simply absent from the result — this never throws.
+   *
+   * Two annotation ids can legitimately report the same rect(s): overlapping
+   * annotations may share one `MarkNode`, and its rect is reported under each
+   * id it carries.
+   */
+  getMarkRects: (annotationIds?: readonly string[]) => Map<string, DOMRect[]>
 }

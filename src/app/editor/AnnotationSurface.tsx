@@ -12,6 +12,7 @@ import type { OffsetSpan } from '../mapper/mdastToLexical';
 import type { WikiLinkPromotionMode } from '../mapper/lexicalToMdast';
 import {
   collectLiveAnchorSnapshots,
+  getMarkRects,
   placeMarksForAnchors,
   removeMarksForAnnotation,
   removeMarksForAnnotations,
@@ -141,6 +142,7 @@ function AnnotationEditorHandlePlugin({
       removeMarksForAnnotation: (id) => removeMarksForAnnotation(editor, id),
       collectLiveAnchorSnapshots: (markdownText) =>
         collectLiveAnchorSnapshots(editor, markdownText, { wikiLinkPromotion }),
+      getMarkRects: (annotationIds) => getMarkRects(editor, annotationIds),
     };
     return () => {
       handleRef.current = null;
