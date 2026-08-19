@@ -3,7 +3,7 @@
 All notable changes to `@liminis/editor` are documented here. This project
 follows [Semantic Versioning](https://semver.org/).
 
-## 0.3.0 (unreleased)
+## 0.2.1 — 2026-08-19
 
 ### Added
 
