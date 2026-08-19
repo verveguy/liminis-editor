@@ -228,5 +228,5 @@ export interface AnnotationEditorHandle {
    * annotations may share one `MarkNode`, and its rect is reported under each
    * id it carries.
    */
-  getMarkRects: (annotationIds?: string[]) => Map<string, DOMRect[]>
+  getMarkRects: (annotationIds?: readonly string[]) => Map<string, DOMRect[]>
 }
