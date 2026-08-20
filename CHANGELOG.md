@@ -70,12 +70,22 @@ consecutive ones.
 
 ### Added
 
-- **`AnnotationEditorHandle` gains `getMarkRects(annotationIds?)`**, exposing
-  current on-screen geometry for existing annotation marks — a host can now
-  look up where an already-created annotation is rendered, not just the
-  one-shot rect delivered at creation time. Returns a `Map<string, DOMRect[]>`
-  keyed by annotation id, one `DOMRect` per constituent `MarkNode` (a
-  multi-block annotation spans several), computed fresh from
-  `getBoundingClientRect()` on every call. Omitting `annotationIds` returns
-  geometry for every annotation with a currently live mark; an id with no
-  live mark is simply absent, never an error. (#73)
+- **`AnnotationEditorHandle` gains `getMarkRects(annotationIds?)`, which is a
+  breaking change for any code that implements, constructs, or type-checks
+  against `AnnotationEditorHandle`.** As a required interface member,
+  TypeScript rejects any hand-built object satisfying the interface — a test
+  double, an alternative host, a wrapper — that doesn't supply it, e.g.
+  `TS2741: Property 'getMarkRects' is missing`. This is a compile-time break
+  only: it does not change behavior for code that merely calls methods on a
+  handle instance the package itself supplies, for example via
+  `annotationEditorHandleRef`. **The fix is one line:** add a `getMarkRects`
+  implementation to any hand-built object satisfying `AnnotationEditorHandle`.
+
+  `getMarkRects` exposes current on-screen geometry for existing annotation
+  marks — a host can now look up where an already-created annotation is
+  rendered, not just the one-shot rect delivered at creation time. Returns a
+  `Map<string, DOMRect[]>` keyed by annotation id, one `DOMRect` per
+  constituent `MarkNode` (a multi-block annotation spans several), computed
+  fresh from `getBoundingClientRect()` on every call. Omitting `annotationIds`
+  returns geometry for every annotation with a currently live mark; an id
+  with no live mark is simply absent, never an error. (#73)
