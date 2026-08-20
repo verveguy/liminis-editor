@@ -208,7 +208,7 @@ carry the real defaults (`--vscode-*`, `--slashmd-*`, `--checkbox-*`, and a
 couple of standalone legacy names) — each `--liminis-editor-*` declaration is
 an alias of its previous name (`--liminis-editor-x: var(--previous-name-x);`),
 so both names resolve to the same value and either can be read directly
-(ADR-093). (Legacy names like `--color-*` that appear only as an inner link in
+(ADR-93). (Legacy names like `--color-*` that appear only as an inner link in
 a fallback chain, with no `:root`/`.dark` declaration of their own, are not
 part of the defined set this paragraph describes — only the property that
 *carries* the value is.) Some hosts read these definitions directly — mapping
@@ -228,7 +228,7 @@ affect layout (`Structural` — heading indents and the base font). **Has a
 default** marks tokens declared with a value in `styles.css` directly; every
 row below now reads "Yes" — each `--liminis-editor-*` name carries its own
 `:root`/`.dark` declaration, an alias that reads its previous name via `var()`
-(ADR-093), so a host reading `--liminis-editor-x` gets a real value with no
+(ADR-93), so a host reading `--liminis-editor-x` gets a real value with no
 configuration, and a host overriding only the previous name still wins,
 because the alias re-resolves through that name's own `.dark`/`@media print`
 overrides at the point of use. See "Migrating from the old names" below.
@@ -242,7 +242,7 @@ design, ADR-092 for the separate guard that protects the full *defined* set —
 every token declared with a value in `styles.css`, per the checked-in baseline
 (`scripts/lib/theming-defined-tokens-baseline.json`) — against an
 unintentional rename or removal (run `pnpm docs:theming-baseline` after a
-deliberate one), and ADR-093 for the `--liminis-editor-*` alias declarations
+deliberate one), and ADR-93 for the `--liminis-editor-*` alias declarations
 that make the defined set (baseline) a superset of this table's rows —
 every consumed `--liminis-editor-*` name is now also a defined one — rather
 than the disjoint sets they were before.
@@ -355,7 +355,7 @@ new name), so look it up rather than deriving it.
 Reading, not just overriding, is also migratable: a host that currently reads
 a legacy name directly (e.g. mapping its own design tokens onto
 `--vscode-foreground`) can switch that read to the corresponding
-`--liminis-editor-*` name and get an identical value. Until ADR-093,
+`--liminis-editor-*` name and get an identical value. Until ADR-93,
 `--liminis-editor-*` names were only ever *consumed*, never themselves
 declared with a value — there was nothing for such a host to migrate its
 reads to. Every `--liminis-editor-*` name now carries its own `:root`/`.dark`
