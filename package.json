@@ -75,6 +75,7 @@
     "test:coverage": "vitest run --coverage",
     "verify:package": "node scripts/verify-package.mjs",
     "docs:theming": "node scripts/generate-theming-docs.mjs",
+    "docs:theming-baseline": "node scripts/update-theming-baseline.mjs",
     "demo": "node scripts/run-demo.mjs",
     "build:examples": "node scripts/build-examples.mjs",
     "build:site": "node scripts/build-site.mjs"

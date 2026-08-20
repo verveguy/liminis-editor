@@ -199,7 +199,24 @@ Neither is a package defect, but only one of them tells you what is wrong.
 The editor's colors, borders and a few layout metrics are all CSS custom
 properties under a single package-owned vocabulary, `--liminis-editor-*`.
 Every one of them resolves with no host configuration at all — the table
-below exists so you can *override* a palette, not so you can complete one.
+below exists so you can *override* a palette, and also so you can *consume*
+one: every property this package declares with a value anywhere in
+`styles.css` — the pre-`0.2.0` names still carrying the real defaults
+(`--vscode-*`, `--slashmd-*`, `--checkbox-*`, and a couple of standalone
+legacy names) that the `--liminis-editor-*` names below fall back to — is
+part of this package's public API, readable directly by a host, not only
+overridable. (The `--liminis-editor-*` names themselves are never declared
+with a value directly — see "Has a default" below — nor are legacy names
+like `--color-*` that appear only as an inner link in a fallback chain
+rather than a `:root`/`.dark` declaration; neither is part of the defined
+set this paragraph describes.) Some hosts do exactly that — mapping their
+own design tokens onto these definitions with `var(--x)` rather than
+overriding them. Renaming or removing a definition is therefore a breaking
+change, the same as any other change to a supported API surface described
+under "Versioning policy" above, and is distinct from renaming a
+*consumption* site (covered separately in "Migrating from the old names"
+below) — this package's CI guards against a definition disappearing
+unintentionally (ADR-092).
 
 **Previous name** is the pre-`0.2.0` name this property replaced — the exact
 name to look for if you're migrating a host that still overrides the old
@@ -218,8 +235,13 @@ This table is generated from `src/` by `node scripts/generate-theming-docs.mjs`
 and checked for staleness in CI (`tests/theming-contract.test.ts`) — a `var(--x)`
 added to the source without regenerating this block fails the build. Do not
 hand-edit the rows between the markers below. See ADR-085 for how the
-generation and drift guard work, and ADR-087 for the rename and its
-compatibility design.
+generation and drift guard work, ADR-087 for the rename and its compatibility
+design, and ADR-092 for the separate guard that protects the full *defined*
+set — every token declared with a value in `styles.css`, per the checked-in
+baseline (`scripts/lib/theming-defined-tokens-baseline.json`), a different
+and non-overlapping set of names from this table's rows — against an
+unintentional rename or removal — run `pnpm docs:theming-baseline` after a
+deliberate one.
 
 <!-- theming-tokens:start -->
 | Custom property | Previous name | Controls | Kind | Has a default |
