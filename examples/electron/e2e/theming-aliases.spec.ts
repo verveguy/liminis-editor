@@ -22,6 +22,9 @@
  *   Story 3).
  * - `@media print`: the new name picks up the print-safe literal the
  *   package's own print block resets its legacy target to.
+ * - A documented scope limitation (found in PR review, not anticipated by
+ *   the original plan): a legacy override scoped to a descendant of
+ *   `document.documentElement` is not tracked by the alias. See ADR-93.
  */
 import { _electron as electron, test, expect, type ElectronApplication, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
@@ -166,6 +169,38 @@ test.describe('Electron shell — --liminis-editor-* definition-side aliases (#9
           await clearHostOverrides(page, [legacyName]);
         }
       }
+    } finally {
+      await app.close();
+    }
+  });
+
+  test('documents a known scope limitation: a legacy override on a descendant of documentElement is not reflected (ADR-93)', async () => {
+    // Not a desired behavior to preserve — the opposite. This test exists so
+    // that fixing this limitation (or a future change accidentally making it
+    // worse) shows up as an intentional, reviewed diff to this assertion,
+    // not a silent behavior change. See ADR-93's "Bad / accepted" section
+    // for why a general fix (either a `*`-based or `.editor-app-root`-based
+    // redeclaration) was tried and rejected: both traded this limitation for
+    // a worse regression against User Story 3, confirmed empirically.
+    const { app, page } = await launchShell();
+    try {
+      const result = await page.evaluate(() => {
+        const descendant = document.getElementById('root');
+        if (!descendant) throw new Error('no #root element (a descendant of documentElement, ancestor of the editor)');
+        descendant.style.setProperty('--vscode-foreground', 'rgb(1, 2, 3)');
+        const editorEl = document.querySelector('[aria-label="Markdown editor"]');
+        if (!editorEl) throw new Error('no editor element');
+        return {
+          newValue: getComputedStyle(editorEl).getPropertyValue('--liminis-editor-foreground').trim(),
+          legacyValue: getComputedStyle(editorEl).getPropertyValue('--vscode-foreground').trim(),
+        };
+      });
+
+      // The legacy name itself correctly reflects the descendant-scoped
+      // override (ordinary custom-property inheritance, unaffected by the
+      // alias) — only the *alias* fails to track it, which is the point.
+      expect(result.legacyValue, 'sanity check: --vscode-foreground itself should reflect the descendant-scoped override').toBe('rgb(1, 2, 3)');
+      expect(result.newValue, "known limitation: --liminis-editor-foreground does not track a legacy override scoped below document.documentElement (see ADR-93) — if this now passes, the limitation has been fixed and this test's expectation (and ADR-93) should be updated, not this assertion loosened").not.toBe('rgb(1, 2, 3)');
     } finally {
       await app.close();
     }

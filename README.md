@@ -229,9 +229,11 @@ default** marks tokens declared with a value in `styles.css` directly; every
 row below now reads "Yes" — each `--liminis-editor-*` name carries its own
 `:root`/`.dark` declaration, an alias that reads its previous name via `var()`
 (ADR-93), so a host reading `--liminis-editor-x` gets a real value with no
-configuration, and a host overriding only the previous name still wins,
-because the alias re-resolves through that name's own `.dark`/`@media print`
-overrides at the point of use. See "Migrating from the old names" below.
+configuration, and a host overriding only the previous name at
+`:root`/`document.documentElement` still wins, because the alias re-resolves
+through that name's own `.dark`/`@media print` overrides at the point of use
+(ADR-93 documents a scope limitation for an override applied to a descendant
+element instead). See "Migrating from the old names" below.
 
 This table is generated from `src/` by `node scripts/generate-theming-docs.mjs`
 and checked for staleness in CI (`tests/theming-contract.test.ts`) — a `var(--x)`
@@ -355,14 +357,21 @@ new name), so look it up rather than deriving it.
 Reading, not just overriding, is also migratable: a host that currently reads
 a legacy name directly (e.g. mapping its own design tokens onto
 `--vscode-foreground`) can switch that read to the corresponding
-`--liminis-editor-*` name and get an identical value. Until ADR-93,
-`--liminis-editor-*` names were only ever *consumed*, never themselves
-declared with a value — there was nothing for such a host to migrate its
-reads to. Every `--liminis-editor-*` name now carries its own `:root`/`.dark`
-alias declaration that resolves to the same value as its previous name in
-every override state, so the read migration is a like-for-like swap with no
-observable difference (see verveguy/zusammen#129, the migration this
-addresses).
+`--liminis-editor-*` name and get an identical value, **as long as it isn't
+also setting the `--liminis-editor-*` name itself** — a directly-set
+`--liminis-editor-*` value always wins over the previous name's own value,
+by ordinary cascade precedence (see "Has a default" below), so the two reads
+are identical only while the host relies solely on the previous name. Until
+ADR-93, `--liminis-editor-*` names were only ever *consumed*, never
+themselves declared with a value — there was nothing for such a host to
+migrate its reads to. Every `--liminis-editor-*` name now carries its own
+`:root`/`.dark` alias declaration that resolves to the previous name's own
+value in that legacy-only case, so the read migration is a like-for-like
+swap with no observable difference (see verveguy/zusammen#129, the migration
+this addresses). This guarantee holds for a previous-name override applied
+at `:root`/`document.documentElement`, the standard integration point; see
+ADR-93 for a documented limitation when a host scopes its override to a
+descendant element instead.
 
 ## Annotations
 

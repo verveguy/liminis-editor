@@ -120,6 +120,28 @@
    --liminis-editor-* directly (verveguy/zusammen#129) without disabling the
    ADR-087 fallback layer that a host supplying only the legacy name relies
    on.
+
+   Scope of the "legacy name still wins" guarantee: this re-resolution is
+   correct for a legacy override applied at (or that plainly inherits down
+   to) :root/document.documentElement — the standard integration point, and
+   the only one covered by this package's own e2e coverage. It does NOT
+   extend to a legacy override scoped to an arbitrary DESCENDANT element
+   between :root and the editor's own DOM (e.g. a per-widget wrapper div a
+   host might apply its own theme vars to): a custom property inherits its
+   parent's already-*computed* value, not the var() expression, so this
+   :root-declared alias is fixed at parse time using :root's own value and
+   won't pick up a change made lower in the tree. Re-declaring the alias on
+   every element (`*`) was tried and rejected: it fixes the descendant case
+   but then shadows a --liminis-editor-* override a host sets on an
+   ancestor of the element being read, breaking the higher-priority
+   guarantee (User Story 3) that a directly-set --liminis-editor-* name
+   always wins — confirmed by test, not assumed. Scoping the redeclaration
+   to a known package wrapper class (e.g. .editor-app-root) was also tried
+   and rejected: not every integration renders that wrapper (this repo's
+   own examples/electron shell doesn't), so the alias would go undefined
+   there. See ADR-93 for the full trade-off and verveguy/liminis-editor#93's
+   PR review thread for the CSS-inheritance mechanics that rule out a
+   `:root`-only or `*`-only fix satisfying both scenarios at once.
    ======================================== */
 :root {
   /* Aliases for tokens with an existing --vscode-, --slashmd- or --checkbox- default */

@@ -165,11 +165,14 @@ already had, now simply seeing a larger defined set.
 - A host can now read `--liminis-editor-x` directly and get a real value in
   every override state — the entire point of this issue and the
   prerequisite for zusammen#129's read migration (FR-001, SC-001, SC-006).
-- A host supplying only a legacy name is unaffected: the alias's `var()`
-  re-resolves through that name's own `.dark`/`@media print` overrides at
-  the point of use, verified directly against this file's actual cascade
-  structure rather than assumed from the general CSS-custom-property theory
-  alone (FR-002, FR-003, User Story 2).
+- A host supplying only a legacy name **at `:root`/`document.documentElement`**
+  is unaffected: the alias's `var()` re-resolves through that name's own
+  `.dark`/`@media print` overrides at the point of use, verified directly
+  against this file's actual cascade structure rather than assumed from the
+  general CSS-custom-property theory alone (FR-002, FR-003, User Story 2).
+  This is the standard integration point and the one this package's own
+  e2e coverage exercises. It does not extend to a legacy override scoped to
+  an arbitrary descendant element — see Bad/accepted below.
 - The ADR-092 baseline guard now protects all 59 new alias declarations the
   same way it already protected the legacy ones — a future accidental
   deletion of an alias fails `pnpm test`, naming the token (FR-005, US4).
@@ -182,6 +185,48 @@ already had, now simply seeing a larger defined set.
 
 **Bad / accepted:**
 
+- **The `:root`-only alias does not track a legacy-name override scoped to
+  a descendant element below `:root`** (e.g. a per-widget wrapper div a
+  host applies its own theme vars to, rather than `document.documentElement`
+  itself) — found during PR review (CodeRabbit), confirmed empirically in
+  a running Electron app, not merely reasoned about. A custom property
+  inherits its parent's already-*computed* value, not the `var()`
+  expression that produced it, so the alias's `var(--legacy-x)` is fixed
+  using `:root`'s own value of `--legacy-x` and does not re-evaluate for a
+  change made further down the tree. Two alternatives were tried and
+  rejected, each empirically, in a running app:
+  - **Re-declaring the alias on every element (`*`)** does fix the
+    descendant case, but then an element's own `*`-matched declaration
+    shadows whatever `--liminis-editor-x` value it would otherwise have
+    inherited from an ancestor — including a host's own direct
+    `--liminis-editor-x` override set on that ancestor. This broke User
+    Story 3 (a directly-set `--liminis-editor-*` name must win), which is
+    higher-confidence/already-tested behavior — confirmed by a real,
+    reproducible test failure, not a theoretical concern.
+  - **Scoping the redeclaration to the package's own root wrapper class**
+    (`.editor-app-root`) reduces but does not eliminate that same
+    shadowing (still breaks a `--liminis-editor-*` override set above
+    `.editor-app-root`), and is additionally unreliable on its own terms:
+    not every integration renders that wrapper — this repo's own
+    `examples/electron` shell mounts a lower-level component without it,
+    so the alias would go undeclared there, confirmed by inspecting the
+    actual DOM in a running instance.
+  - No mechanism was found that recomputes a legacy-name change made
+    anywhere below `:root` (User Story 2) while also respecting a
+    `--liminis-editor-*` override set on any ancestor of the read element
+    (User Story 3) — CSS custom-property inheritance passes down an
+    already-resolved value, not a live formula, so a property can prefer
+    "inherit if my ancestor set one" or "always recompute from a
+    dependency," but not both conditionally per-element without a
+    mechanism this package doesn't have (e.g. `@property` plus JS
+    reconciliation, well beyond this issue's scope). **The `:root`-only
+    design is kept, and this scope limitation is accepted and documented**
+    here and in `src/styles.css`'s alias-block comment, per this
+    repository's convention of recording what a decision costs rather than
+    silently narrowing FR-002/FR-003's stated guarantee. Extending it to
+    arbitrary DOM scope, if a specific host needs it, is deferred to a
+    follow-up issue — it is a materially larger design problem than this
+    ADR anticipated.
 - Three consumption sites (`--vscode-errorForeground` at 2 sites,
   `--vscode-toolbar-hoverBackground` at 1 site) render a different,
   intentionally-unified color than before this change. A host relying on
