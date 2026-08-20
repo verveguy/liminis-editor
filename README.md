@@ -199,7 +199,19 @@ Neither is a package defect, but only one of them tells you what is wrong.
 The editor's colors, borders and a few layout metrics are all CSS custom
 properties under a single package-owned vocabulary, `--liminis-editor-*`.
 Every one of them resolves with no host configuration at all — the table
-below exists so you can *override* a palette, not so you can complete one.
+below exists so you can *override* a palette, and also so you can *consume*
+one: every property this package declares with a value anywhere in
+`styles.css` (the `--liminis-editor-*` names below, and the pre-`0.2.0`
+names still declared as their fallback targets — `--vscode-*`, `--slashmd-*`,
+`--color-*`, `--checkbox-*`) is part of this package's public API, readable
+directly by a host, not only overridable. Some hosts do exactly that —
+mapping their own design tokens onto these definitions with `var(--x)`
+rather than overriding them. Renaming or removing a definition is therefore
+a breaking change, the same as any other change to a supported API surface
+described under "Versioning policy" above, and is distinct from renaming a
+*consumption* site (covered separately in "Migrating from the old names"
+below) — this package's CI guards against a definition disappearing
+unintentionally (ADR-091).
 
 **Previous name** is the pre-`0.2.0` name this property replaced — the exact
 name to look for if you're migrating a host that still overrides the old
@@ -218,8 +230,11 @@ This table is generated from `src/` by `node scripts/generate-theming-docs.mjs`
 and checked for staleness in CI (`tests/theming-contract.test.ts`) — a `var(--x)`
 added to the source without regenerating this block fails the build. Do not
 hand-edit the rows between the markers below. See ADR-085 for how the
-generation and drift guard work, and ADR-087 for the rename and its
-compatibility design.
+generation and drift guard work, ADR-087 for the rename and its compatibility
+design, and ADR-091 for the separate guard that protects the full *defined*
+set (this table's rows plus every pre-`0.2.0` fallback name) against an
+unintentional rename or removal — run `pnpm docs:theming-baseline` after a
+deliberate one.
 
 <!-- theming-tokens:start -->
 | Custom property | Previous name | Controls | Kind | Has a default |
