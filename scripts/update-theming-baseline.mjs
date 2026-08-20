@@ -12,7 +12,7 @@
  *
  * Usage: `node scripts/update-theming-baseline.mjs`
  */
-import { readFileSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defaultedTokens } from './lib/theming-tokens.mjs'
