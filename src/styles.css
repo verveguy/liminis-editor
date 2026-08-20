@@ -107,6 +107,113 @@
   --slashmd-callout-caution-border: oklch(0.63 0.24 27);
 }
 
+/* ========================================
+   PUBLIC ALIASES — --liminis-editor-* names (ADR-093)
+
+   The package's own :root/.dark declarations above keep carrying the real
+   defaults, under the legacy names, exactly as before. Every alias below
+   only reads a legacy name via var() — it never declares an independent
+   value — so a host overriding only the legacy name still wins: the alias
+   re-resolves through .dark and the @media print block's overrides of that
+   legacy name, since a var() reference resolves per-element at the point of
+   use, not at the point this declaration is parsed. This lets a host read
+   --liminis-editor-* directly (verveguy/zusammen#129) without disabling the
+   ADR-087 fallback layer that a host supplying only the legacy name relies
+   on.
+   ======================================== */
+:root {
+  /* Aliases for tokens with an existing --vscode-, --slashmd- or --checkbox- default */
+  --liminis-editor-background: var(--vscode-background);
+  --liminis-editor-bold-color: var(--slashmd-bold-color);
+  --liminis-editor-border: var(--vscode-border);
+  --liminis-editor-callout-caution-bg: var(--slashmd-callout-caution-bg);
+  --liminis-editor-callout-caution-border: var(--slashmd-callout-caution-border);
+  --liminis-editor-callout-important-bg: var(--slashmd-callout-important-bg);
+  --liminis-editor-callout-important-border: var(--slashmd-callout-important-border);
+  --liminis-editor-callout-note-bg: var(--slashmd-callout-note-bg);
+  --liminis-editor-callout-note-border: var(--slashmd-callout-note-border);
+  --liminis-editor-callout-tip-bg: var(--slashmd-callout-tip-bg);
+  --liminis-editor-callout-tip-border: var(--slashmd-callout-tip-border);
+  --liminis-editor-callout-warning-bg: var(--slashmd-callout-warning-bg);
+  --liminis-editor-callout-warning-border: var(--slashmd-callout-warning-border);
+  --liminis-editor-checkbox-border: var(--checkbox-border);
+  --liminis-editor-code-bg: var(--vscode-code-bg);
+  --liminis-editor-external-link: var(--vscode-external-link);
+  --liminis-editor-font-family: var(--vscode-font-family);
+  --liminis-editor-font-size: var(--vscode-font-size);
+  --liminis-editor-foreground: var(--vscode-foreground);
+  --liminis-editor-h1-color: var(--slashmd-h1-color);
+  --liminis-editor-h1-indent: var(--slashmd-h1-indent);
+  --liminis-editor-h2-color: var(--slashmd-h2-color);
+  --liminis-editor-h2-indent: var(--slashmd-h2-indent);
+  --liminis-editor-h3-color: var(--slashmd-h3-color);
+  --liminis-editor-h3-indent: var(--slashmd-h3-indent);
+  --liminis-editor-h4-color: var(--slashmd-h4-color);
+  --liminis-editor-h4-indent: var(--slashmd-h4-indent);
+  --liminis-editor-h5-color: var(--slashmd-h5-color);
+  --liminis-editor-h5-indent: var(--slashmd-h5-indent);
+  --liminis-editor-italic-color: var(--slashmd-italic-color);
+  --liminis-editor-link: var(--vscode-link);
+  --liminis-editor-selection: var(--vscode-selection);
+  --liminis-editor-token-comment: var(--slashmd-token-comment);
+  --liminis-editor-token-function: var(--slashmd-token-function);
+  --liminis-editor-token-keyword: var(--slashmd-token-keyword);
+  --liminis-editor-token-operator: var(--slashmd-token-operator);
+  --liminis-editor-token-property: var(--slashmd-token-property);
+  --liminis-editor-token-punctuation: var(--slashmd-token-punctuation);
+  --liminis-editor-token-selector: var(--slashmd-token-selector);
+  --liminis-editor-token-variable: var(--slashmd-token-variable);
+
+  /* Aliases preserving an existing nested consumption-site fallback chain —
+     these two legacy names have no --vscode-* declaration of their own, only
+     an existing fallback to a second legacy name at their consumption site. */
+  --liminis-editor-input-bg: var(--vscode-input-bg, var(--vscode-code-bg));
+  --liminis-editor-foreground-muted: var(--vscode-foreground-muted, var(--vscode-border));
+
+  /* Aliases for tokens with no CSS custom property backing anywhere — only an
+     inline literal fallback at their consumption site(s). The literal below
+     reproduces that existing light-mode fallback so a host supplying nothing
+     sees no change (FR-002); a host setting the legacy name still wins
+     (FR-003). Where the same token's literal differs by site (errorForeground,
+     toolbar-hoverBackground), a single canonical value is chosen here — see
+     ADR-093 for the two accepted visual deltas this causes at three sites. */
+  --liminis-editor-button-background: var(--vscode-button-background, #007acc);
+  --liminis-editor-button-foreground: var(--vscode-button-foreground, #ffffff);
+  --liminis-editor-menu-background: var(--vscode-menu-background, #ffffff);
+  --liminis-editor-menu-border: var(--vscode-menu-border, #d4d4d4);
+  --liminis-editor-menu-foreground: var(--vscode-menu-foreground, #333333);
+  --liminis-editor-menu-selectionBackground: var(--vscode-menu-selectionBackground, #e8e8e8);
+  --liminis-editor-menu-separatorBackground: var(--vscode-menu-separatorBackground, #d4d4d4);
+  --liminis-editor-toolbar-hoverBackground: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
+  --liminis-editor-notificationsInfoIcon-foreground: var(--vscode-notificationsInfoIcon-foreground, #3794ff);
+  --liminis-editor-inputValidation-errorBackground: var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.15));
+  --liminis-editor-errorForeground: var(--vscode-errorForeground, #f14c4c);
+  --liminis-editor-focus-border: var(--vscode-focus-border, #007acc);
+  --liminis-editor-focusBorder: var(--vscode-focusBorder, #007acc);
+
+  /* Aliases for liminis-app's own Tailwind @theme brand tokens — the package
+     only ever supplied a literal final fallback for these, never asserted
+     ownership; this alias makes that existing fallback reachable under the
+     new name too, without changing what it resolves to. */
+  --liminis-editor-primary: var(--color-primary, #3b82f6);
+  --liminis-editor-primary-100: var(--color-primary-100, rgba(59, 130, 246, 0.1));
+  --liminis-editor-muted-foreground: var(--color-muted-foreground, #6b7280);
+  --liminis-editor-muted-100: var(--color-muted-100, rgba(128, 128, 128, 0.1));
+}
+
+.dark {
+  /* Dark-mode literal overrides for the subset of the no-CSS-backing group
+     above whose consumption sites select a different literal in dark mode
+     (via a JS `isDark`/`dark` check reading the same .dark class this
+     selector keys off) rather than a single literal used in both themes. */
+  --liminis-editor-button-background: var(--vscode-button-background, #0e639c);
+  --liminis-editor-menu-background: var(--vscode-menu-background, #252526);
+  --liminis-editor-menu-border: var(--vscode-menu-border, #454545);
+  --liminis-editor-menu-foreground: var(--vscode-menu-foreground, #cccccc);
+  --liminis-editor-menu-selectionBackground: var(--vscode-menu-selectionBackground, #094771);
+  --liminis-editor-menu-separatorBackground: var(--vscode-menu-separatorBackground, #454545);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -1038,6 +1145,7 @@ body {
 }
 
 .drag-handle:hover .drag-handle-icon {
+  /* Superseded by --liminis-editor-toolbar-hoverBackground's canonical 0.15-alpha default (ADR-093) */
   background: var(--liminis-editor-toolbar-hoverBackground, var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.1)));
 }
 
@@ -1077,6 +1185,7 @@ body {
 
 .block-delete-button:hover .block-delete-icon {
   background: var(--liminis-editor-inputValidation-errorBackground, var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.15)));
+  /* Superseded by --liminis-editor-errorForeground's canonical #f14c4c default (ADR-093) */
   color: var(--liminis-editor-errorForeground, var(--vscode-errorForeground, #f44336));
 }
 
@@ -1592,6 +1701,7 @@ body {
 }
 
 .search-close-button:hover {
+  /* Superseded by --liminis-editor-errorForeground's canonical #f14c4c default (ADR-093) */
   color: var(--liminis-editor-errorForeground, var(--vscode-errorForeground, #f44336));
 }
 
