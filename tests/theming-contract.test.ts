@@ -4,7 +4,7 @@
  * scattered across `src/`, none of them listed anywhere a host could read
  * without grepping 2,477 lines of `styles.css`.
  *
- * This suite is the drift guard the issue asks for, and asserts four things:
+ * This suite is the drift guard the issue asks for, and asserts five things:
  *
  * 1. The token table generated into `README.md` names exactly the set of
  *    tokens `src/` actually consumes — no more, no less. Add a `var(--x)`
@@ -21,8 +21,15 @@
  *    at every call site (FR-011) — a partial rename that drops the fallback
  *    would otherwise silently strip theming from any host still supplying
  *    only the old name (see #51's User Story 2).
+ * 5. Every token in the checked-in defined-token baseline (#79) is still
+ *    declared with a value somewhere in `styles.css`. Unlike 1-4, this
+ *    guards the *defined* set, not the consumed/documented set — a host
+ *    like Zusammen can read a `--vscode-*` definition directly even though
+ *    nothing under `src/` ever consumes it via `var()`, so this is the only
+ *    guard in the suite that would catch #51's rename if it had also
+ *    touched definition sites (it didn't; see the baseline's own history).
  *
- * All four failure modes are demonstrated by mutation below, not merely
+ * All five failure modes are demonstrated by mutation below, not merely
  * asserted to work — a fixture directory under `os.tmpdir()` is given a
  * deliberate violation, and the guard is checked to actually flag it.
  */
@@ -38,6 +45,7 @@ import {
   resolvesWithoutHost,
   resolvesToPreviousName,
   parseDocumentedTokens,
+  diffDefinedTokenBaseline,
   describe as describeToken,
 } from '../scripts/lib/theming-tokens.mjs';
 import { renderThemingBlock, withThemingBlock } from '../scripts/generate-theming-docs.mjs';
@@ -46,6 +54,16 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC_ROOT = resolve(REPO_ROOT, 'src');
 const STYLES_CSS_PATH = resolve(REPO_ROOT, 'src', 'styles.css');
 const README_PATH = resolve(REPO_ROOT, 'README.md');
+const DEFINED_TOKENS_BASELINE_PATH = resolve(
+  REPO_ROOT,
+  'scripts',
+  'lib',
+  'theming-defined-tokens-baseline.json',
+);
+
+function definedTokensBaseline(): string[] {
+  return JSON.parse(readFileSync(DEFINED_TOKENS_BASELINE_PATH, 'utf-8'));
+}
 
 function readme(): string {
   return readFileSync(README_PATH, 'utf-8');
@@ -136,6 +154,36 @@ describe('theming contract: README table is not stale', () => {
       regenerated,
       'README.md\'s theming token table is stale — run `node scripts/generate-theming-docs.mjs`',
     ).toEqual(readme());
+  });
+});
+
+describe('theming contract: defined tokens are a public API surface (verveguy/liminis-editor#79)', () => {
+  it('finds defined tokens and a baseline to check them against', () => {
+    // Anti-vacuity: if either side is empty, the equality assertion below
+    // would pass trivially without checking anything.
+    expect(
+      defaultedTokens(STYLES_CSS_PATH).size,
+      'found no declared custom properties in styles.css; the guard would be vacuous',
+    ).toBeGreaterThan(0);
+    expect(
+      definedTokensBaseline().length,
+      'scripts/lib/theming-defined-tokens-baseline.json is empty; the guard would be vacuous',
+    ).toBeGreaterThan(0);
+  });
+
+  it('declares every token in the checked-in baseline (FR-004, FR-005, FR-007)', () => {
+    const current = defaultedTokens(STYLES_CSS_PATH);
+    const baseline = definedTokensBaseline();
+
+    const { missing } = diffDefinedTokenBaseline(current, baseline);
+
+    expect(
+      missing,
+      'declared with a value in the checked-in baseline (scripts/lib/theming-defined-tokens-baseline.json) ' +
+        'but no longer declared anywhere in styles.css — a host reading this token directly (e.g. Zusammen\'s ' +
+        '--vscode-* mapping) loses its value silently. If this removal (or rename) is intentional, update the ' +
+        'baseline with `pnpm docs:theming-baseline`.',
+    ).toEqual([]);
   });
 });
 
@@ -231,5 +279,55 @@ describe('theming contract: mutation tests (the guard actually fires)', () => {
     const broken = [...consumed.keys()].filter((name) => !resolvesToPreviousName(name, consumed));
 
     expect(broken).toEqual(['--liminis-editor-focus-border']);
+  });
+
+  it('flags a baselined token whose declaration is removed from styles.css (FR-004, SC-001)', () => {
+    const fixtureRoot = makeFixtureRoot();
+    const stylesPath = join(fixtureRoot, 'styles.css');
+    // The baseline recorded --removed-token as defined; the current stylesheet
+    // no longer declares it — the exact silent-drop scenario #52 broke.
+    writeFileSync(stylesPath, ':root {\n  --kept-token: red;\n}\n');
+    const baseline = ['--kept-token', '--removed-token'];
+
+    const { missing } = diffDefinedTokenBaseline(defaultedTokens(stylesPath), baseline);
+
+    expect(missing).toEqual(['--removed-token']);
+  });
+
+  it('flags a same-count rename, not masked by an unchanged total (Acceptance Scenario 3)', () => {
+    const fixtureRoot = makeFixtureRoot();
+    const stylesPath = join(fixtureRoot, 'styles.css');
+    // Same total count (1) as the baseline, but a different name — reproduces
+    // the exact 0.2.0 near miss: 42 defined before, 42 after, 0 removed by count.
+    writeFileSync(stylesPath, ':root {\n  --new-name-token: red;\n}\n');
+    const baseline = ['--old-name-token'];
+
+    const { missing, added } = diffDefinedTokenBaseline(defaultedTokens(stylesPath), baseline);
+
+    expect(missing).toEqual(['--old-name-token']);
+    expect(added).toEqual(['--new-name-token']);
+  });
+
+  it('does not flag a token added without a baseline update (FR-006, SC-002)', () => {
+    const fixtureRoot = makeFixtureRoot();
+    const stylesPath = join(fixtureRoot, 'styles.css');
+    writeFileSync(stylesPath, ':root {\n  --kept-token: red;\n  --new-token: blue;\n}\n');
+    const baseline = ['--kept-token'];
+
+    const { missing } = diffDefinedTokenBaseline(defaultedTokens(stylesPath), baseline);
+
+    expect(missing).toEqual([]);
+  });
+
+  it('flags a token defined only inside a non-:root rule if removed (Acceptance Scenario 5)', () => {
+    const fixtureRoot = makeFixtureRoot();
+    const stylesPath = join(fixtureRoot, 'styles.css');
+    // No .dark declaration at all — the baselined dark-only token is gone.
+    writeFileSync(stylesPath, ':root {\n  --kept-token: red;\n}\n');
+    const baseline = ['--kept-token', '--dark-only-token'];
+
+    const { missing } = diffDefinedTokenBaseline(defaultedTokens(stylesPath), baseline);
+
+    expect(missing).toEqual(['--dark-only-token']);
   });
 });
