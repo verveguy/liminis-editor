@@ -94,10 +94,12 @@ passes again.
    as if nothing happened (this is exactly the failure mode that let `0.2.0`
    through undetected: 42 defined before, 42 after, 0 removed by count).
 4. **Given** a new custom property is defined (added, not renamed) without
-   any other change, **When** the test suite runs, **Then** it fails only if
-   the baseline is not updated to include it, in the same way #2 requires an
-   explicit update — addition is not silently exempt, but the failure is
-   resolved by extending the baseline rather than investigating a loss.
+   any other change, **When** the test suite runs, **Then** it passes
+   regardless of whether the baseline is updated — per FR-006, an addition
+   alone never fails the guard. Updating the baseline is still expected
+   practice, since only a baselined token is protected against a future
+   silent removal, but omitting it is not itself a CI failure, unlike #2's
+   removal case.
 5. **Given** a token is defined only inside a `.dark` (or other non-`:root`)
    rule, **When** its declaration is removed, **Then** the guard flags it
    the same as a `:root`-only token — "defined" means declared with a value

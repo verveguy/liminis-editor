@@ -322,7 +322,14 @@ describe('theming contract: mutation tests (the guard actually fires)', () => {
   it('flags a token defined only inside a non-:root rule if removed (Acceptance Scenario 5)', () => {
     const fixtureRoot = makeFixtureRoot();
     const stylesPath = join(fixtureRoot, 'styles.css');
-    // No .dark declaration at all — the baselined dark-only token is gone.
+    // First prove extraction finds a token declared outside :root at all...
+    writeFileSync(
+      stylesPath,
+      ':root {\n  --kept-token: red;\n}\n.dark {\n  --dark-only-token: blue;\n}\n',
+    );
+    expect(defaultedTokens(stylesPath)).toContain('--dark-only-token');
+
+    // ...then remove its declaration and confirm the guard flags the loss.
     writeFileSync(stylesPath, ':root {\n  --kept-token: red;\n}\n');
     const baseline = ['--kept-token', '--dark-only-token'];
 
