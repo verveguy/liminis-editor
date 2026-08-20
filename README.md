@@ -211,7 +211,7 @@ a breaking change, the same as any other change to a supported API surface
 described under "Versioning policy" above, and is distinct from renaming a
 *consumption* site (covered separately in "Migrating from the old names"
 below) — this package's CI guards against a definition disappearing
-unintentionally (ADR-091).
+unintentionally (ADR-092).
 
 **Previous name** is the pre-`0.2.0` name this property replaced — the exact
 name to look for if you're migrating a host that still overrides the old
@@ -231,7 +231,7 @@ and checked for staleness in CI (`tests/theming-contract.test.ts`) — a `var(--
 added to the source without regenerating this block fails the build. Do not
 hand-edit the rows between the markers below. See ADR-085 for how the
 generation and drift guard work, ADR-087 for the rename and its compatibility
-design, and ADR-091 for the separate guard that protects the full *defined*
+design, and ADR-092 for the separate guard that protects the full *defined*
 set (this table's rows plus every pre-`0.2.0` fallback name) against an
 unintentional rename or removal — run `pnpm docs:theming-baseline` after a
 deliberate one.
