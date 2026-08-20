@@ -36,10 +36,15 @@ export { Editor } from './app/editor'
 export type { SweepFn } from './app/editor/AmbientCorrectionPlugin'
 export type { SelectionContextMenuEvent } from './app/editor/SelectionContextMenuPlugin'
 
-// --- Document outline (issue #69) -------------------------------------------
+// --- Document outline (issue #69, markdown-derived path issue #84) --------
 // `createDocumentOutlineHandle()` makes the controller shared between one
 // `<Editor documentOutlineHandle={…}>` and one `<DocumentOutline handle={…}>`
 // — create it once per editor instance and pass the same object to both.
+// A host with no mounted Lexical editor (e.g. a raw markdown mode) can feed
+// the same handle from markdown text alone via `handle.publishFromMarkdown`/
+// `handle.setActiveLine`; `deriveOutlineFromMarkdown`/
+// `resolveActiveOutlineIndex` are exported standalone for a host that wants
+// the pure derivation without going through the handle.
 export { DocumentOutline } from './app/editor/DocumentOutline'
 export type { DocumentOutlineProps } from './app/editor/DocumentOutline'
 export { createDocumentOutlineHandle } from './app/editor/documentOutlineHandle'
@@ -48,6 +53,7 @@ export type {
   DocumentOutlineSnapshot,
   OutlineEntry,
 } from './app/editor/documentOutlineHandle'
+export { deriveOutlineFromMarkdown, resolveActiveOutlineIndex } from './app/editor/documentOutlineMarkdown'
 
 // --- Annotations, React surface (ADR-077) ---------------------------------
 // The kind-configuration types a host needs to turn the mechanism on, plus the
