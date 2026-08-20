@@ -53,3 +53,7 @@ export function describe(name: string): string | undefined;
 export function buildInventory(srcRoot: string, stylesCssPath: string): InventoryRow[];
 export function renderTokenTable(inventory: InventoryRow[]): string;
 export function parseDocumentedTokens(markdownBlock: string): Set<string>;
+export function diffDefinedTokenBaseline(
+  current: Set<string> | string[],
+  baseline: Set<string> | string[],
+): { missing: string[]; added: string[] };

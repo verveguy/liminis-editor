@@ -482,3 +482,26 @@ export function parseDocumentedTokens(markdownBlock) {
   }
   return names
 }
+
+/**
+ * Compare the live "defined" set (verveguy/liminis-editor#79) against a
+ * checked-in baseline of previously-defined token names, by identity — not
+ * by count. `missing` is every baselined name no longer in `current`
+ * (`scripts/lib/theming-defined-tokens-baseline.json` says a host could once
+ * read this token; `styles.css` no longer declares it — the silent-drop
+ * failure mode this issue exists to catch). `added` is every current name
+ * not yet in the baseline (a legitimate new definition, never itself a
+ * reason to fail — see FR-006). Both are sorted for a stable, readable diff.
+ *
+ * A same-count rename (one name removed, a different name added) shows up
+ * as one entry in each array, not a net-zero no-op — this is deliberate:
+ * comparing by identity is exactly what lets this guard catch the #51
+ * scenario a naive count comparison would have missed.
+ */
+export function diffDefinedTokenBaseline(current, baseline) {
+  const currentSet = current instanceof Set ? current : new Set(current)
+  const baselineSet = baseline instanceof Set ? baseline : new Set(baseline)
+  const missing = [...baselineSet].filter((name) => !currentSet.has(name)).sort()
+  const added = [...currentSet].filter((name) => !baselineSet.has(name)).sort()
+  return { missing, added }
+}
