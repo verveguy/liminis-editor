@@ -108,7 +108,7 @@
 }
 
 /* ========================================
-   PUBLIC ALIASES — --liminis-editor-* names (ADR-093)
+   PUBLIC ALIASES — --liminis-editor-* names (ADR-93)
 
    The package's own :root/.dark declarations above keep carrying the real
    defaults, under the legacy names, exactly as before. Every alias below
@@ -176,7 +176,7 @@
      sees no change (FR-002); a host setting the legacy name still wins
      (FR-003). Where the same token's literal differs by site (errorForeground,
      toolbar-hoverBackground), a single canonical value is chosen here — see
-     ADR-093 for the two accepted visual deltas this causes at three sites. */
+     ADR-93 for the two accepted visual deltas this causes at three sites. */
   --liminis-editor-button-background: var(--vscode-button-background, #007acc);
   --liminis-editor-button-foreground: var(--vscode-button-foreground, #ffffff);
   --liminis-editor-menu-background: var(--vscode-menu-background, #ffffff);
@@ -1145,7 +1145,7 @@ body {
 }
 
 .drag-handle:hover .drag-handle-icon {
-  /* Superseded by --liminis-editor-toolbar-hoverBackground's canonical 0.15-alpha default (ADR-093) */
+  /* Superseded by --liminis-editor-toolbar-hoverBackground's canonical 0.15-alpha default (ADR-93) */
   background: var(--liminis-editor-toolbar-hoverBackground, var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.1)));
 }
 
@@ -1185,7 +1185,7 @@ body {
 
 .block-delete-button:hover .block-delete-icon {
   background: var(--liminis-editor-inputValidation-errorBackground, var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.15)));
-  /* Superseded by --liminis-editor-errorForeground's canonical #f14c4c default (ADR-093) */
+  /* Superseded by --liminis-editor-errorForeground's canonical #f14c4c default (ADR-93) */
   color: var(--liminis-editor-errorForeground, var(--vscode-errorForeground, #f44336));
 }
 
@@ -1701,7 +1701,7 @@ body {
 }
 
 .search-close-button:hover {
-  /* Superseded by --liminis-editor-errorForeground's canonical #f14c4c default (ADR-093) */
+  /* Superseded by --liminis-editor-errorForeground's canonical #f14c4c default (ADR-93) */
   color: var(--liminis-editor-errorForeground, var(--vscode-errorForeground, #f44336));
 }
 

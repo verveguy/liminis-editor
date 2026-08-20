@@ -54,7 +54,7 @@ const TOKEN_RE = /--[a-zA-Z0-9-]+/.source
 /**
  * True iff the `var(` starting at `varStartIndex` is itself the entire value
  * of a custom-property *declaration* — e.g. the `var(--vscode-foreground)` in
- * `--liminis-editor-foreground: var(--vscode-foreground);` (ADR-093's
+ * `--liminis-editor-foreground: var(--vscode-foreground);` (ADR-93's
  * definition-side alias layer, #93). Found by walking back from `varStartIndex`
  * to the nearest statement boundary (`;`, `{` or `}`) and checking whether
  * everything between that boundary and `var(` is exactly `--name:` — the
