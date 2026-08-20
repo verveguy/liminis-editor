@@ -120,7 +120,7 @@ genuinely unset) — there is no mechanism that both defines the token
 **This unifies 3 sites' rendered color to the canonical value, a small,
 real, intentional visual change**, called out here per this repository's
 convention of recording what a decision costs. The three affected call
-sites (`src/styles.css:1041`, `:1080`, `:1595`) each carry a one-line
+sites (`src/styles.css:1148`, `:1188`, `:1704`) each carry a one-line
 comment noting they are superseded by the new canonical default. The
 spec's Out of Scope section explicitly permits this as a side effect of
 choosing FR-001's value, not as a design goal in its own right.
