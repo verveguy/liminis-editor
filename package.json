@@ -1,6 +1,6 @@
 {
   "name": "@liminis/editor",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "//publishing": "Publishing is deliberate, never incidental. `private: true` was this package's guard until verveguy/liminis-editor#39 took the publish decision; it is gone because that decision was taken, not because it was tidied away. The guard is now `prepublishOnly` -> scripts/guard-publish.mjs, which refuses unless LIMINIS_ALLOW_PUBLISH=1 is set explicitly. That variable is set at step scope in .github/workflows/publish.yml and nowhere else, so a release is the only path that publishes. Note that `npm publish --dry-run` does NOT report a private package as blocked (npm 10.8.2), which is why the guard is a script rather than a flag.",
   "license": "MIT",
   "description": "Lexical-based markdown WYSIWYG editor with mdast round-trip and a host-injection seam",
