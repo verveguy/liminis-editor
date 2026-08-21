@@ -36,6 +36,7 @@ const SRC_ROOT = resolve(REPO_ROOT, 'src');
 
 interface Manifest {
   dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   private?: boolean;
   publishConfig?: { access?: string };
@@ -94,6 +95,36 @@ describe('the package manifest keeps its own promises', () => {
 
     const lexicalHardDeps = Object.keys(deps).filter((n) => n.startsWith('@lexical/'));
     expect(lexicalHardDeps, 'no @lexical/* may remain a hard dependency').toEqual([]);
+  });
+
+  // ADR-92's narrow-range policy (#92) is only true if the declared peer range
+  // and the version CI actually installs (devDependencies) never drift apart —
+  // that pairing is the entire point of choosing a single-caret bump over a
+  // wide band. Nothing else enforces it: a bump to one list and not the other
+  // would pass every other check here and silently reintroduce an untested
+  // claim.
+  it('keeps every lexical peer range paired with an identical devDependency range', () => {
+    const manifest = readManifest();
+    const peers = manifest.peerDependencies ?? {};
+    const devDeps = manifest.devDependencies ?? {};
+
+    const lexicalPeerNames = Object.keys(peers).filter(
+      (n) => n === 'lexical' || n.startsWith('@lexical/'),
+    );
+    expect(
+      lexicalPeerNames.length,
+      'found no lexical peers to check; the guard would be vacuous',
+    ).toBeGreaterThanOrEqual(12);
+
+    for (const name of lexicalPeerNames) {
+      expect(peers[name], `${name}'s peer range must be a single-caret 0.x bump`).toMatch(
+        /^\^0\.\d+\.0$/,
+      );
+      expect(
+        devDeps[name],
+        `${name} must also be a devDependency, so CI tests the version the peer range names`,
+      ).toBe(peers[name]);
+    }
   });
 
   // The `react` peer floor is `^19.2.0`, and the manifest's `//peerDependencies`
