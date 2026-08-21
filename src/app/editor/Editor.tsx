@@ -417,6 +417,21 @@ function CursorRestorePlugin({
     const cursorToRestore = cursorToRestoreRef.current;
     if (!cursorToRestore) return;
 
+    // Only restore the caret if the user was actually in the editor when the
+    // reload arrived. A content reload is not always the user's doing: an
+    // agent writing the open file reaches here too, and re-focusing then pulls
+    // the caret out of whatever the user is typing in — a chat prompt beside
+    // the editor, say — mid-sentence. Restoring a caret nobody is looking at
+    // buys nothing, so an unfocused editor is left entirely alone (no
+    // selection write either, so reconciliation cannot move focus as a side
+    // effect). Same rule as `AutoFocusPlugin`: never take focus unasked.
+    // Read synchronously, before the update below can perturb focus.
+    const rootElement = editor.getRootElement();
+    const hadFocus =
+      rootElement !== null &&
+      (rootElement === document.activeElement || rootElement.contains(document.activeElement));
+    if (!hadFocus) return;
+
     console.log('[CursorRestorePlugin] Restoring cursor', {
       contentVersion,
       offset: cursorToRestore.offset,
@@ -449,11 +464,9 @@ function CursorRestorePlugin({
         }
       });
 
-      // Re-focus the editor
-      const rootElement = editor.getRootElement();
-      if (rootElement) {
-        rootElement.focus({ preventScroll: true });
-      }
+      // Re-focus the editor. Reached only when it already had focus above, so
+      // this restores focus the reload disturbed rather than taking it.
+      rootElement.focus({ preventScroll: true });
     });
   }, [editor, contentVersion, cursorToRestoreRef]);
 
