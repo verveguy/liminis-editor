@@ -43,11 +43,19 @@ produce a broken editor context — peering is what prevents both.
 
 ```bash
 pnpm add react@^19 react-dom@^19 \
-  lexical@^0.44 @lexical/react@^0.44 @lexical/code@^0.44 \
-  @lexical/code-prism@^0.44 @lexical/link@^0.44 @lexical/list@^0.44 \
-  @lexical/mark@^0.44 @lexical/markdown@^0.44 @lexical/rich-text@^0.44 \
-  @lexical/selection@^0.44 @lexical/table@^0.44 @lexical/utils@^0.44
+  lexical@^0.49 @lexical/react@^0.49 @lexical/code@^0.49 \
+  @lexical/code-prism@^0.49 @lexical/link@^0.49 @lexical/list@^0.49 \
+  @lexical/mark@^0.49 @lexical/markdown@^0.49 @lexical/rich-text@^0.49 \
+  @lexical/selection@^0.49 @lexical/table@^0.49 @lexical/utils@^0.49
 ```
+
+> **The Lexical peer ranges are single-caret, not a wide band.** Lexical is
+> also `0.x`, where every minor is permitted to break — unlike React's range
+> above, which spans an untested-but-stable range, the Lexical range names
+> exactly the one minor this package is built and tested against. Expect it
+> to move forward (e.g. to `^0.50`) only after this package has adopted and
+> tested that release, not automatically at every upstream release. See
+> `docs/decisions/adr-92-lexical-peer-range-policy.md`.
 
 pnpm v8+ and npm v7+ install peers automatically, so in practice the first
 command is usually enough.
