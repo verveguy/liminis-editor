@@ -98,9 +98,13 @@ passed unmodified.
 - Consumers can now install this package alongside the current Lexical
   release; the multi-minor stall the issue described cannot recur until
   Lexical ships another minor this package hasn't yet adopted.
-- The compatibility claim in `package.json` is now backed by an actual CI
-  run against the exact version it names, for both React and Lexical — no
-  untested span exists in either peer range as of this decision.
+- The Lexical peer range's compatibility claim is now backed by an actual CI
+  run against the exact version it names — peer and devDependency are both
+  `0.49.0`, so no untested span exists in it. (React's own range still has
+  an intentionally untested lower half — peer `^19.2.0` vs. devDependency
+  `^19.2.5` — per the `//peerDependencies` note; that is unchanged by this
+  decision and follows the opposite, stable-major reasoning explained
+  above.)
 - The policy is written down (`//lexicalPeerPolicy` in `package.json`, this
   ADR, and the README's install section), so the next Lexical minor is a
   known, bounded task rather than a rediscovery of this issue's reasoning.
