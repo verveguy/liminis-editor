@@ -52,6 +52,34 @@ function listFiles(root, extensions) {
 const TOKEN_RE = /--[a-zA-Z0-9-]+/.source
 
 /**
+ * True iff the `var(` starting at `varStartIndex` is itself the entire value
+ * of a custom-property *declaration* — e.g. the `var(--vscode-foreground)` in
+ * `--liminis-editor-foreground: var(--vscode-foreground);` (ADR-93's
+ * definition-side alias layer, #93). Found by walking back from `varStartIndex`
+ * to the nearest statement boundary (`;`, `{` or `}`) and checking whether
+ * everything between that boundary and `var(` is exactly `--name:` — the
+ * shape only a custom-property declaration's value position can have (an
+ * ordinary CSS property name never starts with `--`).
+ *
+ * This distinguishes a *definition-site* var() (aliasing one custom property
+ * to another) from a *consumption-site* var() (a host-facing "read this
+ * token" reference) — the two are syntactically identical `var(--x)` calls,
+ * but only the latter belongs in `consumedTokens()`'s inventory. Without this
+ * check, #93's alias declarations would each register their legacy-name
+ * target as a newly "consumed" token, growing the README/description
+ * surface for a token no host-facing code actually reads.
+ */
+function isCustomPropertyDeclarationValue(text, varStartIndex) {
+  const boundary = Math.max(
+    text.lastIndexOf(';', varStartIndex),
+    text.lastIndexOf('{', varStartIndex),
+    text.lastIndexOf('}', varStartIndex),
+  )
+  const statement = text.slice(boundary + 1, varStartIndex)
+  return new RegExp(`^\\s*${TOKEN_RE}\\s*:\\s*$`).test(statement)
+}
+
+/**
  * Every `var(--token` consumption site found in `text`, comment-stripped
  * first, walked with a paren-aware scanner so each site carries its `var()`
  * nesting depth and, if its fallback opens with another `var(--y...)` call,
@@ -66,6 +94,10 @@ const TOKEN_RE = /--[a-zA-Z0-9-]+/.source
  * as a fallback, never as the primary consumed name"). Depth lets callers
  * keep only depth-0 (primary) sites; `immediateFallback` is what the #51
  * drift-guard check (FR-011) compares against `PREVIOUS_NAME`.
+ *
+ * `isDeclarationValue` (#93) marks a depth-0 site whose `var()` is itself the
+ * value of a custom-property declaration (an alias, not a consumption) — see
+ * `isCustomPropertyDeclarationValue`.
  */
 function consumptionSitesIn(text) {
   const nameRe = new RegExp(`^\\s*(${TOKEN_RE})\\s*(,)?`)
@@ -90,7 +122,8 @@ function consumptionSitesIn(text) {
           const opening = openingFallbackRe.exec(rest.slice(match[0].length))
           if (opening) immediateFallback = opening[1]
         }
-        const site = { name: match[1], hasFallback: Boolean(match[2]), depth, immediateFallback }
+        const isDeclarationValue = depth === 0 && isCustomPropertyDeclarationValue(text, i)
+        const site = { name: match[1], hasFallback: Boolean(match[2]), depth, immediateFallback, isDeclarationValue }
         sites.push(site)
         stack.push({ type: 'var' })
         i += 4
@@ -139,7 +172,8 @@ function propertyHintsIn(text) {
  * Scan `srcRoot` for every custom property `var(--...)` consumes at the
  * top level (depth 0) of a `var()` fallback chain — i.e. the primary name a
  * host is meant to theme, not a nested previous-name fallback (see
- * `consumptionSitesIn`). Returns a
+ * `consumptionSitesIn`) and not a definition-side alias's own `var()` value
+ * (#93 — see `isCustomPropertyDeclarationValue`). Returns a
  * `Map<name, { files: Set<string>, sites: Array<{file, hasFallback, immediateFallback}>, properties: Set<string> }>`.
  */
 export function consumedTokens(srcRoot) {
@@ -153,10 +187,12 @@ export function consumedTokens(srcRoot) {
 
   const tokens = new Map()
 
-  // Pass 1: primary (depth-0) consumption sites populate the map.
+  // Pass 1: primary (depth-0) consumption sites populate the map — excluding
+  // a depth-0 var() that is itself a definition-side alias's value (#93).
   for (const file of files) {
     for (const site of consumptionSitesIn(stripped.get(file))) {
       if (site.depth !== 0) continue
+      if (site.isDeclarationValue) continue
       if (!tokens.has(site.name)) {
         tokens.set(site.name, { files: new Set(), sites: [], properties: new Set() })
       }

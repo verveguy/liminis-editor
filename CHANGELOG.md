@@ -3,6 +3,39 @@
 All notable changes to `@liminis/editor` are documented here. This project
 follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- **The package now *defines* `--liminis-editor-*` names, not only
+  *consumes* them.** Every one of the 59 renamed (`0.2.0`) tokens gets a
+  real `:root`/`.dark` declaration that aliases its previous
+  (`--vscode-*`/`--slashmd-*`/`--color-*`/`--checkbox-*`) name via `var()`,
+  so a host can read the new vocabulary directly — e.g.
+  `getComputedStyle(el).getPropertyValue('--liminis-editor-foreground')` —
+  and get a real, resolved value, unblocking
+  [verveguy/zusammen#129](https://github.com/verveguy/zusammen/issues/129).
+  A host that still only overrides a legacy name is unaffected: the alias
+  resolves through that name's own `.dark`/`@media print` overrides at the
+  point of use, so nothing changes for hosts (like `liminis-app`) that
+  supply only `--color-primary`/`--color-muted-foreground` or any other
+  legacy name. See `README.md`'s "Theming: CSS custom properties" and
+  ADR-93. (#93)
+
+### Changed
+
+- **Three consumption sites' rendered color changes slightly**, as an
+  accepted side effect of the above: `--vscode-errorForeground` and
+  `--vscode-toolbar-hoverBackground` each had a real inconsistency between
+  their own consumption sites' literal fallback values (pre-existing, not
+  introduced by this change). Giving each token a single real default
+  necessarily picks one value, unifying `.block-delete-button:hover
+  .block-delete-icon` and `.search-close-button:hover` from `#f44336` to
+  `#f14c4c` (matching `.editor-link-broken`'s existing color), and
+  `.drag-handle:hover .drag-handle-icon` from `rgba(128, 128, 128, 0.1)` to
+  `rgba(128, 128, 128, 0.15)` (matching the toolbar buttons' existing hover
+  background). See ADR-93 for the full rationale. (#93)
+
 ## 0.2.2 — 2026-08-19
 
 ### Added
