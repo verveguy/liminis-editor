@@ -36,6 +36,21 @@ follows [Semantic Versioning](https://semver.org/).
   `rgba(128, 128, 128, 0.15)` (matching the toolbar buttons' existing hover
   background). See ADR-93 for the full rationale. (#93)
 
+### Fixed
+
+- **A content reload no longer steals focus.** `CursorRestorePlugin` ended
+  its restore with an unconditional `rootElement.focus()`, so any bump of
+  `contentVersion` pulled the caret into the editor. A reload is not always
+  the user's doing: when an agent writes the file that is open, the host
+  bumps `contentVersion` too, and the editor grabbed focus out of whatever
+  the user was typing in beside it — silently redirecting keystrokes into
+  the document mid-sentence, repeatedly, for as long as the agent kept
+  writing. The caret is now restored only when the editor already had
+  focus; an unfocused editor is left entirely alone, selection included, so
+  reconciliation cannot move focus as a side effect. This is the same rule
+  `autoFocus` applies at mount — the editor never takes focus unasked — now
+  covered on the reload path, which previously had no tests.
+
 ## 0.2.2 — 2026-08-19
 
 ### Added
