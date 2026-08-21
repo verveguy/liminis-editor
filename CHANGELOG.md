@@ -36,6 +36,23 @@ follows [Semantic Versioning](https://semver.org/).
   `rgba(128, 128, 128, 0.15)` (matching the toolbar buttons' existing hover
   background). See ADR-93 for the full rationale. (#93)
 
+### Breaking changes
+
+- **The Lexical peer range moves from `^0.44.0` to `^0.49.0`** for `lexical`
+  and all eleven `@lexical/*` packages (`code`, `code-prism`, `link`, `list`,
+  `mark`, `markdown`, `react`, `rich-text`, `selection`, `table`, `utils`).
+  These ranges do not overlap: a host still on Lexical 0.44.0–0.48.x will now
+  see an unmet-peer-dependency warning on install, and must upgrade its
+  Lexical family to 0.49.0 to install this version. The bump was verified by
+  running the full suite, typecheck, lint, and build against 0.49.0 — no
+  consumer-visible editor behavior changed; every check passed unmodified,
+  with no source changes required. This is a deliberately narrow single-caret
+  bump rather than a wide band spanning 0.44–0.49, since Lexical's `0.x`
+  versioning permits every minor to break and a wide range would claim
+  compatibility with four untested minors. See
+  `docs/decisions/adr-92-lexical-peer-range-policy.md` and the `//peerDependencies`
+  / `//lexicalPeerPolicy` notes in `package.json`. (#92)
+
 ### Fixed
 
 - **A content reload no longer steals focus.** `CursorRestorePlugin` ended
