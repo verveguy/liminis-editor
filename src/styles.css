@@ -5,21 +5,21 @@
 
    ADR-98 (verveguy/liminis-editor#98) inverts ADR-93's direction: the real
    values now live under --liminis-editor-* (below), and these legacy names
-   are read by nothing inside this package — they exist only so a host that
-   still *sets* one of them keeps working. That works by ordinary cascade
-   precedence, not by anything reading these declarations: a host's own
-   :root/.dark declaration of, say, --vscode-foreground wins over this
-   shim's declaration of the same property (same selector specificity, host
-   stylesheet loaded after this one, or an inline style either way), and
-   this package's own consumption sites read --liminis-editor-foreground
-   directly — never --vscode-foreground — so the host's override of the
-   legacy name has no effect on this package unless the host ALSO sets
-   --liminis-editor-foreground (verified in a running Electron app, not
-   assumed — see examples/electron/e2e/theming-aliases.spec.ts). A host
-   relying on this shim to theme the package therefore needs to keep setting
-   the legacy name; it will not pick up a --liminis-editor-* override the
-   package itself doesn't also forward back — there is no such forward here,
-   deliberately, since these names are deprecated and never consumed.
+   are read by nothing inside this package. These one-line shims exist only
+   so that a host *reading* a legacy name (e.g. --vscode-foreground) still
+   gets a real, current value, via ordinary cascade resolution of the
+   shim's own var() reference.
+
+   They do NOT preserve a host *setting* only a legacy name to theme the
+   package. This package's own consumption sites read
+   --liminis-editor-foreground directly — never --vscode-foreground — so a
+   host's override of --vscode-foreground changes what --vscode-foreground
+   itself computes to and nothing else; it never reaches the editor.
+   Verified in a running Electron app, not assumed — see
+   examples/electron/e2e/theming-aliases.spec.ts. A host that wants to theme
+   the package must set the --liminis-editor-* name directly; this is a
+   documented, intentional breaking change (see CHANGELOG's Unreleased /
+   Breaking changes), not a gap to work around.
 
    Only the names a host might plausibly still set are kept: --vscode-*,
    --checkbox-border and --editor-brand. --slashmd-* (upstream vocabulary;

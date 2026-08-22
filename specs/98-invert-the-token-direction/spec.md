@@ -5,6 +5,18 @@
 **Status**: Specified
 **Input**: User description: "Move the package's real token *values* onto `--liminis-editor-*`, and reduce the legacy names to deprecated shims. Non-breaking: hosts that set or read either vocabulary keep working. This is the prerequisite for both consumers making a clean break from the legacy namespaces."
 
+> **Correction (Implement stage, 2026-08-22):** User Story 2 and FR-002/FR-004
+> below frame this change as fully non-breaking for a host **setting** only a
+> legacy name ("keeps working," "still overrides visually"). That framing was
+> empirically verified during Implement and found false: once every internal
+> consumption site reads `--liminis-editor-*` only, nothing bridges a host's
+> legacy-name override back to the package. **Reading** a legacy name still
+> works exactly as this spec describes; **setting** one no longer themes the
+> editor — an accepted, documented breaking change. This section is kept
+> unedited as the historical record of what was planned; see ADR-98's
+> "Verified, not assumed" section and `CHANGELOG.md`'s `## Unreleased` for the
+> corrected, shipped behavior.
+
 ## Background
 
 `0.3.0` (#93 / ADR-93) defined `--liminis-editor-*` names, but only as
