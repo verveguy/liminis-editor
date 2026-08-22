@@ -68,6 +68,37 @@ interface implementors (#78). Both were found by migrating a real consumer,
 after release. If a decision closes off something that previously worked, say
 so in the ADR even when the trade is clearly worth it.
 
+## History before 2026-08-03
+
+`git log` in this repository reaches back to **2026-01-17**, but that history
+arrives through a merge rather than a straight line, and `git blame` does not
+follow it.
+
+The editor lived in `verveguy/liminis` from that repository's initial commit —
+first at `liminis-app/src/editor/`, then at `packages/editor/` after the
+2026-08-03 rename `f94ddbd9`. It was extracted into this repository by copying
+the tree, so the root commit here (`472c8ad`, "scaffold the @liminis/editor
+workspace package") had no parent and the preceding seven months were
+unreachable from the repository that owns the code.
+
+Those 531 commits now sit on `history/pre-extraction` and are merged into
+`main`. The merge added a commit; it rewrote nothing, which is why the
+`v0.1.0`–`v0.3.0` tags and the published SLSA provenance attestations are still
+valid.
+
+Two things follow, and the second surprises people:
+
+- `git log --follow <path>` spans both eras.
+- **`git blame` still stops at the scaffold commit**, even with `-C -C`. Those
+  files were added as new content on `main`'s side of the merge, so blame
+  attributes their lines there. Reaching further needs `git log --follow`, or
+  the pre-extraction branch directly. Fixing blame would require rewriting
+  every SHA in this repository, which would orphan the provenance attestations
+  on four published versions — deliberately not done.
+
+Commit messages from before the extraction reference `liminis-app` issue
+numbers and context. They are that repository's issues, not this one's.
+
 ## Releases
 
 - **`0.x` semver: the minor is the breaking slot.** `^0.2.0` matches `0.2.1`
