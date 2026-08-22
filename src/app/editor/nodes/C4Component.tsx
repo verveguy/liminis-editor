@@ -250,12 +250,16 @@ function C4DiagramDisplay({
               borderRadius: '4px',
               border: 'none',
               cursor: 'pointer',
+              // --color-* is liminis-app's own Tailwind @theme brand token, not this
+              // package's legacy vocabulary (ADR-98) — it is deliberately checked
+              // FIRST here so liminis-app's existing override keeps winning, with
+              // this package's own --liminis-editor-* value as the fallback default.
               backgroundColor: isEditingLayout
-                ? 'var(--liminis-editor-primary-100, var(--color-primary-100, rgba(59, 130, 246, 0.1)))'
-                : 'var(--liminis-editor-muted-100, var(--color-muted-100, rgba(128, 128, 128, 0.1)))',
+                ? 'var(--color-primary-100, var(--liminis-editor-primary-100))'
+                : 'var(--color-muted-100, var(--liminis-editor-muted-100))',
               color: isEditingLayout
-                ? 'var(--liminis-editor-primary, var(--color-primary, #3b82f6))'
-                : 'var(--liminis-editor-muted-foreground, var(--color-muted-foreground, #6b7280))',
+                ? 'var(--color-primary, var(--liminis-editor-primary))'
+                : 'var(--color-muted-foreground, var(--liminis-editor-muted-foreground))',
             }}
           >
             <Move size={16} />
@@ -278,8 +282,9 @@ function C4DiagramDisplay({
                 borderRadius: '4px',
                 border: 'none',
                 cursor: 'pointer',
-                backgroundColor: 'var(--liminis-editor-muted-100, var(--color-muted-100, rgba(128, 128, 128, 0.1)))',
-                color: 'var(--liminis-editor-muted-foreground, var(--color-muted-foreground, #6b7280))',
+                // See the --color-*-first ordering comment above.
+                backgroundColor: 'var(--color-muted-100, var(--liminis-editor-muted-100))',
+                color: 'var(--color-muted-foreground, var(--liminis-editor-muted-foreground))',
               }}
             >
               <RotateCcw size={16} />

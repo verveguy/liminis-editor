@@ -377,7 +377,7 @@ export function DragHandlePlugin() {
             left: 0,
             right: 0,
             height: 2,
-            background: 'var(--liminis-editor-focusBorder, var(--vscode-focusBorder, #007acc))',
+            background: 'var(--liminis-editor-focusBorder)',
             pointerEvents: 'none',
             zIndex: 100,
           }}
