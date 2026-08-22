@@ -176,7 +176,7 @@ describe('theming contract: every legacy name is a shim to its --liminis-editor-
   it('declares no --slashmd-* custom property anywhere (FR-006, SC-002)', () => {
     const stripped = stripCssComments(readFileSync(STYLES_CSS_PATH, 'utf-8'));
     expect(
-      /--slashmd-/.test(stripped),
+      stripped.includes('--slashmd-'),
       '--slashmd-* found in styles.css — #98 deletes this prefix outright (verified unread by any known consumer)',
     ).toBe(false);
   });
@@ -324,8 +324,8 @@ describe('theming contract: mutation tests (the guard actually fires)', () => {
     const clean = ':root {\n  --liminis-editor-token-comment: red;\n}\n';
     const dirty = ':root {\n  --slashmd-token-comment: red;\n}\n';
 
-    expect(/--slashmd-/.test(clean)).toBe(false);
-    expect(/--slashmd-/.test(dirty)).toBe(true);
+    expect(clean.includes('--slashmd-')).toBe(false);
+    expect(dirty.includes('--slashmd-')).toBe(true);
   });
 
   it('flags a baselined token whose declaration is removed from styles.css (FR-004, SC-001)', () => {
