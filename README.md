@@ -237,7 +237,7 @@ back the C4 diagram's layout-toggle buttons. Until `0.4.0`, `C4Component.tsx`
 checked liminis-app's own `--color-primary`/`--color-muted-foreground`
 Tailwind tokens *first*, falling back to this package's own default — a
 deliberate, documented exception (ADR-98) to the rule above. That exception
-has been removed: these four sites now read `--liminis-editor-*` only, the
+has been removed: these six expressions now read `--liminis-editor-*` only, the
 same as every other consumption site in this package, and a host's
 `--color-*` tokens no longer have any effect on them (see ADR-98's
 amendment). A host that wants to override the C4 diagram colors sets
