@@ -219,16 +219,17 @@ Before `0.4.0`, a small set of pre-`0.2.0` names (`--vscode-*`,
 `--liminis-editor-*` name was itself only a forward to one of them. That
 direction is now reversed: those legacy names are deprecated shims —
 `<legacy-name>: var(--liminis-editor-x);` — read by nothing inside this
-package, kept only so a host that still *sets* one of them keeps working.
-That works by ordinary CSS cascade precedence, not because this package
-reads the shim back: a host's own `:root`/`.dark` declaration of, say,
-`--vscode-foreground` wins over this package's shim declaration of the same
-property, and every internal consumption site reads
-`--liminis-editor-foreground` directly, so the host's override reaches the
-editor without this package needing to read the legacy name at all. This is
-verified with `getComputedStyle` in a running Electron shell
-(`examples/electron/e2e/theming-aliases.spec.ts`), not assumed from cascade
-theory alone. The pre-`0.2.0` `--slashmd-*` names have no shim at all — they
+package, kept only so that **reading** one of them (e.g. mapping a host's own
+design tokens onto `--vscode-foreground`) still returns a real value, via
+ordinary CSS cascade resolution of the shim's own `var()` reference.
+**Setting** only a legacy name no longer themes the editor: every internal
+consumption site reads `--liminis-editor-foreground` directly, never
+`--vscode-foreground`, so a host's override of the legacy name changes what
+that legacy property itself computes to and nothing else — it never reaches
+the editor. This was verified with `getComputedStyle` in a running Electron
+shell (`examples/electron/e2e/theming-aliases.spec.ts`), not assumed from
+cascade theory alone — see "Migrating from the old names" below for what to
+do about it. The pre-`0.2.0` `--slashmd-*` names have no shim at all — they
 are deleted outright, verified unread by any known consumer (ADR-98).
 
 One package-owned exception: `--liminis-editor-primary`/`-100` and
@@ -365,18 +366,20 @@ highest-value place to start.
 
 Before `0.2.0`, these tokens were split across four inconsistent prefixes:
 `--vscode-*`, `--slashmd-*`, `--color-*` and `--checkbox-*`. `0.2.0` renamed
-all of them to `--liminis-editor-*`, and **a host that still only supplies
-an old name keeps working unchanged** — but as of `0.4.0` (ADR-98), that
-guarantee works differently than it used to. It is no longer a consumption
--site fallback (`var(--liminis-editor-x, var(--old-name-x))`); it is a
-`:root`-scoped shim declaration, `--old-name-x: var(--liminis-editor-x);`,
-that this package never itself reads. A host's own override of the old name
-still wins by ordinary cascade precedence, exactly as before — only the
-mechanism producing that guarantee has changed, not the guarantee itself.
-`--slashmd-*` is the one prefix with no shim at all: it is deleted outright
-in `0.4.0`, verified unread by any known consumer (ADR-98) — a host that
-somehow still relies on a `--slashmd-*` override should migrate to the
-corresponding `--liminis-editor-*` name before upgrading.
+all of them to `--liminis-editor-*`. **As of `0.4.0` (ADR-98), a host that
+still only *sets* an old name to theme the editor no longer works** — this is
+a breaking change from `0.2.0`'s original guarantee, corrected here rather
+than left silently wrong. `--old-name-x: var(--liminis-editor-x);` is a
+one-line `:root`-scoped shim that this package never itself reads; a host's
+own override of the old name still changes what the old name computes to,
+but since every internal consumption site reads `--liminis-editor-x`
+directly, that override never reaches the editor. Set the corresponding
+`--liminis-editor-*` name instead — see the table above's **Previous name**
+column to find it. This was verified with `getComputedStyle` in a running
+Electron shell, not assumed (`examples/electron/e2e/theming-aliases.spec.ts`),
+and neither known consumer of this package (`liminis-app`, Zusammen) sets a
+legacy name today. `--slashmd-*` is the one prefix with no shim at all: it is
+deleted outright in `0.4.0`, verified unread by any known consumer (ADR-98).
 
 The old prefixes are deprecated and will be removed in a future major
 release; migrate at your own pace using the table above's **Previous name**
