@@ -21,10 +21,14 @@
  *    #98), and nothing under `src/` reads a `--vscode-*`, `--slashmd-*` or
  *    `--checkbox-*` custom property anywhere (FR-003) — #98 inverted the
  *    token direction, so the invariant this suite now protects is the
- *    opposite of #51's: a host still *setting* a legacy name must keep
- *    working via the shim's cascade precedence, not via a consumption-site
- *    fallback (removed; see `resolvesToPreviousName`'s retirement note in
- *    `scripts/lib/theming-tokens.mjs`).
+ *    opposite of #51's: a host still *reading* a legacy name must keep
+ *    getting a real value via the shim's `var()` forward, not via a
+ *    consumption-site fallback (removed; see `resolvesToPreviousName`'s
+ *    retirement note in `scripts/lib/theming-tokens.mjs`). A host *setting*
+ *    only a legacy name no longer themes the editor — a documented, accepted
+ *    breaking change (see ADR-98, CHANGELOG's Unreleased) — this suite does
+ *    not, and cannot, guard that direction; only a running-app test can (see
+ *    `examples/electron/e2e/theming-aliases.spec.ts`).
  * 5. Every token in the checked-in defined-token baseline (#79) is still
  *    declared with a value somewhere in `styles.css`. Unlike 1-4, this
  *    guards the *defined* set, not the consumed/documented set — a host
