@@ -157,7 +157,7 @@ describe('theming contract: every legacy name is a shim to its --liminis-editor-
     ).toEqual([]);
   });
 
-  it('reads no --vscode-*, --slashmd-* or --checkbox- custom property anywhere under src/ (FR-003)', () => {
+  it('reads no --vscode-*, --slashmd-*, --checkbox- or --color- custom property anywhere under src/ (FR-003)', () => {
     const files = [
       ...readdirSync(SRC_ROOT, { recursive: true, encoding: 'utf-8' }).filter((entry) =>
         /\.(css|ts|tsx)$/.test(entry),
@@ -167,13 +167,13 @@ describe('theming contract: every legacy name is a shim to its --liminis-editor-
     const offenders: string[] = [];
     for (const file of files) {
       const text = readFileSync(file, 'utf-8');
-      if (/var\(\s*--(vscode|slashmd|checkbox)-/.test(text)) offenders.push(file);
+      if (/var\(\s*--(vscode|slashmd|checkbox|color)-/.test(text)) offenders.push(file);
     }
 
     expect(
       offenders,
-      'file(s) still reading a --vscode-*/--slashmd-*/--checkbox- custom property — #98 requires every ' +
-        'internal consumption site to read --liminis-editor-* only',
+      'file(s) still reading a --vscode-*/--slashmd-*/--checkbox-/--color- custom property — #98/#101 require ' +
+        'every internal consumption site to read --liminis-editor-* only',
     ).toEqual([]);
   });
 
@@ -319,9 +319,11 @@ describe('theming contract: mutation tests (the guard actually fires)', () => {
   it('flags an internal consumption site still reading a legacy custom property (FR-003)', () => {
     const good = "export const Good = () => <div style={{ color: 'var(--liminis-editor-foreground)' }} />;\n";
     const bad = "export const Bad = () => <div style={{ borderColor: 'var(--vscode-border)' }} />;\n";
+    const badColor = "export const Bad2 = () => <div style={{ color: 'var(--color-primary)' }} />;\n";
 
-    expect(/var\(\s*--(vscode|slashmd|checkbox)-/.test(good)).toBe(false);
-    expect(/var\(\s*--(vscode|slashmd|checkbox)-/.test(bad)).toBe(true);
+    expect(/var\(\s*--(vscode|slashmd|checkbox|color)-/.test(good)).toBe(false);
+    expect(/var\(\s*--(vscode|slashmd|checkbox|color)-/.test(bad)).toBe(true);
+    expect(/var\(\s*--(vscode|slashmd|checkbox|color)-/.test(badColor)).toBe(true);
   });
 
   it('flags a --slashmd-* declaration surviving anywhere (FR-006, SC-002)', () => {

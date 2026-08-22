@@ -148,9 +148,10 @@
      --color-primary/-100, a token this package never defined (see ADR-98's
      "defect fix" rationale). muted-foreground/-100 keep their previous
      literal fallback as a real default of their own, rather than forwarding
-     to a --color-* token this package doesn't own. C4Component.tsx is the
-     one place a host's --color-* override still takes precedence — see the
-     comment at that file's consumption sites. */
+     to a --color-* token this package doesn't own. C4Component.tsx's
+     consumption sites read these four tokens directly, unconditionally — a
+     host's --color-* tokens have no effect on them (see ADR-98's amendment
+     removing that former exception). */
   --liminis-editor-muted-foreground: #6b7280;
   --liminis-editor-muted-100: rgba(128, 128, 128, 0.1);
 }

@@ -33,12 +33,14 @@
  *   legacy name no longer in the resolution path at all, there is no longer
  *   any contention to resolve, but the assertion is kept as a regression
  *   guard.
- * - The one exception to "every internal consumption site reads
- *   `--liminis-editor-*` only": `C4Component.tsx`'s `--color-*` sites, which
- *   deliberately check `liminis-app`'s own Tailwind brand token first,
- *   falling back to the package's own default — the one place a
- *   non-`--liminis-editor-*` name is still a supported way to theme this
- *   package.
+ * - `C4Component.tsx`'s six sites, formerly the one exception to "every
+ *   internal consumption site reads `--liminis-editor-*` only" (they used
+ *   to check `liminis-app`'s own `--color-*` Tailwind brand token first,
+ *   falling back to the package's own default). That exception is removed
+ *   as of #101 (ADR-98's amendment): these sites now read
+ *   `--liminis-editor-*` only, and a host's `--color-*` override has no
+ *   effect on them — pinned directly below so a future change that
+ *   silently reintroduces the fallback shows up as a reviewed diff.
  */
 import { _electron as electron, test, expect, type ElectronApplication, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
@@ -285,36 +287,43 @@ test.describe('Electron shell — --liminis-editor-* direction inversion (#98)',
     }
   });
 
-  test('the C4Component.tsx exception: --color-* (liminis-app\'s own token) wins over --liminis-editor-* when set (#98)', async () => {
+  test('the C4Component.tsx exception is removed: --color-* has no effect, only --liminis-editor-* themes it (#101)', async () => {
     // examples/electron has no C4 diagram fixture, so this reproduces the
-    // exact expression C4Component.tsx uses at its 6 consumption sites —
-    // `var(--color-x, var(--liminis-editor-x))` — on a detached element, to
-    // confirm the one deliberate exception to "every internal consumption
-    // site reads --liminis-editor-* only" behaves as designed: liminis-app's
-    // own override wins when set, and the package default applies otherwise.
+    // exact expression C4Component.tsx now uses at its 6 consumption sites —
+    // a plain `var(--liminis-editor-x)`, with no --color-* arm — on a
+    // detached element. Pins the removal of the one-time deliberate
+    // exception (ADR-98's amendment, #101): a host's --color-* override no
+    // longer has any effect, and only --liminis-editor-primary themes it.
     const { app, page } = await launchShell();
     try {
       const result = await page.evaluate(() => {
         const probe = document.createElement('div');
-        probe.style.color = 'var(--color-primary, var(--liminis-editor-primary))';
+        probe.style.color = 'var(--liminis-editor-primary)';
         document.body.appendChild(probe);
         const packageDefault = getComputedStyle(probe).color;
 
         document.documentElement.style.setProperty('--color-primary', 'rgb(9, 9, 9)');
-        const withHostOverride = getComputedStyle(probe).color;
-
+        const withColorOverride = getComputedStyle(probe).color;
         document.documentElement.style.removeProperty('--color-primary');
+
+        document.documentElement.style.setProperty('--liminis-editor-primary', 'rgb(9, 9, 9)');
+        const withEditorOverride = getComputedStyle(probe).color;
+        document.documentElement.style.removeProperty('--liminis-editor-primary');
+
         probe.remove();
 
-        return { packageDefault, withHostOverride };
+        return { packageDefault, withColorOverride, withEditorOverride };
       });
 
       expect(result.packageDefault, 'no-override case resolved empty').not.toBe('');
       expect(
-        result.withHostOverride,
-        '--color-primary override did not win over --liminis-editor-primary at the C4Component.tsx-style expression',
+        result.withColorOverride,
+        '--color-primary override affected --liminis-editor-primary at the C4Component.tsx-style expression — the exception should be removed',
+      ).toBe(result.packageDefault);
+      expect(
+        result.withEditorOverride,
+        '--liminis-editor-primary override did not win at the C4Component.tsx-style expression',
       ).toBe('rgb(9, 9, 9)');
-      expect(result.withHostOverride).not.toBe(result.packageDefault);
     } finally {
       await app.close();
     }
