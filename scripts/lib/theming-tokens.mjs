@@ -334,11 +334,13 @@ export const PREVIOUS_NAME = {
  * Legacy name -> the `--liminis-editor-*` name it forwards to, post-ADR-98
  * inversion (#98). Every one of these 26 names is declared in `styles.css`'s
  * deprecated-shim block as a one-line `<legacy>: var(<target>);` — read by
- * nothing inside this package, kept only so a host still *setting* the
- * legacy name keeps working via ordinary cascade precedence, not because
- * anything here consumes it. The 61 `--slashmd-*` names have no entry: #98
- * deletes them outright rather than shimming them (verified unread by any
- * known consumer of this package).
+ * nothing inside this package, kept only so a host still *reading* the
+ * legacy name keeps getting a real value, via ordinary cascade resolution of
+ * the shim's own `var()` reference. A host *setting* only the legacy name no
+ * longer themes the package — nothing here consumes it — a documented,
+ * accepted breaking change (see ADR-98, CHANGELOG's Unreleased). The 61
+ * `--slashmd-*` names have no entry: #98 deletes them outright rather than
+ * shimming them (verified unread by any known consumer of this package).
  */
 export const LEGACY_SHIM_TARGET = {
   '--vscode-font-family': '--liminis-editor-font-family',
