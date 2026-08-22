@@ -71,10 +71,15 @@ anticipated by the plan:
 > new name before ever reaching the old one" — no longer applies once every
 > internal consumption site reads `--liminis-editor-*` only (ADR-98's FR-003),
 > which removes the nested legacy fallback this ADR's Decision explicitly
-> chose to leave in place. See ADR-98 for the full rationale, including why
-> this is still verified non-breaking for a host supplying only a legacy
-> name. The rest of this section is kept as the historical record of what
-> was decided and why in 2026-08-20, not edited to match the new direction.
+> chose to leave in place. This also reverses this ADR's own non-breaking
+> guarantee below for one direction: a host that only *reads* a legacy name
+> still gets a real value (the shim resolves fine), but a host that only
+> *sets* a legacy name no longer themes the editor, since nothing internal
+> reads that name to pick the override up — verified empirically, not
+> assumed, and accepted as an intentional breaking change. See ADR-98's
+> "Verified, not assumed" section for the full rationale. The rest of this
+> section is kept as the historical record of what was decided and why in
+> 2026-08-20, not edited to match the new direction.
 
 **Legacy names keep carrying the real defaults. Each `--liminis-editor-*`
 name becomes a new declaration that reads its legacy name via `var()`** —
