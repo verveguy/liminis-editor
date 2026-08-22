@@ -1,30 +1,44 @@
 /**
- * Package-level e2e for the `--liminis-editor-*` definition-side alias layer
- * (verveguy/liminis-editor#93, ADR-93), run against real Electron/Chromium
- * rather than a CSS-reading unit test — FR-002/FR-003/FR-004/FR-007 all
- * explicitly require verification "by computed style in a running app, not
- * by reading CSS," since the whole failure mode this issue guards against
- * (a definition-side alias silently disabling the ADR-087 fallback layer) is
- * only observable through `getComputedStyle`, not through the stylesheet's
- * text.
+ * Package-level e2e for the `--liminis-editor-*` direction inversion
+ * (verveguy/liminis-editor#98, ADR-98, superseding ADR-93's alias layer),
+ * run against real Electron/Chromium rather than a CSS-reading unit test —
+ * FR-002/FR-003/FR-004 all explicitly require verification "by computed
+ * style in a running app, not by reading CSS," since the whole point of
+ * this issue was that the previous direction's failure mode (an alias
+ * silently baking a literal, or — discovered here — a shim silently not
+ * doing what its own issue text claimed) is only observable through
+ * `getComputedStyle`, not through the stylesheet's text.
  *
- * Covers, for a representative token from each of the four alias groups
- * ADR-93 records (flat legacy alias, nested-fallback alias, literal-backed
- * alias, host-brand-token alias) plus Zusammen's actual read list
- * (verveguy/zusammen#129):
+ * Covers:
  *
- * - No host override, light and dark mode: the new name resolves to a real,
- *   non-empty value equal to its legacy name's computed value (User Story 1).
- * - Legacy-only override: the new name reflects the host's legacy-named
- *   override, not the package's own default (User Story 2 — the regression
- *   this issue exists to prevent).
- * - New-name override wins over a simultaneously-set legacy override (User
- *   Story 3).
- * - `@media print`: the new name picks up the print-safe literal the
- *   package's own print block resets its legacy target to.
- * - A documented scope limitation (found in PR review, not anticipated by
- *   the original plan): a legacy override scoped to a descendant of
- *   `document.documentElement` is not tracked by the alias. See ADR-93.
+ * - No host override, light and dark mode: every `--liminis-editor-*` name
+ *   resolves to a real, non-empty value equal to its legacy name's computed
+ *   value (User Story 1) — including `--liminis-editor-primary`, whose
+ *   value is now brand-derived rather than a forward to an undefined
+ *   `--color-primary` (FR-008).
+ * - **The corrected, documented guarantee (ADR-98's "Verified, not
+ *   assumed"): a legacy name's shim preserves reads, not writes.** A host
+ *   that only *reads* a legacy name still gets the real value (covered by
+ *   the no-override cases above, since nothing overrides it). A host that
+ *   *sets* only a legacy name no longer themes the editor — this is a
+ *   deliberate, accepted breaking change (see `CHANGELOG.md`'s
+ *   `## Unreleased`), not a regression, and is pinned directly below so a
+ *   future change that silently reintroduces (or silently further breaks)
+ *   this behavior shows up as an intentional, reviewed diff to this
+ *   assertion.
+ * - `@media print`: the real name picks up the print-safe literal the
+ *   package's own print block sets, and the legacy shim continues to track
+ *   it (the "reads still work" guarantee holds under print media too).
+ * - A host setting the real name wins outright (User Story 3) — with the
+ *   legacy name no longer in the resolution path at all, there is no longer
+ *   any contention to resolve, but the assertion is kept as a regression
+ *   guard.
+ * - The one exception to "every internal consumption site reads
+ *   `--liminis-editor-*` only": `C4Component.tsx`'s `--color-*` sites, which
+ *   deliberately check `liminis-app`'s own Tailwind brand token first,
+ *   falling back to the package's own default — the one place a
+ *   non-`--liminis-editor-*` name is still a supported way to theme this
+ *   package.
  */
 import { _electron as electron, test, expect, type ElectronApplication, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
@@ -77,49 +91,44 @@ async function clearHostOverrides(page: Page, names: string[]): Promise<void> {
   }, names);
 }
 
-// One representative token from each alias group ADR-93 records, plus every
-// name Zusammen's own read migration (verveguy/zusammen#129) depends on.
-// `legacyName` is only set where the legacy name itself has a real
-// package-level declaration to compare against; `--color-primary` (a host
-// brand token liminis-app supplies, not this package) resolves to an empty
-// string when no host sets it — confirmed empirically, not assumed — so
-// that case is checked against its literal fallback instead (`literal`).
-const NO_OVERRIDE_CASES: Array<{ newName: string; legacyName?: string; literal?: string; group: string }> = [
-  { newName: '--liminis-editor-foreground', legacyName: '--vscode-foreground', group: 'flat alias (real legacy default)' },
-  { newName: '--liminis-editor-background', legacyName: '--vscode-background', group: 'flat alias — zusammen#129 read' },
-  { newName: '--liminis-editor-code-bg', legacyName: '--vscode-code-bg', group: 'flat alias — zusammen#129 read (secondary)' },
-  { newName: '--liminis-editor-border', legacyName: '--vscode-border', group: 'flat alias — zusammen#129 read (border/input)' },
-  { newName: '--liminis-editor-input-bg', legacyName: '--vscode-code-bg', group: 'nested-fallback alias (no own legacy default)' },
-  { newName: '--liminis-editor-focus-border', literal: '#007acc', group: 'literal-backed alias (no CSS backing anywhere)' },
-  { newName: '--liminis-editor-primary', literal: '#3b82f6', group: "host-brand-token alias (liminis-app's own Tailwind token, no package-level declaration)" },
+// A representative sample of `LEGACY_SHIM_TARGET` entries (scripts/lib/theming-tokens.mjs),
+// plus every name Zusammen's read list (verveguy/zusammen#134, #129) depends
+// on. Every one of these 26 legacy names now has a real one-line shim
+// declaration, so — unlike the pre-#98 suite — every case has a legacyName
+// to compare against; there is no longer a "no package-level declaration"
+// group, because #98's whole point was giving `--liminis-editor-primary`
+// (previously the one gap) a real, package-owned value instead of an
+// undefined `--color-primary` forward.
+const NO_OVERRIDE_CASES: Array<{ newName: string; legacyName: string; group: string }> = [
+  { newName: '--liminis-editor-foreground', legacyName: '--vscode-foreground', group: 'zusammen#129 read' },
+  { newName: '--liminis-editor-background', legacyName: '--vscode-background', group: 'zusammen#129 read' },
+  { newName: '--liminis-editor-code-bg', legacyName: '--vscode-code-bg', group: 'zusammen#129 read (secondary)' },
+  { newName: '--liminis-editor-border', legacyName: '--vscode-border', group: 'zusammen#129 read (border/input)' },
+  { newName: '--liminis-editor-input-bg', legacyName: '--vscode-input-bg', group: 'previously-undeclared shim (#98 Constraint 3)' },
+  { newName: '--liminis-editor-focus-border', legacyName: '--vscode-focus-border', group: 'zusammen#134 read' },
+  { newName: '--liminis-editor-errorForeground', legacyName: '--vscode-errorForeground', group: 'zusammen#134 read' },
+  { newName: '--liminis-editor-checkbox-border', legacyName: '--checkbox-border', group: 'standalone legacy name' },
+  { newName: '--liminis-editor-primary', legacyName: '--editor-brand', group: 'brand-derived default, replacing the --color-primary defect (FR-008)' },
 ];
 
-test.describe('Electron shell — --liminis-editor-* definition-side aliases (#93)', () => {
-  test('every sampled --liminis-editor-* name resolves to a real value equal to its legacy name (or literal default), light and dark, with no host override', async () => {
+test.describe('Electron shell — --liminis-editor-* direction inversion (#98)', () => {
+  test('every sampled --liminis-editor-* name resolves to a real value equal to its legacy shim, light and dark, with no host override', async () => {
     const { app, page } = await launchShell();
     try {
-      for (const { newName, legacyName, literal, group } of NO_OVERRIDE_CASES) {
+      for (const { newName, legacyName, group } of NO_OVERRIDE_CASES) {
         const newValue = await computedVar(page, newName);
+        const legacyValue = await computedVar(page, legacyName);
         expect(newValue, `${newName} (${group}) resolved empty in light mode`).not.toBe('');
-        if (legacyName) {
-          const legacyValue = await computedVar(page, legacyName);
-          expect(newValue, `${newName} !== ${legacyName} in light mode (${group})`).toBe(legacyValue);
-        } else if (literal) {
-          expect(newValue, `${newName} !== its literal default in light mode (${group})`).toBe(literal);
-        }
+        expect(newValue, `${newName} !== ${legacyName} in light mode (${group})`).toBe(legacyValue);
       }
 
       await setDark(page, true);
       try {
-        for (const { newName, legacyName, literal, group } of NO_OVERRIDE_CASES) {
+        for (const { newName, legacyName, group } of NO_OVERRIDE_CASES) {
           const newValue = await computedVar(page, newName);
+          const legacyValue = await computedVar(page, legacyName);
           expect(newValue, `${newName} (${group}) resolved empty in dark mode`).not.toBe('');
-          if (legacyName) {
-            const legacyValue = await computedVar(page, legacyName);
-            expect(newValue, `${newName} !== ${legacyName} in dark mode (${group})`).toBe(legacyValue);
-          } else if (literal) {
-            expect(newValue, `${newName} !== its literal default in dark mode (${group})`).toBe(literal);
-          }
+          expect(newValue, `${newName} !== ${legacyName} in dark mode (${group})`).toBe(legacyValue);
         }
       } finally {
         await setDark(page, false);
@@ -129,7 +138,7 @@ test.describe('Electron shell — --liminis-editor-* definition-side aliases (#9
     }
   });
 
-  test('a literal-backed alias with a dark-mode-varying JS literal (--liminis-editor-menu-background) tracks its own light/dark split', async () => {
+  test('a literal-backed token with a dark-mode-varying value (--liminis-editor-menu-background) tracks its own light/dark split', async () => {
     const { app, page } = await launchShell();
     try {
       const light = await computedVar(page, '--liminis-editor-menu-background');
@@ -140,31 +149,54 @@ test.describe('Electron shell — --liminis-editor-* definition-side aliases (#9
       await setDark(page, false);
 
       expect(dark).not.toBe('');
-      expect(dark, 'menu-background alias did not vary between light and dark').not.toBe(light);
+      expect(dark, 'menu-background did not vary between light and dark').not.toBe(light);
     } finally {
       await app.close();
     }
   });
 
-  test('a host supplying only a legacy name is reflected by the corresponding --liminis-editor-* name (User Story 2)', async () => {
+  test('documented breaking change: a host setting only a legacy name no longer themes the editor (ADR-98)', async () => {
+    // This is the corrected finding from this issue's own "verify, not
+    // assume" instruction: the issue's proposed shim was claimed to let a
+    // legacy-only override keep working. It does not — checked empirically
+    // here, not reasoned about. Every internal consumption site reads
+    // --liminis-editor-* only (FR-003), so nothing inside this package ever
+    // looks at the legacy name's value; the shim declaration exists solely
+    // so a host that only *reads* the legacy name still gets a real value
+    // (see the no-override case above), not so a host that *sets* it
+    // affects anything. If this assertion starts failing, that means a
+    // legacy-only override started working again — which would mean some
+    // internal consumption site regressed back to reading a legacy name,
+    // reintroducing the dependence #98 removed. Fix the regression; do not
+    // loosen this assertion.
     const { app, page } = await launchShell();
     try {
       const cases: Array<{ legacyName: string; newName: string; value: string }> = [
         { legacyName: '--vscode-foreground', newName: '--liminis-editor-foreground', value: 'rgb(1, 2, 3)' },
         { legacyName: '--vscode-border', newName: '--liminis-editor-border', value: 'rgb(4, 5, 6)' },
-        // liminis-app's actual current setup (Background/Edge Cases): only
-        // its own Tailwind brand tokens set, nothing else.
-        { legacyName: '--color-primary', newName: '--liminis-editor-primary', value: 'rgb(7, 8, 9)' },
-        { legacyName: '--color-muted-foreground', newName: '--liminis-editor-muted-foreground', value: 'rgb(10, 11, 12)' },
-        // A no-CSS-backing token overridden only via its legacy name.
         { legacyName: '--vscode-focus-border', newName: '--liminis-editor-focus-border', value: 'rgb(13, 14, 15)' },
+        { legacyName: '--editor-brand', newName: '--liminis-editor-primary', value: 'rgb(7, 8, 9)' },
       ];
 
       for (const { legacyName, newName, value } of cases) {
+        const before = await computedVar(page, newName);
         await setHostOverride(page, legacyName, value);
         try {
           const resolved = await computedVar(page, newName);
-          expect(resolved, `${newName} did not track host override of ${legacyName}`).toBe(value);
+          expect(
+            resolved,
+            `${newName} changed when only ${legacyName} was set — a legacy-only override should no longer reach the editor (ADR-98)`,
+          ).toBe(before);
+          expect(resolved).not.toBe(value);
+
+          // The "reads still work" half: the legacy name itself faithfully
+          // reflects whatever was just set on it (ordinary CSS, no package
+          // involvement) — trivial on its own, but establishes that the
+          // *lack* of effect on newName above is specifically because
+          // nothing reads legacyName, not because setHostOverride silently
+          // failed to apply.
+          const legacyResolved = await computedVar(page, legacyName);
+          expect(legacyResolved).toBe(value);
         } finally {
           await clearHostOverrides(page, [legacyName]);
         }
@@ -174,41 +206,14 @@ test.describe('Electron shell — --liminis-editor-* definition-side aliases (#9
     }
   });
 
-  test('documents a known scope limitation: a legacy override on a descendant of documentElement is not reflected (ADR-93)', async () => {
-    // Not a desired behavior to preserve — the opposite. This test exists so
-    // that fixing this limitation (or a future change accidentally making it
-    // worse) shows up as an intentional, reviewed diff to this assertion,
-    // not a silent behavior change. See ADR-93's "Bad / accepted" section
-    // for why a general fix (either a `*`-based or `.editor-app-root`-based
-    // redeclaration) was tried and rejected: both traded this limitation for
-    // a worse regression against User Story 3, confirmed empirically.
+  test('a host setting the real name themes the editor regardless of any legacy name (User Story 3)', async () => {
     const { app, page } = await launchShell();
     try {
-      const result = await page.evaluate(() => {
-        const descendant = document.getElementById('root');
-        if (!descendant) throw new Error('no #root element (a descendant of documentElement, ancestor of the editor)');
-        descendant.style.setProperty('--vscode-foreground', 'rgb(1, 2, 3)');
-        const editorEl = document.querySelector('[aria-label="Markdown editor"]');
-        if (!editorEl) throw new Error('no editor element');
-        return {
-          newValue: getComputedStyle(editorEl).getPropertyValue('--liminis-editor-foreground').trim(),
-          legacyValue: getComputedStyle(editorEl).getPropertyValue('--vscode-foreground').trim(),
-        };
-      });
-
-      // The legacy name itself correctly reflects the descendant-scoped
-      // override (ordinary custom-property inheritance, unaffected by the
-      // alias) — only the *alias* fails to track it, which is the point.
-      expect(result.legacyValue, 'sanity check: --vscode-foreground itself should reflect the descendant-scoped override').toBe('rgb(1, 2, 3)');
-      expect(result.newValue, "known limitation: --liminis-editor-foreground does not track a legacy override scoped below document.documentElement (see ADR-93) — if this now passes, the limitation has been fixed and this test's expectation (and ADR-93) should be updated, not this assertion loosened").not.toBe('rgb(1, 2, 3)');
-    } finally {
-      await app.close();
-    }
-  });
-
-  test('a host setting the new name wins over a simultaneously-set legacy name (User Story 3)', async () => {
-    const { app, page } = await launchShell();
-    try {
+      // With the legacy name no longer in the resolution path at all (see
+      // the breaking-change test above), setting it alongside the real name
+      // is no longer genuine contention — this guards against a regression
+      // that reintroduces the legacy name into the resolution chain in a
+      // way that lets it compete with (or override) a direct new-name set.
       await setHostOverride(page, '--vscode-foreground', 'rgb(255, 0, 0)');
       await setHostOverride(page, '--liminis-editor-foreground', 'rgb(0, 255, 0)');
       try {
@@ -222,18 +227,18 @@ test.describe('Electron shell — --liminis-editor-* definition-side aliases (#9
     }
   });
 
-  test('the @media print block\'s reset is picked up by the corresponding --liminis-editor-* aliases', async () => {
+  test("the @media print block's reset is picked up directly, and the legacy shim's read still tracks it", async () => {
     const { app, page } = await launchShell();
     try {
-      // src/styles.css's `@media print { :root, .dark { ... } }` block
-      // (Background) resets these legacy names to print-safe literals. Each
-      // alias is compared against its own legacy name's computed value
-      // under print media, rather than a hardcoded literal — Chromium
-      // normalizes some custom-property color text at computed-style time
-      // (e.g. `#000000` serializes as `#000`), confirmed empirically while
-      // writing this spec, so the legacy name's own computed value (subject
-      // to the identical normalization) is the correct thing to compare
-      // against, not the literal text as authored in styles.css.
+      // src/styles.css's `@media print { :root, .dark { ... } }` block now
+      // resets --liminis-editor-* names directly (ADR-98 migrated it off
+      // the legacy names it used to target). Comparing against the legacy
+      // shim's own computed value (rather than a hardcoded literal) checks
+      // that the "reads still work" guarantee holds under print media too
+      // — Chromium also normalizes some custom-property color text at
+      // computed-style time (e.g. `#000000` serializes as `#000`),
+      // confirmed empirically while writing this spec, so a literal
+      // comparison would be brittle regardless.
       const printTargets: Array<[newName: string, legacyName: string]> = [
         ['--liminis-editor-foreground', '--vscode-foreground'],
         ['--liminis-editor-background', '--vscode-background'],
@@ -241,7 +246,6 @@ test.describe('Electron shell — --liminis-editor-* definition-side aliases (#9
         ['--liminis-editor-border', '--vscode-border'],
         ['--liminis-editor-checkbox-border', '--checkbox-border'],
         ['--liminis-editor-link', '--vscode-link'],
-        ['--liminis-editor-h1-color', '--slashmd-h1-color'],
       ];
 
       // Establish the light-mode (non-print) values first, to prove the
@@ -251,6 +255,11 @@ test.describe('Electron shell — --liminis-editor-* definition-side aliases (#9
       for (const [newName] of printTargets) {
         beforePrint.set(newName, await computedVar(page, newName));
       }
+      // --liminis-editor-h1-color has no legacy shim to compare against —
+      // its legacy counterpart, --slashmd-h1-color, was deleted outright
+      // (#98 FR-006), not shimmed. Checked separately: non-empty and
+      // changed under print, with no legacy-name comparison available.
+      const h1Before = await computedVar(page, '--liminis-editor-h1-color');
 
       await page.emulateMedia({ media: 'print' });
       try {
@@ -264,9 +273,48 @@ test.describe('Electron shell — --liminis-editor-* definition-side aliases (#9
             `${newName} did not change under print media — the print block's reset was not picked up`,
           ).not.toBe(beforePrint.get(newName));
         }
+
+        const h1Print = await computedVar(page, '--liminis-editor-h1-color');
+        expect(h1Print, '--liminis-editor-h1-color resolved empty under print media').not.toBe('');
+        expect(h1Print, '--liminis-editor-h1-color did not change under print media').not.toBe(h1Before);
       } finally {
         await page.emulateMedia({ media: null });
       }
+    } finally {
+      await app.close();
+    }
+  });
+
+  test('the C4Component.tsx exception: --color-* (liminis-app\'s own token) wins over --liminis-editor-* when set (#98)', async () => {
+    // examples/electron has no C4 diagram fixture, so this reproduces the
+    // exact expression C4Component.tsx uses at its 6 consumption sites —
+    // `var(--color-x, var(--liminis-editor-x))` — on a detached element, to
+    // confirm the one deliberate exception to "every internal consumption
+    // site reads --liminis-editor-* only" behaves as designed: liminis-app's
+    // own override wins when set, and the package default applies otherwise.
+    const { app, page } = await launchShell();
+    try {
+      const result = await page.evaluate(() => {
+        const probe = document.createElement('div');
+        probe.style.color = 'var(--color-primary, var(--liminis-editor-primary))';
+        document.body.appendChild(probe);
+        const packageDefault = getComputedStyle(probe).color;
+
+        document.documentElement.style.setProperty('--color-primary', 'rgb(9, 9, 9)');
+        const withHostOverride = getComputedStyle(probe).color;
+
+        document.documentElement.style.removeProperty('--color-primary');
+        probe.remove();
+
+        return { packageDefault, withHostOverride };
+      });
+
+      expect(result.packageDefault, 'no-override case resolved empty').not.toBe('');
+      expect(
+        result.withHostOverride,
+        '--color-primary override did not win over --liminis-editor-primary at the C4Component.tsx-style expression',
+      ).toBe('rgb(9, 9, 9)');
+      expect(result.withHostOverride).not.toBe(result.packageDefault);
     } finally {
       await app.close();
     }

@@ -206,60 +206,79 @@ Neither is a package defect, but only one of them tells you what is wrong.
 
 The editor's colors, borders and a few layout metrics are all CSS custom
 properties under a single package-owned vocabulary, `--liminis-editor-*`.
-Every one of them resolves with no host configuration at all — the table
+Every one of them resolves with no host configuration at all, and every one
+of them *carries its own real value* declared at `:root`/`.dark` in
+`styles.css` — there is no indirection to look through (ADR-98). The table
 below exists so you can *override* a palette, and also so you can *consume*
 one: every property this package declares with a value anywhere in
 `styles.css` is part of this package's public API, readable directly by a
-host, not only overridable. That now includes every `--liminis-editor-*` name
-itself (see "Has a default" below) as well as the pre-`0.2.0` names that still
-carry the real defaults (`--vscode-*`, `--slashmd-*`, `--checkbox-*`, and a
-couple of standalone legacy names) — each `--liminis-editor-*` declaration is
-an alias of its previous name (`--liminis-editor-x: var(--previous-name-x);`),
-so both names resolve to the same value and either can be read directly
-(ADR-93). (Legacy names like `--color-*` that appear only as an inner link in
-a fallback chain, with no `:root`/`.dark` declaration of their own, are not
-part of the defined set this paragraph describes — only the property that
-*carries* the value is.) Some hosts read these definitions directly — mapping
-their own design tokens onto them with `var(--x)` — rather than overriding
-them. Renaming or removing a definition is therefore a breaking change, the
-same as any other change to a supported API surface described under
-"Versioning policy" above, and is distinct from renaming a *consumption* site
-(covered separately in "Migrating from the old names" below) — this package's
-CI guards against a definition disappearing unintentionally (ADR-092).
+host, not only overridable.
+
+Before `0.4.0`, a small set of pre-`0.2.0` names (`--vscode-*`,
+`--checkbox-border`, `--editor-brand`) carried the real defaults, and every
+`--liminis-editor-*` name was itself only a forward to one of them. That
+direction is now reversed: those legacy names are deprecated shims —
+`<legacy-name>: var(--liminis-editor-x);` — read by nothing inside this
+package, kept only so that **reading** one of them (e.g. mapping a host's own
+design tokens onto `--vscode-foreground`) still returns a real value, via
+ordinary CSS cascade resolution of the shim's own `var()` reference.
+**Setting** only a legacy name no longer themes the editor: every internal
+consumption site reads `--liminis-editor-foreground` directly, never
+`--vscode-foreground`, so a host's override of the legacy name changes what
+that legacy property itself computes to and nothing else — it never reaches
+the editor. This was verified with `getComputedStyle` in a running Electron
+shell (`examples/electron/e2e/theming-aliases.spec.ts`), not assumed from
+cascade theory alone — see "Migrating from the old names" below for what to
+do about it. The pre-`0.2.0` `--slashmd-*` names have no shim at all — they
+are deleted outright, verified unread by any known consumer (ADR-98).
+
+One package-owned exception: `--liminis-editor-primary`/`-100` and
+`--liminis-editor-muted-foreground`/`-100` back the C4 diagram's
+layout-toggle buttons, and `C4Component.tsx` checks liminis-app's own
+`--color-primary`/`--color-muted-foreground` Tailwind tokens *first*,
+falling back to this package's own default — so those four rows below are
+documented under their `--color-*` names, not their `--liminis-editor-*`
+names, even though the `--liminis-editor-*` declarations are just as real
+(see ADR-98). This is the only place a non-`--liminis-editor-*` name is a
+supported way to theme this package.
+
+Renaming or removing a definition is a breaking change, the same as any
+other change to a supported API surface described under "Versioning policy"
+above — this package's CI guards against a definition disappearing
+unintentionally (ADR-092).
 
 **Previous name** is the pre-`0.2.0` name this property replaced — the exact
 name to look for if you're migrating a host that still overrides the old
-vocabulary (`—` for a property that was never renamed). **Controls** is a
-short description of what the token actually affects. **Kind** distinguishes
-tokens that only affect appearance (`Cosmetic`) from the handful that also
-affect layout (`Structural` — heading indents and the base font). **Has a
-default** marks tokens declared with a value in `styles.css` directly; every
-row below now reads "Yes" — each `--liminis-editor-*` name carries its own
-`:root`/`.dark` declaration, an alias that reads its previous name via `var()`
-(ADR-93), so a host reading `--liminis-editor-x` gets a real value with no
-configuration, and a host overriding only the previous name at
-`:root`/`document.documentElement` still wins, because the alias re-resolves
-through that name's own `.dark`/`@media print` overrides at the point of use
-(ADR-93 documents a scope limitation for an override applied to a descendant
-element instead). See "Migrating from the old names" below.
+vocabulary (`—` for a property that was never renamed, including the four
+`--color-*` rows above, which were never a `--liminis-editor-*` rename to
+begin with). **Controls** is a short description of what the token actually
+affects. **Kind** distinguishes tokens that only affect appearance
+(`Cosmetic`) from the handful that also affect layout (`Structural` —
+heading indents and the base font). **Has a default** marks tokens declared
+with a value in `styles.css` directly; every `--liminis-editor-*` row below
+reads "Yes" for that reason directly, not via an alias. The four `--color-*`
+rows read "No (inline fallback only)" — they are liminis-app's own tokens,
+never declared by this package, exactly as before this change.
 
 This table is generated from `src/` by `node scripts/generate-theming-docs.mjs`
 and checked for staleness in CI (`tests/theming-contract.test.ts`) — a `var(--x)`
 added to the source without regenerating this block fails the build. Do not
 hand-edit the rows between the markers below. See ADR-085 for how the
-generation and drift guard work, ADR-087 for the rename and its compatibility
-design, ADR-092 for the separate guard that protects the full *defined* set —
-every token declared with a value in `styles.css`, per the checked-in baseline
-(`scripts/lib/theming-defined-tokens-baseline.json`) — against an
-unintentional rename or removal (run `pnpm docs:theming-baseline` after a
-deliberate one), and ADR-93 for the `--liminis-editor-*` alias declarations
-that make the defined set (baseline) a superset of this table's rows —
-every consumed `--liminis-editor-*` name is now also a defined one — rather
-than the disjoint sets they were before.
+generation and drift guard work, ADR-087 for the original rename and its
+compatibility design, ADR-092 for the separate guard that protects the full
+*defined* set — every token declared with a value in `styles.css`, per the
+checked-in baseline (`scripts/lib/theming-defined-tokens-baseline.json`) —
+against an unintentional rename or removal (run `pnpm docs:theming-baseline`
+after a deliberate one), and ADR-98 for the direction inversion this section
+describes, superseding ADR-93.
 
 <!-- theming-tokens:start -->
 | Custom property | Previous name | Controls | Kind | Has a default |
 | --- | --- | --- | --- | --- |
+| `--color-muted-100` | — | liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-muted-100 for the C4 diagram layout-toggle button's inactive background. | Cosmetic | No (inline fallback only) |
+| `--color-muted-foreground` | — | liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-muted-foreground for the C4 diagram layout-toggle button's inactive icon/text color. | Cosmetic | No (inline fallback only) |
+| `--color-primary` | — | liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-primary for the C4 diagram layout-toggle button's active icon/text color. | Cosmetic | No (inline fallback only) |
+| `--color-primary-100` | — | liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-primary-100 for the C4 diagram layout-toggle button's active background. | Cosmetic | No (inline fallback only) |
 | `--liminis-editor-background` | `--vscode-background` | Base background color of the editor surface and its popovers/menus. | Cosmetic | Yes |
 | `--liminis-editor-bold-color` | `--slashmd-bold-color` | Text color of bold (`**text**`) markdown spans. | Cosmetic | Yes |
 | `--liminis-editor-border` | `--vscode-border` | Default border color used throughout the editor chrome. | Cosmetic | Yes |
@@ -304,11 +323,7 @@ than the disjoint sets they were before.
 | `--liminis-editor-menu-foreground` | `--vscode-menu-foreground` | Text color of context menu items. | Cosmetic | Yes |
 | `--liminis-editor-menu-selectionBackground` | `--vscode-menu-selectionBackground` | Background of a hovered/selected context menu item. | Cosmetic | Yes |
 | `--liminis-editor-menu-separatorBackground` | `--vscode-menu-separatorBackground` | Color of separator lines inside context menus. | Cosmetic | Yes |
-| `--liminis-editor-muted-100` | `--color-muted-100` | Background of the C4 diagram layout-toggle buttons when inactive. | Cosmetic | Yes |
-| `--liminis-editor-muted-foreground` | `--color-muted-foreground` | Icon/text color of the C4 diagram layout-toggle buttons when inactive. | Cosmetic | Yes |
 | `--liminis-editor-notificationsInfoIcon-foreground` | `--vscode-notificationsInfoIcon-foreground` | Color of informational icons in inline notifications. | Cosmetic | Yes |
-| `--liminis-editor-primary` | `--color-primary` | Icon/text color of the C4 diagram layout-toggle buttons when active. | Cosmetic | Yes |
-| `--liminis-editor-primary-100` | `--color-primary-100` | Background of the C4 diagram layout-toggle buttons when active. | Cosmetic | Yes |
 | `--liminis-editor-selection` | `--vscode-selection` | Background color of selected/highlighted text. | Cosmetic | Yes |
 | `--liminis-editor-token-comment` | `--slashmd-token-comment` | Syntax-highlight color for comments in fenced code blocks. | Cosmetic | Yes |
 | `--liminis-editor-token-function` | `--slashmd-token-function` | Syntax-highlight color for function names in fenced code blocks. | Cosmetic | Yes |
@@ -350,36 +365,45 @@ highest-value place to start.
 #### Migrating from the old names
 
 Before `0.2.0`, these tokens were split across four inconsistent prefixes:
-`--vscode-*`, `--slashmd-*`, `--color-*` and `--checkbox-*`. `0.2.0` renames
-all 59 of them to `--liminis-editor-*`, but **a host that still only supplies
-the old names keeps working unchanged** — every renamed token resolves
-`--liminis-editor-x` first, then falls back to its specific previous name,
-so nothing breaks silently on upgrade. The old prefixes are deprecated as of
-`0.2.0` and will be removed in a future major release; migrate at your own
-pace using the table above's **Previous name** column, which lists each
-renamed property's exact old name — the mapping isn't always a mechanical
-prefix swap (`--checkbox-border` became `--liminis-editor-checkbox-border`,
-not `--liminis-editor-border`, to avoid colliding with `--vscode-border`'s
-new name), so look it up rather than deriving it.
+`--vscode-*`, `--slashmd-*`, `--color-*` and `--checkbox-*`. `0.2.0` renamed
+all of them to `--liminis-editor-*`. **As of `0.4.0` (ADR-98), a host that
+still only *sets* an old name to theme the editor no longer works** — this is
+a breaking change from `0.2.0`'s original guarantee, corrected here rather
+than left silently wrong. `--old-name-x: var(--liminis-editor-x);` is a
+one-line `:root`-scoped shim that this package never itself reads; a host's
+own override of the old name still changes what the old name computes to,
+but since every internal consumption site reads `--liminis-editor-x`
+directly, that override never reaches the editor. Set the corresponding
+`--liminis-editor-*` name instead — see the table above's **Previous name**
+column to find it. This was verified with `getComputedStyle` in a running
+Electron shell, not assumed (`examples/electron/e2e/theming-aliases.spec.ts`),
+and neither known consumer of this package (`liminis-app`, Zusammen) sets a
+legacy name today. `--slashmd-*` is the one prefix with no shim at all: it is
+deleted outright in `0.4.0`, verified unread by any known consumer (ADR-98).
 
-Reading, not just overriding, is also migratable: a host that currently reads
-a legacy name directly (e.g. mapping its own design tokens onto
-`--vscode-foreground`) can switch that read to the corresponding
-`--liminis-editor-*` name and get an identical value, **as long as it isn't
-also setting the `--liminis-editor-*` name itself** — a directly-set
-`--liminis-editor-*` value always wins over the previous name's own value,
-by ordinary cascade precedence (see "Has a default" below), so the two reads
-are identical only while the host relies solely on the previous name. Until
-ADR-93, `--liminis-editor-*` names were only ever *consumed*, never
-themselves declared with a value — there was nothing for such a host to
-migrate its reads to. Every `--liminis-editor-*` name now carries its own
-`:root`/`.dark` alias declaration that resolves to the previous name's own
-value in that legacy-only case, so the read migration is a like-for-like
-swap with no observable difference (see verveguy/zusammen#129, the migration
-this addresses). This guarantee holds for a previous-name override applied
-at `:root`/`document.documentElement`, the standard integration point; see
-ADR-93 for a documented limitation when a host scopes its override to a
-descendant element instead.
+The old prefixes are deprecated and will be removed in a future major
+release; migrate at your own pace using the table above's **Previous name**
+column, which lists each renamed property's exact old name — the mapping
+isn't always a mechanical prefix swap (`--checkbox-border` became
+`--liminis-editor-checkbox-border`, not `--liminis-editor-border`, to avoid
+colliding with `--vscode-border`'s new name), so look it up rather than
+deriving it.
+
+Reading, not just overriding, is also migratable, and is the direction
+`0.4.0` actually improves: before ADR-98, a host reading a legacy name
+directly (e.g. mapping its own design tokens onto `--vscode-foreground`)
+could switch that read to `--liminis-editor-foreground` only as long as
+nothing (host or package) set the new name — some `--liminis-editor-*`
+aliases forwarded to a token this package never defined at all
+(`--liminis-editor-primary`, notably, forwarded to liminis-app's
+`--color-primary` and baked a literal, `#3b82f6`, whenever liminis-app
+hadn't set it), so switching a read to those names would return a value
+this package didn't actually own. As of `0.4.0`, every `--liminis-editor-*`
+name carries its own real, package-owned default — read migration is now a
+like-for-like swap with no caveat, for every name except
+`--liminis-editor-primary`/`-100`, whose default value deliberately changed
+(see verveguy/zusammen#134, the migration this addresses, and ADR-98 for why
+the old value was a defect, not a default worth preserving).
 
 ## Annotations
 

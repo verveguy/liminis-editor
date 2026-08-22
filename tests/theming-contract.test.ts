@@ -16,11 +16,19 @@
  * 3. Every consumed token has a curated, non-empty description of what it
  *    controls (FR-003) — a token added without one fails CI rather than
  *    shipping a blank "Controls" cell.
- * 4. Every token renamed by #51 preserves an immediate fallback to its
- *    previous (`--vscode-*`/`--slashmd-*`/`--color-*`/`--checkbox-*`) name
- *    at every call site (FR-011) — a partial rename that drops the fallback
- *    would otherwise silently strip theming from any host still supplying
- *    only the old name (see #51's User Story 2).
+ * 4. Every legacy name in `LEGACY_SHIM_TARGET` is declared in `styles.css` as
+ *    a one-line shim forwarding to its `--liminis-editor-*` target (FR-002,
+ *    #98), and nothing under `src/` reads a `--vscode-*`, `--slashmd-*` or
+ *    `--checkbox-*` custom property anywhere (FR-003) — #98 inverted the
+ *    token direction, so the invariant this suite now protects is the
+ *    opposite of #51's: a host still *reading* a legacy name must keep
+ *    getting a real value via the shim's `var()` forward, not via a
+ *    consumption-site fallback (removed; see `resolvesToPreviousName`'s
+ *    retirement note in `scripts/lib/theming-tokens.mjs`). A host *setting*
+ *    only a legacy name no longer themes the editor — a documented, accepted
+ *    breaking change (see ADR-98, CHANGELOG's Unreleased) — this suite does
+ *    not, and cannot, guard that direction; only a running-app test can (see
+ *    `examples/electron/e2e/theming-aliases.spec.ts`).
  * 5. Every token in the checked-in defined-token baseline (#79) is still
  *    declared with a value somewhere in `styles.css`. Unlike 1-4, this
  *    guards the *defined* set, not the consumed/documented set — a host
@@ -34,7 +42,7 @@
  * deliberate violation, and the guard is checked to actually flag it.
  */
 import { describe, it, expect, afterEach } from 'vitest';
-import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -43,10 +51,12 @@ import {
   consumedTokens,
   defaultedTokens,
   resolvesWithoutHost,
-  resolvesToPreviousName,
   parseDocumentedTokens,
   diffDefinedTokenBaseline,
   describe as describeToken,
+  stripCssComments,
+  LEGACY_SHIM_TARGET,
+  resolvesToShimTarget,
 } from '../scripts/lib/theming-tokens.mjs';
 import { renderThemingBlock, withThemingBlock } from '../scripts/generate-theming-docs.mjs';
 
@@ -132,18 +142,47 @@ describe('theming contract: every consumed token has a human-readable descriptio
   });
 });
 
-describe('theming contract: every renamed token preserves a fallback to its previous name', () => {
-  it('has an immediate var() fallback to its previous name at every call site (FR-011)', () => {
-    const consumed = consumedTokens(SRC_ROOT);
+describe('theming contract: every legacy name is a shim to its --liminis-editor-* target (#98)', () => {
+  it('declares every LEGACY_SHIM_TARGET entry as a one-line var() forward in styles.css (FR-002)', () => {
+    const stripped = stripCssComments(readFileSync(STYLES_CSS_PATH, 'utf-8'));
 
-    const broken = [...consumed.keys()].filter((name) => !resolvesToPreviousName(name, consumed));
+    const broken = Object.entries(LEGACY_SHIM_TARGET)
+      .filter(([legacyName, target]) => !resolvesToShimTarget(legacyName, target, stripped))
+      .map(([legacyName]) => legacyName);
 
     expect(
       broken,
-      'consumed --liminis-editor-* token(s) without an immediate fallback to their previous name at ' +
-        'every call site — a partial rename like this would silently strip theming from any host ' +
-        'still supplying only the old name (see #51 User Story 2)',
+      'legacy name(s) not declared as a one-line shim to their --liminis-editor-* target — a host still ' +
+        'setting only the legacy name would stop theming the package (see #98)',
     ).toEqual([]);
+  });
+
+  it('reads no --vscode-*, --slashmd-* or --checkbox- custom property anywhere under src/ (FR-003)', () => {
+    const files = [
+      ...readdirSync(SRC_ROOT, { recursive: true, encoding: 'utf-8' }).filter((entry) =>
+        /\.(css|ts|tsx)$/.test(entry),
+      ),
+    ].map((entry) => join(SRC_ROOT, entry));
+
+    const offenders: string[] = [];
+    for (const file of files) {
+      const text = readFileSync(file, 'utf-8');
+      if (/var\(\s*--(vscode|slashmd|checkbox)-/.test(text)) offenders.push(file);
+    }
+
+    expect(
+      offenders,
+      'file(s) still reading a --vscode-*/--slashmd-*/--checkbox- custom property — #98 requires every ' +
+        'internal consumption site to read --liminis-editor-* only',
+    ).toEqual([]);
+  });
+
+  it('declares no --slashmd-* custom property anywhere (FR-006, SC-002)', () => {
+    const stripped = stripCssComments(readFileSync(STYLES_CSS_PATH, 'utf-8'));
+    expect(
+      stripped.includes('--slashmd-'),
+      '--slashmd-* found in styles.css — #98 deletes this prefix outright (verified unread by any known consumer)',
+    ).toBe(false);
   });
 });
 
@@ -262,23 +301,35 @@ describe('theming contract: mutation tests (the guard actually fires)', () => {
     expect(unresolvable).toEqual(['--broken-token']);
   });
 
-  it('flags a renamed token consumed without a fallback to its previous name', () => {
-    const fixtureRoot = makeFixtureRoot();
-    const stylesPath = join(fixtureRoot, 'styles.css');
-    writeFileSync(stylesPath, ':root {\n  --checkbox-border: red;\n}\n');
-    mkdirSync(join(fixtureRoot, 'app'));
-    writeFileSync(
-      join(fixtureRoot, 'app', 'Widget.tsx'),
-      // Correctly chained: preserves the fallback to --checkbox-border.
-      "export const Good = () => <div style={{ borderColor: 'var(--liminis-editor-checkbox-border, var(--checkbox-border))' }} />;\n" +
-        // Renamed but with no fallback at all — the FR-011 violation.
-        "export const Bad = () => <div style={{ color: 'var(--liminis-editor-focus-border)' }} />;\n",
+  it('flags a legacy name missing its one-line shim declaration (FR-002)', () => {
+    const stripped = stripCssComments(
+      ':root {\n  --checkbox-border: var(--liminis-editor-checkbox-border);\n  /* --vscode-focus-border has no shim here */\n}\n',
     );
 
-    const consumed = consumedTokens(fixtureRoot);
-    const broken = [...consumed.keys()].filter((name) => !resolvesToPreviousName(name, consumed));
+    const broken = Object.entries({
+      '--checkbox-border': '--liminis-editor-checkbox-border',
+      '--vscode-focus-border': '--liminis-editor-focus-border',
+    })
+      .filter(([legacyName, target]) => !resolvesToShimTarget(legacyName, target, stripped))
+      .map(([legacyName]) => legacyName);
 
-    expect(broken).toEqual(['--liminis-editor-focus-border']);
+    expect(broken).toEqual(['--vscode-focus-border']);
+  });
+
+  it('flags an internal consumption site still reading a legacy custom property (FR-003)', () => {
+    const good = "export const Good = () => <div style={{ color: 'var(--liminis-editor-foreground)' }} />;\n";
+    const bad = "export const Bad = () => <div style={{ borderColor: 'var(--vscode-border)' }} />;\n";
+
+    expect(/var\(\s*--(vscode|slashmd|checkbox)-/.test(good)).toBe(false);
+    expect(/var\(\s*--(vscode|slashmd|checkbox)-/.test(bad)).toBe(true);
+  });
+
+  it('flags a --slashmd-* declaration surviving anywhere (FR-006, SC-002)', () => {
+    const clean = ':root {\n  --liminis-editor-token-comment: red;\n}\n';
+    const dirty = ':root {\n  --slashmd-token-comment: red;\n}\n';
+
+    expect(clean.includes('--slashmd-')).toBe(false);
+    expect(dirty.includes('--slashmd-')).toBe(true);
   });
 
   it('flags a baselined token whose declaration is removed from styles.css (FR-004, SC-001)', () => {

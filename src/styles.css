@@ -1,239 +1,206 @@
 /* Loop-inspired theme for editor with design tokens (OKLCH) */
-:root {
-  /* ========================================
-     DESIGN TOKENS - Editor Light Theme
-     ======================================== */
 
-  /* Brand Color - Purple theme (matches renderer) */
-  --editor-brand: oklch(0.55 0.20 303);
+/* ========================================
+   DEPRECATED SHIMS — legacy names (ADR-98)
+
+   ADR-98 (verveguy/liminis-editor#98) inverts ADR-93's direction: the real
+   values now live under --liminis-editor-* (below), and these legacy names
+   are read by nothing inside this package. These one-line shims exist only
+   so that a host *reading* a legacy name (e.g. --vscode-foreground) still
+   gets a real, current value, via ordinary cascade resolution of the
+   shim's own var() reference.
+
+   They do NOT preserve a host *setting* only a legacy name to theme the
+   package. This package's own consumption sites read
+   --liminis-editor-foreground directly — never --vscode-foreground — so a
+   host's override of --vscode-foreground changes what --vscode-foreground
+   itself computes to and nothing else; it never reaches the editor.
+   Verified in a running Electron app, not assumed — see
+   examples/electron/e2e/theming-aliases.spec.ts. A host that wants to theme
+   the package must set the --liminis-editor-* name directly; this is a
+   documented, intentional breaking change (see CHANGELOG's Unreleased /
+   Breaking changes), not a gap to work around.
+
+   Only the names a host might plausibly still set are kept: --vscode-*,
+   --checkbox-border and --editor-brand. --slashmd-* (upstream vocabulary;
+   verified zero hits across verveguy/zusammen and verveguy/liminis) is
+   deleted outright rather than shimmed — see ADR-98.
+
+   No .dark duplicate is needed: var(--liminis-editor-x) re-resolves against
+   whichever cascade value is active at the point of use, so a single
+   :root-scoped shim line tracks light/dark automatically.
+   ======================================== */
+:root {
+  --vscode-font-family: var(--liminis-editor-font-family);
+  --vscode-font-size: var(--liminis-editor-font-size);
+  --vscode-foreground: var(--liminis-editor-foreground);
+  --vscode-background: var(--liminis-editor-background);
+  --vscode-selection: var(--liminis-editor-selection);
+  --vscode-border: var(--liminis-editor-border);
+  --vscode-link: var(--liminis-editor-link);
+  --vscode-external-link: var(--liminis-editor-external-link);
+  --vscode-code-bg: var(--liminis-editor-code-bg);
+  --checkbox-border: var(--liminis-editor-checkbox-border);
+  --editor-brand: var(--liminis-editor-primary);
+  --vscode-button-background: var(--liminis-editor-button-background);
+  --vscode-button-foreground: var(--liminis-editor-button-foreground);
+  --vscode-menu-background: var(--liminis-editor-menu-background);
+  --vscode-menu-border: var(--liminis-editor-menu-border);
+  --vscode-menu-foreground: var(--liminis-editor-menu-foreground);
+  --vscode-menu-selectionBackground: var(--liminis-editor-menu-selectionBackground);
+  --vscode-menu-separatorBackground: var(--liminis-editor-menu-separatorBackground);
+  --vscode-toolbar-hoverBackground: var(--liminis-editor-toolbar-hoverBackground);
+  --vscode-notificationsInfoIcon-foreground: var(--liminis-editor-notificationsInfoIcon-foreground);
+  --vscode-inputValidation-errorBackground: var(--liminis-editor-inputValidation-errorBackground);
+  --vscode-errorForeground: var(--liminis-editor-errorForeground);
+  --vscode-focus-border: var(--liminis-editor-focus-border);
+  --vscode-focusBorder: var(--liminis-editor-focusBorder);
+  --vscode-input-bg: var(--liminis-editor-input-bg);
+  --vscode-foreground-muted: var(--liminis-editor-foreground-muted);
+}
+
+/* ========================================
+   DESIGN TOKENS — Editor Light Theme
+   --liminis-editor-* names carry the real values (ADR-98). Every
+   consumption site inside this package reads one of these directly.
+   ======================================== */
+:root {
+  /* Brand color — also the source the --editor-brand shim above forwards to */
+  --liminis-editor-primary: oklch(0.55 0.20 303);
+  --liminis-editor-primary-100: oklch(0.55 0.20 303 / 0.1);
 
   /* Typography */
-  --vscode-font-family: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-  --vscode-font-size: 16px;
+  --liminis-editor-font-family: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --liminis-editor-font-size: 16px;
 
   /* Computed Colors (OKLCH) */
-  --vscode-foreground: oklch(0.35 0.01 265);
-  --vscode-background: oklch(1 0 0);
-  --vscode-selection: oklch(0.55 0.20 303 / 0.2);
-  --vscode-border: oklch(0.91 0.03 303);
-  --vscode-link: oklch(0.55 0.20 303);
-  --vscode-external-link: oklch(0.55 0.20 255); /* blue for external links */
-  --vscode-code-bg: oklch(0.98 0.02 303);
-  --checkbox-border: oklch(0.65 0.08 303);
+  --liminis-editor-foreground: oklch(0.35 0.01 265);
+  --liminis-editor-background: oklch(1 0 0);
+  --liminis-editor-selection: oklch(0.55 0.20 303 / 0.2);
+  --liminis-editor-border: oklch(0.91 0.03 303);
+  --liminis-editor-link: oklch(0.55 0.20 303);
+  --liminis-editor-external-link: oklch(0.55 0.20 255); /* blue for external links */
+  --liminis-editor-code-bg: oklch(0.98 0.02 303);
+  --liminis-editor-checkbox-border: oklch(0.65 0.08 303);
+  /* Built only from other --liminis-editor-* names (FR-001) — no legacy name ever backed these two independently. */
+  --liminis-editor-input-bg: var(--liminis-editor-code-bg);
+  --liminis-editor-foreground-muted: var(--liminis-editor-border);
 
   /* Syntax Highlighting - VitePress/Shiki inspired (OKLCH) */
-  --slashmd-token-comment: oklch(0.70 0.03 135);
-  --slashmd-token-punctuation: oklch(0.65 0 0);
-  --slashmd-token-property: oklch(0.60 0.12 85);
-  --slashmd-token-selector: oklch(0.52 0.14 145);
-  --slashmd-token-operator: oklch(0.55 0.20 25);
-  --slashmd-token-keyword: oklch(0.55 0.20 25);
-  --slashmd-token-variable: oklch(0.60 0.18 50);
-  --slashmd-token-function: oklch(0.50 0.18 303);
+  --liminis-editor-token-comment: oklch(0.70 0.03 135);
+  --liminis-editor-token-punctuation: oklch(0.65 0 0);
+  --liminis-editor-token-property: oklch(0.60 0.12 85);
+  --liminis-editor-token-selector: oklch(0.52 0.14 145);
+  --liminis-editor-token-operator: oklch(0.55 0.20 25);
+  --liminis-editor-token-keyword: oklch(0.55 0.20 25);
+  --liminis-editor-token-variable: oklch(0.60 0.18 50);
+  --liminis-editor-token-function: oklch(0.50 0.18 303);
 
   /* Typography - VitePress style (OKLCH) */
-  --slashmd-heading-color: oklch(0.35 0.01 265);
-  --slashmd-h1-color: oklch(0.35 0.01 265);
-  --slashmd-h2-color: oklch(0.35 0.01 265);
-  --slashmd-h3-color: oklch(0.35 0.01 265);
-  --slashmd-h4-color: oklch(0.35 0.01 265);
-  --slashmd-h5-color: oklch(0.35 0.01 265);
-  --slashmd-h1-indent: 0;
-  --slashmd-h2-indent: 0;
-  --slashmd-h3-indent: 0;
-  --slashmd-h4-indent: 0;
-  --slashmd-h5-indent: 0;
-  --slashmd-bold-color: inherit;
-  --slashmd-italic-color: inherit;
+  --liminis-editor-h1-color: oklch(0.35 0.01 265);
+  --liminis-editor-h2-color: oklch(0.35 0.01 265);
+  --liminis-editor-h3-color: oklch(0.35 0.01 265);
+  --liminis-editor-h4-color: oklch(0.35 0.01 265);
+  --liminis-editor-h5-color: oklch(0.35 0.01 265);
+  --liminis-editor-h1-indent: 0;
+  --liminis-editor-h2-indent: 0;
+  --liminis-editor-h3-indent: 0;
+  --liminis-editor-h4-indent: 0;
+  --liminis-editor-h5-indent: 0;
+  --liminis-editor-bold-color: inherit;
+  --liminis-editor-italic-color: inherit;
 
   /* Callouts - Uses brand color for note type (OKLCH) */
-  --slashmd-callout-note-bg: oklch(0.55 0.20 303 / 0.08);
-  --slashmd-callout-note-border: oklch(0.55 0.20 303);
-  --slashmd-callout-tip-bg: oklch(0.65 0.18 160 / 0.08);
-  --slashmd-callout-tip-border: oklch(0.65 0.18 160);
-  --slashmd-callout-warning-bg: oklch(0.80 0.18 85 / 0.08);
-  --slashmd-callout-warning-border: oklch(0.80 0.18 85);
-  --slashmd-callout-important-bg: oklch(0.58 0.22 290 / 0.08);
-  --slashmd-callout-important-border: oklch(0.58 0.22 290);
-  --slashmd-callout-caution-bg: oklch(0.63 0.24 27 / 0.08);
-  --slashmd-callout-caution-border: oklch(0.63 0.24 27);
+  --liminis-editor-callout-note-bg: oklch(0.55 0.20 303 / 0.08);
+  --liminis-editor-callout-note-border: oklch(0.55 0.20 303);
+  --liminis-editor-callout-tip-bg: oklch(0.65 0.18 160 / 0.08);
+  --liminis-editor-callout-tip-border: oklch(0.65 0.18 160);
+  --liminis-editor-callout-warning-bg: oklch(0.80 0.18 85 / 0.08);
+  --liminis-editor-callout-warning-border: oklch(0.80 0.18 85);
+  --liminis-editor-callout-important-bg: oklch(0.58 0.22 290 / 0.08);
+  --liminis-editor-callout-important-border: oklch(0.58 0.22 290);
+  --liminis-editor-callout-caution-bg: oklch(0.63 0.24 27 / 0.08);
+  --liminis-editor-callout-caution-border: oklch(0.63 0.24 27);
+
+  /* Tokens with no legacy CSS custom-property backing anywhere — only an
+     inline literal fallback at their consumption site(s) before this
+     change. The literal below reproduces that existing light-mode fallback
+     so a host supplying nothing sees no change (FR-002). Where the same
+     token's literal differed by site (errorForeground, toolbar-hoverBackground),
+     the single canonical value ADR-93 chose is kept — see that ADR for the
+     two accepted visual deltas this causes at three sites. */
+  --liminis-editor-button-background: #007acc;
+  --liminis-editor-button-foreground: #ffffff;
+  --liminis-editor-menu-background: #ffffff;
+  --liminis-editor-menu-border: #d4d4d4;
+  --liminis-editor-menu-foreground: #333333;
+  --liminis-editor-menu-selectionBackground: #e8e8e8;
+  --liminis-editor-menu-separatorBackground: #d4d4d4;
+  --liminis-editor-toolbar-hoverBackground: rgba(128, 128, 128, 0.15);
+  --liminis-editor-notificationsInfoIcon-foreground: #3794ff;
+  --liminis-editor-inputValidation-errorBackground: rgba(255, 0, 0, 0.15);
+  --liminis-editor-errorForeground: #f14c4c;
+  --liminis-editor-focus-border: #007acc;
+  --liminis-editor-focusBorder: #007acc;
+
+  /* --liminis-editor-primary/-100 are brand-derived (see above), not
+     host-borrowed — ADR-98 retires the previous forward to liminis-app's own
+     --color-primary/-100, a token this package never defined (see ADR-98's
+     "defect fix" rationale). muted-foreground/-100 keep their previous
+     literal fallback as a real default of their own, rather than forwarding
+     to a --color-* token this package doesn't own. C4Component.tsx is the
+     one place a host's --color-* override still takes precedence — see the
+     comment at that file's consumption sites. */
+  --liminis-editor-muted-foreground: #6b7280;
+  --liminis-editor-muted-100: rgba(128, 128, 128, 0.1);
 }
 
 /* ========================================
    DESIGN TOKENS - Editor Dark Theme
+   Only entries whose value differs from :root above — anything omitted here
+   falls through to the :root declaration by ordinary cascade order.
    ======================================== */
 .dark {
-  /* Brand Color - Lighter for dark mode visibility */
-  --editor-brand: oklch(0.70 0.20 303);
+  --liminis-editor-primary: oklch(0.70 0.20 303);
+  --liminis-editor-primary-100: oklch(0.70 0.20 303 / 0.1);
 
-  /* Computed Colors (OKLCH) */
-  --vscode-foreground: oklch(0.97 0.01 90 / 0.86);
-  --vscode-background: oklch(0.17 0.01 265);
-  --vscode-selection: oklch(0.70 0.20 303 / 0.2);
-  --vscode-border: oklch(0.27 0.02 303);
-  --vscode-link: oklch(0.70 0.20 303);
-  --vscode-external-link: oklch(0.70 0.18 255); /* lighter blue for dark mode */
-  --vscode-code-bg: oklch(0.20 0.02 303);
-  --checkbox-border: oklch(0.55 0.06 303);
+  --liminis-editor-foreground: oklch(0.97 0.01 90 / 0.86);
+  --liminis-editor-background: oklch(0.17 0.01 265);
+  --liminis-editor-selection: oklch(0.70 0.20 303 / 0.2);
+  --liminis-editor-border: oklch(0.27 0.02 303);
+  --liminis-editor-link: oklch(0.70 0.20 303);
+  --liminis-editor-external-link: oklch(0.70 0.18 255); /* lighter blue for dark mode */
+  --liminis-editor-code-bg: oklch(0.20 0.02 303);
+  --liminis-editor-checkbox-border: oklch(0.55 0.06 303);
 
-  /* Syntax Highlighting - Dark mode (OKLCH) */
-  --slashmd-token-comment: oklch(0.60 0.10 140);
-  --slashmd-token-punctuation: oklch(0.85 0 0);
-  --slashmd-token-property: oklch(0.85 0.10 95);
-  --slashmd-token-selector: oklch(0.60 0.10 140);
-  --slashmd-token-operator: oklch(0.85 0 0);
-  --slashmd-token-keyword: oklch(0.65 0.12 240);
-  --slashmd-token-variable: oklch(0.78 0.10 220);
-  --slashmd-token-function: oklch(0.85 0.10 95);
+  --liminis-editor-token-comment: oklch(0.60 0.10 140);
+  --liminis-editor-token-punctuation: oklch(0.85 0 0);
+  --liminis-editor-token-property: oklch(0.85 0.10 95);
+  --liminis-editor-token-selector: oklch(0.60 0.10 140);
+  --liminis-editor-token-operator: oklch(0.85 0 0);
+  --liminis-editor-token-keyword: oklch(0.65 0.12 240);
+  --liminis-editor-token-variable: oklch(0.78 0.10 220);
+  --liminis-editor-token-function: oklch(0.85 0.10 95);
 
-  /* Typography - Dark mode (OKLCH) */
-  --slashmd-heading-color: oklch(0.97 0.01 90 / 0.86);
-  --slashmd-h1-color: oklch(0.97 0.01 90 / 0.86);
-  --slashmd-h2-color: oklch(0.97 0.01 90 / 0.86);
-  --slashmd-h3-color: oklch(0.97 0.01 90 / 0.86);
-  --slashmd-h4-color: oklch(0.97 0.01 90 / 0.86);
-  --slashmd-h5-color: oklch(0.97 0.01 90 / 0.86);
+  --liminis-editor-h1-color: oklch(0.97 0.01 90 / 0.86);
+  --liminis-editor-h2-color: oklch(0.97 0.01 90 / 0.86);
+  --liminis-editor-h3-color: oklch(0.97 0.01 90 / 0.86);
+  --liminis-editor-h4-color: oklch(0.97 0.01 90 / 0.86);
+  --liminis-editor-h5-color: oklch(0.97 0.01 90 / 0.86);
 
-  /* Callouts - Dark mode, uses brand color for note type (OKLCH) */
-  --slashmd-callout-note-bg: oklch(0.70 0.20 303 / 0.1);
-  --slashmd-callout-note-border: oklch(0.70 0.20 303);
-  --slashmd-callout-tip-bg: oklch(0.65 0.18 160 / 0.1);
-  --slashmd-callout-tip-border: oklch(0.65 0.18 160);
-  --slashmd-callout-warning-bg: oklch(0.80 0.18 85 / 0.1);
-  --slashmd-callout-warning-border: oklch(0.80 0.18 85);
-  --slashmd-callout-important-bg: oklch(0.58 0.22 290 / 0.1);
-  --slashmd-callout-important-border: oklch(0.58 0.22 290);
-  --slashmd-callout-caution-bg: oklch(0.63 0.24 27 / 0.1);
-  --slashmd-callout-caution-border: oklch(0.63 0.24 27);
-}
+  --liminis-editor-callout-note-bg: oklch(0.70 0.20 303 / 0.1);
+  --liminis-editor-callout-note-border: oklch(0.70 0.20 303);
+  --liminis-editor-callout-tip-bg: oklch(0.65 0.18 160 / 0.1);
+  --liminis-editor-callout-warning-bg: oklch(0.80 0.18 85 / 0.1);
+  --liminis-editor-callout-important-bg: oklch(0.58 0.22 290 / 0.1);
+  --liminis-editor-callout-caution-bg: oklch(0.63 0.24 27 / 0.1);
 
-/* ========================================
-   PUBLIC ALIASES — --liminis-editor-* names (ADR-93)
-
-   The package's own :root/.dark declarations above keep carrying the real
-   defaults, under the legacy names, exactly as before. Every alias below
-   only reads a legacy name via var() — it never declares an independent
-   value — so a host overriding only the legacy name still wins: the alias
-   re-resolves through .dark and the @media print block's overrides of that
-   legacy name, since a var() reference resolves per-element at the point of
-   use, not at the point this declaration is parsed. This lets a host read
-   --liminis-editor-* directly (verveguy/zusammen#129) without disabling the
-   ADR-087 fallback layer that a host supplying only the legacy name relies
-   on.
-
-   Scope of the "legacy name still wins" guarantee: this re-resolution is
-   correct for a legacy override applied at (or that plainly inherits down
-   to) :root/document.documentElement — the standard integration point, and
-   the only one covered by this package's own e2e coverage. It does NOT
-   extend to a legacy override scoped to an arbitrary DESCENDANT element
-   between :root and the editor's own DOM (e.g. a per-widget wrapper div a
-   host might apply its own theme vars to): a custom property inherits its
-   parent's already-*computed* value, not the var() expression, so this
-   :root-declared alias is fixed at parse time using :root's own value and
-   won't pick up a change made lower in the tree. Re-declaring the alias on
-   every element (`*`) was tried and rejected: it fixes the descendant case
-   but then shadows a --liminis-editor-* override a host sets on an
-   ancestor of the element being read, breaking the higher-priority
-   guarantee (User Story 3) that a directly-set --liminis-editor-* name
-   always wins — confirmed by test, not assumed. Scoping the redeclaration
-   to a known package wrapper class (e.g. .editor-app-root) was also tried
-   and rejected: not every integration renders that wrapper (this repo's
-   own examples/electron shell doesn't), so the alias would go undefined
-   there. See ADR-93 for the full trade-off and verveguy/liminis-editor#93's
-   PR review thread for the CSS-inheritance mechanics that rule out a
-   `:root`-only or `*`-only fix satisfying both scenarios at once.
-   ======================================== */
-:root {
-  /* Aliases for tokens with an existing --vscode-, --slashmd- or --checkbox- default */
-  --liminis-editor-background: var(--vscode-background);
-  --liminis-editor-bold-color: var(--slashmd-bold-color);
-  --liminis-editor-border: var(--vscode-border);
-  --liminis-editor-callout-caution-bg: var(--slashmd-callout-caution-bg);
-  --liminis-editor-callout-caution-border: var(--slashmd-callout-caution-border);
-  --liminis-editor-callout-important-bg: var(--slashmd-callout-important-bg);
-  --liminis-editor-callout-important-border: var(--slashmd-callout-important-border);
-  --liminis-editor-callout-note-bg: var(--slashmd-callout-note-bg);
-  --liminis-editor-callout-note-border: var(--slashmd-callout-note-border);
-  --liminis-editor-callout-tip-bg: var(--slashmd-callout-tip-bg);
-  --liminis-editor-callout-tip-border: var(--slashmd-callout-tip-border);
-  --liminis-editor-callout-warning-bg: var(--slashmd-callout-warning-bg);
-  --liminis-editor-callout-warning-border: var(--slashmd-callout-warning-border);
-  --liminis-editor-checkbox-border: var(--checkbox-border);
-  --liminis-editor-code-bg: var(--vscode-code-bg);
-  --liminis-editor-external-link: var(--vscode-external-link);
-  --liminis-editor-font-family: var(--vscode-font-family);
-  --liminis-editor-font-size: var(--vscode-font-size);
-  --liminis-editor-foreground: var(--vscode-foreground);
-  --liminis-editor-h1-color: var(--slashmd-h1-color);
-  --liminis-editor-h1-indent: var(--slashmd-h1-indent);
-  --liminis-editor-h2-color: var(--slashmd-h2-color);
-  --liminis-editor-h2-indent: var(--slashmd-h2-indent);
-  --liminis-editor-h3-color: var(--slashmd-h3-color);
-  --liminis-editor-h3-indent: var(--slashmd-h3-indent);
-  --liminis-editor-h4-color: var(--slashmd-h4-color);
-  --liminis-editor-h4-indent: var(--slashmd-h4-indent);
-  --liminis-editor-h5-color: var(--slashmd-h5-color);
-  --liminis-editor-h5-indent: var(--slashmd-h5-indent);
-  --liminis-editor-italic-color: var(--slashmd-italic-color);
-  --liminis-editor-link: var(--vscode-link);
-  --liminis-editor-selection: var(--vscode-selection);
-  --liminis-editor-token-comment: var(--slashmd-token-comment);
-  --liminis-editor-token-function: var(--slashmd-token-function);
-  --liminis-editor-token-keyword: var(--slashmd-token-keyword);
-  --liminis-editor-token-operator: var(--slashmd-token-operator);
-  --liminis-editor-token-property: var(--slashmd-token-property);
-  --liminis-editor-token-punctuation: var(--slashmd-token-punctuation);
-  --liminis-editor-token-selector: var(--slashmd-token-selector);
-  --liminis-editor-token-variable: var(--slashmd-token-variable);
-
-  /* Aliases preserving an existing nested consumption-site fallback chain —
-     these two legacy names have no --vscode-* declaration of their own, only
-     an existing fallback to a second legacy name at their consumption site. */
-  --liminis-editor-input-bg: var(--vscode-input-bg, var(--vscode-code-bg));
-  --liminis-editor-foreground-muted: var(--vscode-foreground-muted, var(--vscode-border));
-
-  /* Aliases for tokens with no CSS custom property backing anywhere — only an
-     inline literal fallback at their consumption site(s). The literal below
-     reproduces that existing light-mode fallback so a host supplying nothing
-     sees no change (FR-002); a host setting the legacy name still wins
-     (FR-003). Where the same token's literal differs by site (errorForeground,
-     toolbar-hoverBackground), a single canonical value is chosen here — see
-     ADR-93 for the two accepted visual deltas this causes at three sites. */
-  --liminis-editor-button-background: var(--vscode-button-background, #007acc);
-  --liminis-editor-button-foreground: var(--vscode-button-foreground, #ffffff);
-  --liminis-editor-menu-background: var(--vscode-menu-background, #ffffff);
-  --liminis-editor-menu-border: var(--vscode-menu-border, #d4d4d4);
-  --liminis-editor-menu-foreground: var(--vscode-menu-foreground, #333333);
-  --liminis-editor-menu-selectionBackground: var(--vscode-menu-selectionBackground, #e8e8e8);
-  --liminis-editor-menu-separatorBackground: var(--vscode-menu-separatorBackground, #d4d4d4);
-  --liminis-editor-toolbar-hoverBackground: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15));
-  --liminis-editor-notificationsInfoIcon-foreground: var(--vscode-notificationsInfoIcon-foreground, #3794ff);
-  --liminis-editor-inputValidation-errorBackground: var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.15));
-  --liminis-editor-errorForeground: var(--vscode-errorForeground, #f14c4c);
-  --liminis-editor-focus-border: var(--vscode-focus-border, #007acc);
-  --liminis-editor-focusBorder: var(--vscode-focusBorder, #007acc);
-
-  /* Aliases for liminis-app's own Tailwind @theme brand tokens — the package
-     only ever supplied a literal final fallback for these, never asserted
-     ownership; this alias makes that existing fallback reachable under the
-     new name too, without changing what it resolves to. */
-  --liminis-editor-primary: var(--color-primary, #3b82f6);
-  --liminis-editor-primary-100: var(--color-primary-100, rgba(59, 130, 246, 0.1));
-  --liminis-editor-muted-foreground: var(--color-muted-foreground, #6b7280);
-  --liminis-editor-muted-100: var(--color-muted-100, rgba(128, 128, 128, 0.1));
-}
-
-.dark {
-  /* Dark-mode literal overrides for the subset of the no-CSS-backing group
-     above whose consumption sites select a different literal in dark mode
-     (via a JS `isDark`/`dark` check reading the same .dark class this
-     selector keys off) rather than a single literal used in both themes. */
-  --liminis-editor-button-background: var(--vscode-button-background, #0e639c);
-  --liminis-editor-menu-background: var(--vscode-menu-background, #252526);
-  --liminis-editor-menu-border: var(--vscode-menu-border, #454545);
-  --liminis-editor-menu-foreground: var(--vscode-menu-foreground, #cccccc);
-  --liminis-editor-menu-selectionBackground: var(--vscode-menu-selectionBackground, #094771);
-  --liminis-editor-menu-separatorBackground: var(--vscode-menu-separatorBackground, #454545);
+  --liminis-editor-button-background: #0e639c;
+  --liminis-editor-menu-background: #252526;
+  --liminis-editor-menu-border: #454545;
+  --liminis-editor-menu-foreground: #cccccc;
+  --liminis-editor-menu-selectionBackground: #094771;
+  --liminis-editor-menu-separatorBackground: #454545;
 }
 
 * {
@@ -243,10 +210,10 @@
 body {
   margin: 0;
   padding: 0;
-  font-family: var(--liminis-editor-font-family, var(--vscode-font-family));
-  font-size: var(--liminis-editor-font-size, var(--vscode-font-size));
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
-  background: var(--liminis-editor-background, var(--vscode-background));
+  font-family: var(--liminis-editor-font-family);
+  font-size: var(--liminis-editor-font-size);
+  color: var(--liminis-editor-foreground);
+  background: var(--liminis-editor-background);
   line-height: 1.8;  /* Slightly more generous line height like Loop */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -256,8 +223,8 @@ body {
 .loading-spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid var(--liminis-editor-border, var(--vscode-border));
-  border-top-color: var(--liminis-editor-link, var(--vscode-link));
+  border: 2px solid var(--liminis-editor-border);
+  border-top-color: var(--liminis-editor-link);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -275,7 +242,7 @@ body {
   justify-content: center;
   gap: 0.75rem;
   min-height: 100vh;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.7;
 }
 
@@ -324,7 +291,7 @@ body {
   position: absolute;
   top: 16px;
   left: 16px;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.5;
   pointer-events: none;
   user-select: none;
@@ -340,8 +307,8 @@ body {
   font-weight: 700;
   margin: 32px 0 24px 0;  /* More generous margins */
   line-height: 1.2;
-  color: var(--liminis-editor-h1-color, var(--slashmd-h1-color));
-  margin-left: var(--liminis-editor-h1-indent, var(--slashmd-h1-indent));
+  color: var(--liminis-editor-h1-color);
+  margin-left: var(--liminis-editor-h1-indent);
 }
 
 .editor-heading-h2 {
@@ -349,8 +316,8 @@ body {
   font-weight: 600;
   margin: 28px 0 16px 0;  /* More generous margins */
   line-height: 1.3;
-  color: var(--liminis-editor-h2-color, var(--slashmd-h2-color));
-  margin-left: var(--liminis-editor-h2-indent, var(--slashmd-h2-indent));
+  color: var(--liminis-editor-h2-color);
+  margin-left: var(--liminis-editor-h2-indent);
 }
 
 .editor-heading-h3 {
@@ -358,8 +325,8 @@ body {
   font-weight: 600;
   margin: 24px 0 12px 0;  /* More generous margins */
   line-height: 1.4;
-  color: var(--liminis-editor-h3-color, var(--slashmd-h3-color));
-  margin-left: var(--liminis-editor-h3-indent, var(--slashmd-h3-indent));
+  color: var(--liminis-editor-h3-color);
+  margin-left: var(--liminis-editor-h3-indent);
 }
 
 .editor-heading-h4 {
@@ -367,8 +334,8 @@ body {
   font-weight: 600;
   margin: 20px 0 10px 0;  /* More generous margins */
   line-height: 1.4;
-  color: var(--liminis-editor-h4-color, var(--slashmd-h4-color));
-  margin-left: var(--liminis-editor-h4-indent, var(--slashmd-h4-indent));
+  color: var(--liminis-editor-h4-color);
+  margin-left: var(--liminis-editor-h4-indent);
 }
 
 .editor-heading-h5 {
@@ -376,8 +343,8 @@ body {
   font-weight: 600;
   margin: 16px 0 8px 0;  /* More generous margins */
   line-height: 1.4;
-  color: var(--liminis-editor-h5-color, var(--slashmd-h5-color));
-  margin-left: var(--liminis-editor-h5-indent, var(--slashmd-h5-indent));
+  color: var(--liminis-editor-h5-color);
+  margin-left: var(--liminis-editor-h5-indent);
 }
 
 /* Lists - Loop-inspired spacing */
@@ -413,14 +380,14 @@ body {
   top: 4px;
   width: 16px;
   height: 16px;
-  border: 2px solid var(--liminis-editor-checkbox-border, var(--checkbox-border));
+  border: 2px solid var(--liminis-editor-checkbox-border);
   border-radius: 3px;
   cursor: pointer;
 }
 
 .editor-listitem-checked::before {
-  background: var(--liminis-editor-link, var(--vscode-link));
-  border-color: var(--liminis-editor-link, var(--vscode-link));
+  background: var(--liminis-editor-link);
+  border-color: var(--liminis-editor-link);
 }
 
 .editor-listitem-checked::after {
@@ -455,14 +422,14 @@ body {
   top: 4px;
   width: 16px;
   height: 16px;
-  border: 2px solid var(--liminis-editor-checkbox-border, var(--checkbox-border));
+  border: 2px solid var(--liminis-editor-checkbox-border);
   border-radius: 3px;
   cursor: pointer;
 }
 
 .editor-listitem-ordered-checked::before {
-  background: var(--liminis-editor-link, var(--vscode-link));
-  border-color: var(--liminis-editor-link, var(--vscode-link));
+  background: var(--liminis-editor-link);
+  border-color: var(--liminis-editor-link);
 }
 
 .editor-listitem-ordered-checked::after {
@@ -482,8 +449,8 @@ body {
 .editor-quote {
   margin: 20px 0;  /* More generous margins */
   padding: 12px 20px;  /* More padding */
-  border-left: 4px solid var(--liminis-editor-border, var(--vscode-border));
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  border-left: 4px solid var(--liminis-editor-border);
+  background: var(--liminis-editor-code-bg);
   font-style: italic;
 }
 
@@ -493,7 +460,7 @@ body {
   position: relative;
   margin: 20px 0;  /* More generous margins */
   padding: 16px 20px;  /* More padding */
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
   border-radius: 10px;  /* Friendlier rounded corners */
   font-family: 'Fira Code', 'Consolas', monospace;
   font-size: 0.9em;
@@ -514,10 +481,10 @@ body {
 .code-language-button {
   padding: 2px 8px;
   font-size: 11px;
-  font-family: var(--liminis-editor-font-family, var(--vscode-font-family));
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  font-family: var(--liminis-editor-font-family);
+  color: var(--liminis-editor-foreground);
+  background: var(--liminis-editor-code-bg);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 4px;
   cursor: pointer;
   opacity: 0.7;
@@ -526,7 +493,7 @@ body {
 
 .code-language-button:hover {
   opacity: 1;
-  background: var(--liminis-editor-toolbar-hoverBackground, var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15)));
+  background: var(--liminis-editor-toolbar-hoverBackground);
 }
 
 /* Code Copy Button */
@@ -537,9 +504,9 @@ body {
   width: 24px;
   height: 20px;
   padding: 0;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  color: var(--liminis-editor-foreground);
+  background: var(--liminis-editor-code-bg);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 4px;
   cursor: pointer;
   opacity: 0.7;
@@ -548,12 +515,12 @@ body {
 
 .code-copy-button:hover {
   opacity: 1;
-  background: var(--liminis-editor-toolbar-hoverBackground, var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.15)));
+  background: var(--liminis-editor-toolbar-hoverBackground);
 }
 
 .code-copy-button.copied {
   opacity: 1;
-  color: var(--liminis-editor-notificationsInfoIcon-foreground, var(--vscode-notificationsInfoIcon-foreground, #3794ff));
+  color: var(--liminis-editor-notificationsInfoIcon-foreground);
 }
 
 /* Code Language Selector Menu */
@@ -562,8 +529,8 @@ body {
   max-height: 320px;
   display: flex;
   flex-direction: column;
-  background: var(--liminis-editor-background, var(--vscode-background));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-background);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 12px;  /* Friendlier rounded corners */
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);  /* Softer shadow */
   z-index: 300;
@@ -574,16 +541,16 @@ body {
   margin: 8px;
   padding: 6px 10px;
   font-size: 13px;
-  font-family: var(--liminis-editor-font-family, var(--vscode-font-family));
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  font-family: var(--liminis-editor-font-family);
+  color: var(--liminis-editor-foreground);
+  background: var(--liminis-editor-code-bg);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 4px;
   outline: none;
 }
 
 .code-language-search:focus {
-  border-color: var(--liminis-editor-link, var(--vscode-link));
+  border-color: var(--liminis-editor-link);
 }
 
 .code-language-list {
@@ -599,8 +566,8 @@ body {
   width: 100%;
   padding: 6px 12px;
   font-size: 13px;
-  font-family: var(--liminis-editor-font-family, var(--vscode-font-family));
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  font-family: var(--liminis-editor-font-family);
+  color: var(--liminis-editor-foreground);
   background: transparent;
   border: none;
   text-align: left;
@@ -608,7 +575,7 @@ body {
 }
 
 .code-language-item:hover {
-  background: var(--liminis-editor-selection, var(--vscode-selection));
+  background: var(--liminis-editor-selection);
 }
 
 .code-language-item.current {
@@ -616,14 +583,14 @@ body {
 }
 
 .code-language-check {
-  color: var(--liminis-editor-link, var(--vscode-link));
+  color: var(--liminis-editor-link);
   font-size: 12px;
 }
 
 .code-language-empty {
   padding: 12px;
   text-align: center;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.6;
   font-size: 13px;
 }
@@ -631,12 +598,12 @@ body {
 /* Inline text formatting */
 .editor-text-bold {
   font-weight: 700;
-  color: var(--liminis-editor-bold-color, var(--slashmd-bold-color));
+  color: var(--liminis-editor-bold-color);
 }
 
 .editor-text-italic {
   font-style: italic;
-  color: var(--liminis-editor-italic-color, var(--slashmd-italic-color));
+  color: var(--liminis-editor-italic-color);
 }
 
 .editor-text-strikethrough {
@@ -649,7 +616,7 @@ body {
 
 .editor-text-code {
   font-family: 'Fira Code', 'Consolas', monospace;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
   padding: 2px 6px;
   border-radius: 6px;  /* Friendlier rounded corners */
   font-size: 0.9em;
@@ -657,7 +624,7 @@ body {
 
 /* Links */
 .editor-link {
-  color: var(--liminis-editor-link, var(--vscode-link));
+  color: var(--liminis-editor-link);
   text-decoration: none;
   cursor: text; /* Normal text cursor for editing */
 }
@@ -668,7 +635,7 @@ body {
 
 /* External links (http/https/mailto) - blue color to differentiate from wiki-links */
 .editor-link-external {
-  color: var(--liminis-editor-external-link, var(--vscode-external-link));
+  color: var(--liminis-editor-external-link);
 }
 
 /* When Cmd/Ctrl is held, show pointer cursor on links to indicate they can be opened */
@@ -693,11 +660,11 @@ body {
 
 /* Broken wiki links - links to non-existent files */
 .editor-link-broken {
-  color: var(--liminis-editor-errorForeground, var(--vscode-errorForeground, #f14c4c)) !important;
+  color: var(--liminis-editor-errorForeground) !important;
 }
 
 .editor-link-broken:hover {
-  color: var(--liminis-editor-errorForeground, var(--vscode-errorForeground, #f14c4c)) !important;
+  color: var(--liminis-editor-errorForeground) !important;
   opacity: 0.8;
 }
 
@@ -713,13 +680,13 @@ body {
 
 .editor-table-cell,
 .editor-table-cell-header {
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border: 1px solid var(--liminis-editor-border);
   padding: 8px 12px;
   text-align: left;
 }
 
 .editor-table-cell-header {
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
   font-weight: 600;
 }
 
@@ -739,7 +706,7 @@ body {
   left: 0;
   right: 0;
   height: 1px;
-  background: var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-border);
 }
 
 /* Image */
@@ -773,7 +740,7 @@ body {
 }
 
 .image-wrapper.selected img {
-  outline: 2px solid var(--liminis-editor-link, var(--vscode-link));
+  outline: 2px solid var(--liminis-editor-link);
   outline-offset: 2px;
 }
 
@@ -786,8 +753,8 @@ body {
   position: absolute;
   width: 12px;
   height: 12px;
-  background: var(--liminis-editor-link, var(--vscode-link));
-  border: 2px solid var(--liminis-editor-background, var(--vscode-background));
+  background: var(--liminis-editor-link);
+  border: 2px solid var(--liminis-editor-background);
   border-radius: 2px;
   z-index: 10;
 }
@@ -844,28 +811,28 @@ body {
 }
 
 .callout-note {
-  background: var(--liminis-editor-callout-note-bg, var(--slashmd-callout-note-bg));
-  border-left-color: var(--liminis-editor-callout-note-border, var(--slashmd-callout-note-border));
+  background: var(--liminis-editor-callout-note-bg);
+  border-left-color: var(--liminis-editor-callout-note-border);
 }
 
 .callout-tip {
-  background: var(--liminis-editor-callout-tip-bg, var(--slashmd-callout-tip-bg));
-  border-left-color: var(--liminis-editor-callout-tip-border, var(--slashmd-callout-tip-border));
+  background: var(--liminis-editor-callout-tip-bg);
+  border-left-color: var(--liminis-editor-callout-tip-border);
 }
 
 .callout-warning {
-  background: var(--liminis-editor-callout-warning-bg, var(--slashmd-callout-warning-bg));
-  border-left-color: var(--liminis-editor-callout-warning-border, var(--slashmd-callout-warning-border));
+  background: var(--liminis-editor-callout-warning-bg);
+  border-left-color: var(--liminis-editor-callout-warning-border);
 }
 
 .callout-important {
-  background: var(--liminis-editor-callout-important-bg, var(--slashmd-callout-important-bg));
-  border-left-color: var(--liminis-editor-callout-important-border, var(--slashmd-callout-important-border));
+  background: var(--liminis-editor-callout-important-bg);
+  border-left-color: var(--liminis-editor-callout-important-border);
 }
 
 .callout-caution {
-  background: var(--liminis-editor-callout-caution-bg, var(--slashmd-callout-caution-bg));
-  border-left-color: var(--liminis-editor-callout-caution-border, var(--slashmd-callout-caution-border));
+  background: var(--liminis-editor-callout-caution-bg);
+  border-left-color: var(--liminis-editor-callout-caution-border);
 }
 
 /* Remove bottom margin from last paragraph in callout */
@@ -876,7 +843,7 @@ body {
 /* Toggle - New ElementNode-based structure */
 .toggle-container {
   margin: 8px 0;
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 10px;  /* Friendlier rounded corners */
   overflow: hidden;
 }
@@ -886,7 +853,7 @@ body {
   align-items: center;
   padding: 10px 14px;
   padding-left: 32px;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
   position: relative;
   min-height: 24px;
 }
@@ -899,7 +866,7 @@ body {
   top: 50%;
   transform: translateY(-50%);
   font-size: 10px;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.7;
   transition: transform 0.2s;
   cursor: pointer;
@@ -921,7 +888,7 @@ body {
 }
 
 .toggle-title:hover {
-  background: var(--liminis-editor-selection, var(--vscode-selection));
+  background: var(--liminis-editor-selection);
 }
 
 /* The paragraph inside the title */
@@ -935,7 +902,7 @@ body {
 .toggle-content-area {
   display: none;
   padding: 12px 14px;
-  border-top: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border-top: 1px solid var(--liminis-editor-border);
 }
 
 .toggle-container--open .toggle-content-area {
@@ -964,7 +931,7 @@ body {
 /* Empty content placeholder */
 .toggle-content-area:empty::before {
   content: 'Type content here...';
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.4;
 }
 
@@ -974,7 +941,7 @@ body {
 }
 
 .toggle-block {
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -985,8 +952,8 @@ body {
   align-items: center;
   gap: 4px;
   padding: 8px;
-  background: var(--liminis-editor-background, var(--vscode-background));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-background);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 10px;  /* Friendlier rounded corners */
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);  /* Softer shadow */
   z-index: 100;
@@ -1002,22 +969,22 @@ body {
   background: transparent;
   border-radius: 4px;
   cursor: pointer;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   font-size: 14px;
 }
 
 .toolbar-button:hover {
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
 }
 
 .toolbar-button.active {
-  background: var(--liminis-editor-selection, var(--vscode-selection));
+  background: var(--liminis-editor-selection);
 }
 
 .toolbar-divider {
   width: 1px;
   height: 20px;
-  background: var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-border);
   margin: 0 4px;
 }
 
@@ -1028,8 +995,8 @@ body {
   transform: translateX(-50%);
   margin-top: 4px;
   padding: 8px;
-  background: var(--liminis-editor-background, var(--vscode-background));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-background);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
@@ -1038,15 +1005,15 @@ body {
   width: 220px;
   padding: 6px 10px;
   font-size: 13px;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
-  background: var(--liminis-editor-input-bg, var(--vscode-input-bg, var(--liminis-editor-code-bg, var(--vscode-code-bg))));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  color: var(--liminis-editor-foreground);
+  background: var(--liminis-editor-input-bg);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 4px;
   outline: none;
 }
 
 .toolbar-link-input input:focus {
-  border-color: var(--liminis-editor-focus-border, var(--vscode-focus-border, #007acc));
+  border-color: var(--liminis-editor-focus-border);
 }
 
 /* Slash Menu */
@@ -1056,8 +1023,8 @@ body {
   max-height: 320px;
   display: flex;
   flex-direction: column;
-  background: var(--liminis-editor-background, var(--vscode-background));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-background);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 12px;  /* Friendlier rounded corners */
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);  /* Softer shadow */
   z-index: 200;
@@ -1068,9 +1035,9 @@ body {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.6;
-  border-bottom: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border-bottom: 1px solid var(--liminis-editor-border);
   flex-shrink: 0;
 }
 
@@ -1092,7 +1059,7 @@ body {
 
 .slash-menu-item:hover,
 .slash-menu-item.selected {
-  background: var(--liminis-editor-selection, var(--vscode-selection));
+  background: var(--liminis-editor-selection);
 }
 
 .slash-menu-icon {
@@ -1101,7 +1068,7 @@ body {
   justify-content: center;
   width: 32px;
   height: 32px;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
   border-radius: 4px;
   font-size: 14px;
 }
@@ -1123,7 +1090,7 @@ body {
 .slash-menu-empty {
   padding: 16px;
   text-align: center;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.6;
 }
 
@@ -1161,14 +1128,14 @@ body {
   height: 20px;
   font-size: 14px;
   letter-spacing: -3px;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   user-select: none;
   border-radius: 4px;
 }
 
 .drag-handle:hover .drag-handle-icon {
   /* Superseded by --liminis-editor-toolbar-hoverBackground's canonical 0.15-alpha default (ADR-93) */
-  background: var(--liminis-editor-toolbar-hoverBackground, var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.1)));
+  background: var(--liminis-editor-toolbar-hoverBackground);
 }
 
 /* Block Delete Button */
@@ -1200,48 +1167,48 @@ body {
   width: 20px;
   height: 20px;
   font-size: 16px;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   user-select: none;
   border-radius: 4px;
 }
 
 .block-delete-button:hover .block-delete-icon {
-  background: var(--liminis-editor-inputValidation-errorBackground, var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.15)));
+  background: var(--liminis-editor-inputValidation-errorBackground);
   /* Superseded by --liminis-editor-errorForeground's canonical #f14c4c default (ADR-93) */
-  color: var(--liminis-editor-errorForeground, var(--vscode-errorForeground, #f44336));
+  color: var(--liminis-editor-errorForeground);
 }
 
 /* Code syntax highlighting */
 .editor-tokenComment {
-  color: var(--liminis-editor-token-comment, var(--slashmd-token-comment));
+  color: var(--liminis-editor-token-comment);
 }
 
 .editor-tokenPunctuation {
-  color: var(--liminis-editor-token-punctuation, var(--slashmd-token-punctuation));
+  color: var(--liminis-editor-token-punctuation);
 }
 
 .editor-tokenProperty {
-  color: var(--liminis-editor-token-property, var(--slashmd-token-property));
+  color: var(--liminis-editor-token-property);
 }
 
 .editor-tokenSelector {
-  color: var(--liminis-editor-token-selector, var(--slashmd-token-selector));
+  color: var(--liminis-editor-token-selector);
 }
 
 .editor-tokenOperator {
-  color: var(--liminis-editor-token-operator, var(--slashmd-token-operator));
+  color: var(--liminis-editor-token-operator);
 }
 
 .editor-tokenAttr {
-  color: var(--liminis-editor-token-keyword, var(--slashmd-token-keyword));
+  color: var(--liminis-editor-token-keyword);
 }
 
 .editor-tokenVariable {
-  color: var(--liminis-editor-token-variable, var(--slashmd-token-variable));
+  color: var(--liminis-editor-token-variable);
 }
 
 .editor-tokenFunction {
-  color: var(--liminis-editor-token-function, var(--slashmd-token-function));
+  color: var(--liminis-editor-token-function);
 }
 
 /* Scrollbar - auto-hides on macOS, styled when visible */
@@ -1279,7 +1246,7 @@ body {
 
 /* Focus styles for accessibility */
 *:focus-visible {
-  outline: 2px solid var(--liminis-editor-link, var(--vscode-link));
+  outline: 2px solid var(--liminis-editor-link);
   outline-offset: 2px;
 }
 
@@ -1291,14 +1258,14 @@ body {
 
 /* Selection */
 ::selection {
-  background: var(--liminis-editor-selection, var(--vscode-selection));
+  background: var(--liminis-editor-selection);
 }
 
 /* Table Actions Menu */
 .table-actions-menu {
   min-width: 200px;
-  background: var(--liminis-editor-background, var(--vscode-background));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-background);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 12px;  /* Friendlier rounded corners */
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);  /* Softer shadow */
   z-index: 300;
@@ -1314,7 +1281,7 @@ body {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.6;
 }
 
@@ -1326,14 +1293,14 @@ body {
   padding: 8px 12px;
   border: none;
   background: transparent;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   font-size: 13px;
   text-align: left;
   cursor: pointer;
 }
 
 .table-actions-button:hover {
-  background: var(--liminis-editor-selection, var(--vscode-selection));
+  background: var(--liminis-editor-selection);
 }
 
 .table-actions-button.table-actions-danger {
@@ -1354,7 +1321,7 @@ body {
 
 .table-actions-divider {
   height: 1px;
-  background: var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-border);
   margin: 4px 0;
 }
 
@@ -1363,7 +1330,7 @@ body {
 .editor-table th:focus,
 .editor-table-cell:focus,
 .editor-table-cell-header:focus {
-  outline: 2px solid var(--liminis-editor-link, var(--vscode-link));
+  outline: 2px solid var(--liminis-editor-link);
   outline-offset: -2px;
 }
 
@@ -1403,8 +1370,8 @@ body {
   width: 480px;
   max-width: 90vw;
   max-height: 90vh;
-  background: var(--liminis-editor-background, var(--vscode-background));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-background);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 16px;  /* Friendlier rounded corners */
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);  /* Softer shadow */
   display: flex;
@@ -1417,7 +1384,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 16px;
-  border-bottom: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border-bottom: 1px solid var(--liminis-editor-border);
 }
 
 .image-modal-header h3 {
@@ -1437,18 +1404,18 @@ body {
   border-radius: 4px;
   cursor: pointer;
   font-size: 20px;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.7;
 }
 
 .image-modal-close:hover {
   opacity: 1;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
 }
 
 .image-modal-tabs {
   display: flex;
-  border-bottom: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border-bottom: 1px solid var(--liminis-editor-border);
 }
 
 .image-modal-tab {
@@ -1456,7 +1423,7 @@ body {
   padding: 12px 16px;
   border: none;
   background: transparent;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   font-size: 14px;
   cursor: pointer;
   opacity: 0.7;
@@ -1465,12 +1432,12 @@ body {
 
 .image-modal-tab:hover {
   opacity: 1;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
 }
 
 .image-modal-tab.active {
   opacity: 1;
-  border-bottom: 2px solid var(--liminis-editor-link, var(--vscode-link));
+  border-bottom: 2px solid var(--liminis-editor-link);
   margin-bottom: -1px;
 }
 
@@ -1485,25 +1452,25 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 160px;
-  border: 2px dashed var(--liminis-editor-border, var(--vscode-border));
+  border: 2px dashed var(--liminis-editor-border);
   border-radius: 8px;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
 
 .image-modal-dropzone:hover {
-  border-color: var(--liminis-editor-link, var(--vscode-link));
+  border-color: var(--liminis-editor-link);
   background: rgba(0, 102, 204, 0.05);
 }
 
 .image-modal-dropzone.drag-over {
-  border-color: var(--liminis-editor-link, var(--vscode-link));
+  border-color: var(--liminis-editor-link);
   background: rgba(0, 102, 204, 0.1);
 }
 
 .image-modal-dropzone.has-preview {
   border-style: solid;
-  border-color: var(--liminis-editor-border, var(--vscode-border));
+  border-color: var(--liminis-editor-border);
   padding: 8px;
 }
 
@@ -1512,7 +1479,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.7;
 }
 
@@ -1537,9 +1504,9 @@ body {
   display: flex;
   justify-content: center;
   padding: 8px;
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 8px;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
 }
 
 .image-modal-alt-section {
@@ -1550,7 +1517,7 @@ body {
   display: block;
   margin-bottom: 6px;
   font-size: 13px;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.8;
 }
 
@@ -1558,20 +1525,20 @@ body {
   width: 100%;
   padding: 10px 12px;
   font-size: 14px;
-  font-family: var(--liminis-editor-font-family, var(--vscode-font-family));
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  font-family: var(--liminis-editor-font-family);
+  color: var(--liminis-editor-foreground);
+  background: var(--liminis-editor-code-bg);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 6px;
   outline: none;
 }
 
 .image-modal-input:focus {
-  border-color: var(--liminis-editor-link, var(--vscode-link));
+  border-color: var(--liminis-editor-link);
 }
 
 .image-modal-input::placeholder {
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.5;
 }
 
@@ -1590,13 +1557,13 @@ body {
   justify-content: flex-end;
   gap: 8px;
   padding: 16px;
-  border-top: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border-top: 1px solid var(--liminis-editor-border);
 }
 
 .image-modal-button {
   padding: 8px 16px;
   font-size: 14px;
-  font-family: var(--liminis-editor-font-family, var(--vscode-font-family));
+  font-family: var(--liminis-editor-font-family);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -1604,17 +1571,17 @@ body {
 }
 
 .image-modal-button.secondary {
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  color: var(--liminis-editor-foreground);
+  background: var(--liminis-editor-code-bg);
 }
 
 .image-modal-button.secondary:hover {
-  background: var(--liminis-editor-selection, var(--vscode-selection));
+  background: var(--liminis-editor-selection);
 }
 
 .image-modal-button.primary {
   color: white;
-  background: var(--liminis-editor-link, var(--vscode-link));
+  background: var(--liminis-editor-link);
 }
 
 .image-modal-button.primary:hover {
@@ -1630,8 +1597,8 @@ body {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: var(--liminis-editor-background, var(--vscode-background));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-background);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 12px;  /* Friendlier rounded corners */
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);  /* Softer shadow */
   z-index: 500;
@@ -1641,8 +1608,8 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-code-bg);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 6px;
   padding: 4px 8px;
 }
@@ -1658,7 +1625,7 @@ body {
 
 .search-icon {
   flex-shrink: 0;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.5;
 }
 
@@ -1666,9 +1633,9 @@ body {
   width: 200px;
   border: none;
   background: transparent;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   font-size: 14px;
-  font-family: var(--liminis-editor-font-family, var(--vscode-font-family));
+  font-family: var(--liminis-editor-font-family);
   outline: none !important;
 }
 
@@ -1679,14 +1646,14 @@ body {
 }
 
 .search-input::placeholder {
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.5;
 }
 
 .search-count {
   flex-shrink: 0;
   font-size: 12px;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.7;
   white-space: nowrap;
 }
@@ -1708,13 +1675,13 @@ body {
   background: transparent;
   border-radius: 4px;
   cursor: pointer;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   transition: background 0.15s;
 }
 
 .search-nav-button:hover:not(:disabled),
 .search-close-button:hover {
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
 }
 
 .search-nav-button:disabled {
@@ -1724,7 +1691,7 @@ body {
 
 .search-close-button:hover {
   /* Superseded by --liminis-editor-errorForeground's canonical #f14c4c default (ADR-93) */
-  color: var(--liminis-editor-errorForeground, var(--vscode-errorForeground, #f44336));
+  color: var(--liminis-editor-errorForeground);
 }
 
 /* Search Highlight Layer */
@@ -1792,7 +1759,7 @@ body {
 
 /* Equation Editor Styles */
 .equation-editor-background {
-  background-color: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background-color: var(--liminis-editor-code-bg);
   padding: 4px 8px;
   border-radius: 4px;
   display: inline-flex;
@@ -1801,7 +1768,7 @@ body {
 }
 
 .equation-dollar-sign {
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.5;
   font-family: monospace;
   white-space: pre;
@@ -1865,13 +1832,13 @@ body {
 .mermaid-loading {
   padding: 2rem;
   text-align: center;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.7;
 }
 
 /* Mermaid Editor Styles */
 .mermaid-editor-container {
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
   border-radius: 8px;
   overflow: hidden;
   margin: 1em 0;
@@ -1889,14 +1856,14 @@ body {
 .mermaid-editor-label {
   font-family: monospace;
   font-size: 12px;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.7;
 }
 
 .mermaid-editor-close {
   background: transparent;
   border: none;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   cursor: pointer;
   padding: 4px 8px;
   border-radius: 4px;
@@ -1916,7 +1883,7 @@ body {
   padding: 12px;
   border: none;
   background: transparent;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   font-family: monospace;
   font-size: 14px;
   line-height: 1.5;
@@ -1925,7 +1892,7 @@ body {
 }
 
 .mermaid-editor-textarea::placeholder {
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.5;
 }
 
@@ -1952,13 +1919,13 @@ body {
 .c4-loading {
   padding: 2rem;
   text-align: center;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.7;
 }
 
 /* C4 Editor Styles */
 .c4-editor-container {
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
   border-radius: 8px;
   overflow: hidden;
   margin: 1em 0;
@@ -1976,14 +1943,14 @@ body {
 .c4-editor-label {
   font-family: monospace;
   font-size: 12px;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.7;
 }
 
 .c4-editor-close {
   background: transparent;
   border: none;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   cursor: pointer;
   padding: 4px 8px;
   border-radius: 4px;
@@ -2003,7 +1970,7 @@ body {
   padding: 12px;
   border: none;
   background: transparent;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   font-family: monospace;
   font-size: 14px;
   line-height: 1.5;
@@ -2012,7 +1979,7 @@ body {
 }
 
 .c4-editor-textarea::placeholder {
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.5;
 }
 
@@ -2035,10 +2002,10 @@ body {
   width: 32px;
   height: 32px;
   padding: 0;
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 6px;
-  background: var(--liminis-editor-background, var(--vscode-background));
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  background: var(--liminis-editor-background);
+  color: var(--liminis-editor-foreground);
   cursor: pointer;
   opacity: 0.7;
   transition: opacity 0.15s, background-color 0.15s, border-color 0.15s;
@@ -2046,13 +2013,13 @@ body {
 
 .frontmatter-toggle-button:hover {
   opacity: 1;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
 }
 
 .frontmatter-toggle-button.frontmatter-toggle-active {
   opacity: 1;
-  background: var(--liminis-editor-link, var(--vscode-link));
-  border-color: var(--liminis-editor-link, var(--vscode-link));
+  background: var(--liminis-editor-link);
+  border-color: var(--liminis-editor-link);
   color: #ffffff;
 }
 
@@ -2063,8 +2030,8 @@ body {
   left: 0;
   right: 0;
   z-index: 5;
-  background: var(--liminis-editor-background, var(--vscode-background));
-  border-bottom: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-background);
+  border-bottom: 1px solid var(--liminis-editor-border);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   transform: translateY(-100%);
   opacity: 0;
@@ -2087,14 +2054,14 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--liminis-editor-border, var(--vscode-border));
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  border-bottom: 1px solid var(--liminis-editor-border);
+  background: var(--liminis-editor-code-bg);
 }
 
 .frontmatter-tray-title {
   font-size: 12px;
   font-weight: 600;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -2109,7 +2076,7 @@ body {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   cursor: pointer;
   opacity: 0.7;
   transition: opacity 0.15s, background-color 0.15s;
@@ -2117,7 +2084,7 @@ body {
 
 .frontmatter-tray-close:hover {
   opacity: 1;
-  background: var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-border);
 }
 
 .frontmatter-tray-content {
@@ -2129,10 +2096,10 @@ body {
   min-height: 80px;
   max-height: 300px;
   padding: 12px;
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 4px;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  background: var(--liminis-editor-code-bg);
+  color: var(--liminis-editor-foreground);
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   font-size: 13px;
   line-height: 1.5;
@@ -2142,11 +2109,11 @@ body {
 
 .frontmatter-tray-textarea:focus {
   outline: none;
-  border-color: var(--liminis-editor-link, var(--vscode-link));
+  border-color: var(--liminis-editor-link);
 }
 
 .frontmatter-tray-textarea::placeholder {
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.5;
 }
 
@@ -2159,10 +2126,10 @@ body {
 
 .frontmatter-tray-toggle-raw {
   padding: 4px 8px;
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 4px;
   background: transparent;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
@@ -2170,8 +2137,8 @@ body {
 }
 
 .frontmatter-tray-toggle-raw:hover {
-  background: var(--liminis-editor-border, var(--vscode-border));
-  border-color: var(--liminis-editor-foreground-muted, var(--vscode-foreground-muted, var(--liminis-editor-border, var(--vscode-border))));
+  background: var(--liminis-editor-border);
+  border-color: var(--liminis-editor-foreground-muted);
 }
 
 /* MDC Form Styles */
@@ -2193,7 +2160,7 @@ body {
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
@@ -2212,42 +2179,42 @@ body {
 
 .mdc-form-input {
   padding: 8px 12px;
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 4px;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  background: var(--liminis-editor-code-bg);
+  color: var(--liminis-editor-foreground);
   font-size: 14px;
   line-height: 1.4;
 }
 
 .mdc-form-input:focus {
   outline: none;
-  border-color: var(--liminis-editor-link, var(--vscode-link));
+  border-color: var(--liminis-editor-link);
 }
 
 .mdc-form-input::placeholder {
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.5;
 }
 
 .mdc-form-select {
   padding: 8px 12px;
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 4px;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  background: var(--liminis-editor-code-bg);
+  color: var(--liminis-editor-foreground);
   font-size: 14px;
   cursor: pointer;
 }
 
 .mdc-form-select:focus {
   outline: none;
-  border-color: var(--liminis-editor-link, var(--vscode-link));
+  border-color: var(--liminis-editor-link);
 }
 
 .mdc-form-hint {
   font-size: 11px;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.7;
   line-height: 1.4;
 }
@@ -2257,7 +2224,7 @@ body {
   background: rgba(6, 150, 215, 0.08);
   border-radius: 4px;
   opacity: 1;
-  color: var(--liminis-editor-link, var(--vscode-link));
+  color: var(--liminis-editor-link);
 }
 
 .dark .mdc-form-hint-info {
@@ -2290,15 +2257,15 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-code-bg);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 4px;
 }
 
 .mdc-glob-pattern {
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   font-size: 13px;
-  color: var(--liminis-editor-link, var(--vscode-link));
+  color: var(--liminis-editor-link);
 }
 
 .mdc-glob-remove {
@@ -2311,7 +2278,7 @@ body {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   cursor: pointer;
   opacity: 0.5;
   transition: opacity 0.15s, background-color 0.15s;
@@ -2334,10 +2301,10 @@ body {
 
 .mdc-glob-add-btn {
   padding: 8px 16px;
-  border: 1px solid var(--liminis-editor-link, var(--vscode-link));
+  border: 1px solid var(--liminis-editor-link);
   border-radius: 4px;
   background: transparent;
-  color: var(--liminis-editor-link, var(--vscode-link));
+  color: var(--liminis-editor-link);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -2345,7 +2312,7 @@ body {
 }
 
 .mdc-glob-add-btn:hover:not(:disabled) {
-  background: var(--liminis-editor-link, var(--vscode-link));
+  background: var(--liminis-editor-link);
   color: #ffffff;
 }
 
@@ -2358,13 +2325,13 @@ body {
 .mdc-other-yaml {
   margin: 0;
   padding: 10px 12px;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
-  border: 1px solid var(--liminis-editor-border, var(--vscode-border));
+  background: var(--liminis-editor-code-bg);
+  border: 1px solid var(--liminis-editor-border);
   border-radius: 4px;
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.8;
   white-space: pre-wrap;
   overflow-x: auto;
@@ -2417,7 +2384,7 @@ body {
    focusable, so they are reachable by Tab. */
 .annotation-mark-highlight:focus-visible,
 .annotation-mark-squiggle:focus-visible {
-  outline: 2px solid var(--liminis-editor-link, var(--vscode-link));
+  outline: 2px solid var(--liminis-editor-link);
   outline-offset: 1px;
 }
 
@@ -2501,7 +2468,7 @@ body {
   padding: 4px 8px;
   border: none;
   background: transparent;
-  color: var(--liminis-editor-foreground, var(--vscode-foreground));
+  color: var(--liminis-editor-foreground);
   opacity: 0.7;
   text-align: left;
   cursor: pointer;
@@ -2510,12 +2477,12 @@ body {
 
 .editor-outline-item-button:hover {
   opacity: 1;
-  background: var(--liminis-editor-code-bg, var(--vscode-code-bg));
+  background: var(--liminis-editor-code-bg);
 }
 
 .editor-outline-item-active .editor-outline-item-button {
   opacity: 1;
-  color: var(--liminis-editor-link, var(--vscode-link));
+  color: var(--liminis-editor-link);
 }
 
 .editor-outline-indicator {
@@ -2527,7 +2494,7 @@ body {
 }
 
 .editor-outline-item-active .editor-outline-indicator {
-  background: var(--liminis-editor-link, var(--vscode-link));
+  background: var(--liminis-editor-link);
 }
 
 .editor-outline-item-text {
@@ -2567,21 +2534,24 @@ body {
    Ensures the editor content prints cleanly with proper formatting.
 */
 @media print {
-  /* Reset editor colors for print */
+  /* Reset editor colors for print. This is an internal consumer, not a
+     host — it overrides --liminis-editor-* directly (ADR-98) rather than a
+     legacy name a host might also be setting. --slashmd-heading-color had
+     no --liminis-editor-* counterpart (unconsumed, no dark override either)
+     and is dropped rather than invented (ADR-98). */
   :root,
   .dark {
-    --vscode-foreground: #000000;
-    --vscode-background: #ffffff;
-    --vscode-code-bg: #f5f5f5;
-    --vscode-border: #cccccc;
-    --checkbox-border: #666666;
-    --vscode-link: #0066cc;
-    --slashmd-heading-color: #000000;
-    --slashmd-h1-color: #000000;
-    --slashmd-h2-color: #000000;
-    --slashmd-h3-color: #000000;
-    --slashmd-h4-color: #000000;
-    --slashmd-h5-color: #000000;
+    --liminis-editor-foreground: #000000;
+    --liminis-editor-background: #ffffff;
+    --liminis-editor-code-bg: #f5f5f5;
+    --liminis-editor-border: #cccccc;
+    --liminis-editor-checkbox-border: #666666;
+    --liminis-editor-link: #0066cc;
+    --liminis-editor-h1-color: #000000;
+    --liminis-editor-h2-color: #000000;
+    --liminis-editor-h3-color: #000000;
+    --liminis-editor-h4-color: #000000;
+    --liminis-editor-h5-color: #000000;
   }
 
   body {
