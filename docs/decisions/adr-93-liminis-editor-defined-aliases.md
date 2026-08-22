@@ -1,9 +1,10 @@
 # ADR-93: `--liminis-editor-*` Names Are Defined as Aliases of Their Legacy Names
 
 **Date:** 2026-08-20
-**Status:** Accepted
+**Status:** Accepted (amended by ADR-98 — see the note marked *Amended by ADR-98* below; the alias direction this ADR chose is reversed)
 **Supersedes:** none
 **Amends:** none
+**Amended by:** ADR-98 (#98 inverts this ADR's alias direction — the legacy names stop carrying the real defaults, and become shims to `--liminis-editor-*` instead)
 **Issue:** #93 (verveguy/liminis-editor)
 
 ## Context
@@ -60,6 +61,20 @@ anticipated by the plan:
    would have shipped a real authoring bug, not just a test artifact.
 
 ## Decision
+
+> **Amended 2026-08-22 by ADR-98 (#98) — this clause no longer holds.** The
+> direction chosen here is reversed: `--liminis-editor-*` names now carry the
+> real defaults, and the legacy names below become one-line shims
+> (`<legacy>: var(--liminis-editor-x);`). This ADR's own reasoning for why
+> the *opposite* direction was unsafe — "adding `--liminis-editor-foreground:
+> <default>` unconditionally would resolve every consumption chain at the
+> new name before ever reaching the old one" — no longer applies once every
+> internal consumption site reads `--liminis-editor-*` only (ADR-98's FR-003),
+> which removes the nested legacy fallback this ADR's Decision explicitly
+> chose to leave in place. See ADR-98 for the full rationale, including why
+> this is still verified non-breaking for a host supplying only a legacy
+> name. The rest of this section is kept as the historical record of what
+> was decided and why in 2026-08-20, not edited to match the new direction.
 
 **Legacy names keep carrying the real defaults. Each `--liminis-editor-*`
 name becomes a new declaration that reads its legacy name via `var()`** —
@@ -124,6 +139,13 @@ sites (`src/styles.css:1148`, `:1188`, `:1704`) each carry a one-line
 comment noting they are superseded by the new canonical default. The
 spec's Out of Scope section explicitly permits this as a side effect of
 choosing FR-001's value, not as a design goal in its own right.
+
+> **Amended 2026-08-22 by ADR-98 (#98) — this clause no longer holds.** Every
+> consumption site's nested legacy fallback, called "provably dead code"
+> below, is removed by ADR-98 — precisely because leaving it in place would
+> mean this package still textually reads the legacy vocabulary ADR-98's
+> FR-003 forbids. The "materially larger, coordinated change deferred out of
+> this issue's scope" this paragraph anticipated is ADR-98 itself.
 
 **Consumption sites are left untouched.** All 224 `styles.css` sites and 26
 `.tsx` sites keep their existing `var(--liminis-editor-x, var(--old-name-x, ...))`
