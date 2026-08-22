@@ -61,19 +61,51 @@ the opposite direction. **The physical structure of `styles.css`'s two
 blocks swaps roles, not position**, so the diff reads as "these two blocks
 traded places" rather than a scrambled rewrite.
 
-**This is verified, not assumed, to be non-breaking for a host still
-setting only a legacy name** (the issue's own explicit ask). Nothing inside
-this package reads a shim's declaration — every internal consumption site
-reads `--liminis-editor-*` directly. A host's own `:root`/`.dark`
-declaration of, say, `--vscode-foreground` wins over this package's shim
-declaration of the same property by ordinary cascade precedence (last
-declaration for equal specificity, or an inline style outranking a
-stylesheet rule either way), and this package's own `--liminis-editor-foreground`
-consumption is entirely unaffected by whether `--vscode-foreground` is
-overridden — it was never reading that name to begin with, in either
-direction, once this change lands. `examples/electron/e2e/theming-aliases.spec.ts`
-exercises this directly with `getComputedStyle` in a running Electron
-shell, per FR-004's explicit requirement, not by reading CSS.
+### Verified, not assumed: the shim preserves reads, not writes
+
+The issue asked for this to be verified, not assumed, and it was — with a
+real, corrected finding, not a confirmation of the original premise. The
+issue's own proposed mechanism claimed a host *setting* only a legacy name
+would still theme the editor, "because the package consumes
+`--liminis-editor-foreground` and the host's declaration wins by cascade."
+That is false, and checking it (a static HTML fixture opened in a real
+Chromium via Playwright's cached binary, then the same check repeated
+against `examples/electron/e2e/theming-aliases.spec.ts`'s running shell)
+shows why: a `var()` reference resolves the cascade of the *exact* property
+name written inside it. `--liminis-editor-foreground`'s own declaration is
+a literal, containing no reference to `--vscode-foreground` at all — so a
+host's override of `--vscode-foreground` changes what `--vscode-foreground`
+itself computes to, and nothing else. Nothing inside this package reads
+`--vscode-foreground`, so the override never reaches the editor. Two custom
+properties do not auto-synchronize; only a `var()` reference that names one
+inside the other's declaration creates any relationship between them, and
+here the reference runs one way only (legacy → new, in the shim), not both
+— a bidirectional shim (each side referencing the other via `var()`) is a
+CSS cycle, which the spec defines as producing a guaranteed-invalid value on
+*both* properties, so that was never an option either.
+
+**The corrected, accepted guarantee: a shim preserves reads, not writes.** A
+host that *reads* a legacy name (e.g. Zusammen's
+`--vscode-errorForeground`/`--vscode-focus-border`) still gets the real,
+current value, since the shim's `var(--liminis-editor-x)` reference resolves
+normally. A host that *sets* only a legacy name no longer themes the editor
+— this is accepted as an intentional breaking change (see CHANGELOG's
+`## Unreleased` / Breaking changes), not a regression to silently work
+around, because the only alternative (`--liminis-editor-x: var(--legacy-x,
+<literal>)`, checking the legacy name first at the *definition* site) would
+keep the legacy name in the resolution path for every one of the 26 shimmed
+tokens — reintroducing, in a new shape, the exact dependence on the legacy
+vocabulary this issue exists to remove. Measured directly: neither
+`liminis-app` nor Zusammen sets a legacy name today (`liminis-app` sets
+`--liminis-editor-primary`/`--liminis-editor-muted-foreground`; Zusammen
+only reads), so this break has no currently-known victim, and it is also
+`0.2.0`'s already-announced deprecation ("removed in a future major
+release") completing on schedule rather than early.
+`examples/electron/e2e/theming-aliases.spec.ts` pins both halves directly
+with `getComputedStyle` in a running Electron shell: a legacy-name read
+still resolves, and a legacy-name-only *write* no longer reaches the
+editor's computed style — a deliberate assertion of the new, documented
+behavior, not a gap left uncovered.
 
 **FR-003 ("no internal code may read a `--vscode-*`/`--slashmd-*`/
 `--checkbox-*` property") is taken literally.** All CSS and TSX consumption
@@ -166,9 +198,10 @@ instead, describing the override relationship in both directions.
   including the 23 aliases that previously baked a literal — the entire
   point of this issue and the prerequisite for zusammen#134's read
   migration (FR-001, SC-001).
-- A host supplying only a legacy name keeps working, verified by
-  `getComputedStyle` in a running Electron shell, not assumed from cascade
-  theory alone (FR-002, FR-003, User Story 2).
+- A host supplying only a legacy name keeps *reading* a real value, verified
+  by `getComputedStyle` in a running Electron shell, not assumed from
+  cascade theory alone (FR-002, FR-003) — see "Verified, not assumed" above
+  for the corrected scope of this guarantee (reads, not writes).
 - `--liminis-editor-primary` now resolves to a value this package actually
   owns, closing the defect the issue's point 3 named (FR-008).
 - The ADR-092 baseline guard now protects the 26 shim declarations the same
@@ -180,6 +213,14 @@ instead, describing the override relationship in both directions.
 
 **Bad / accepted:**
 
+- **A host that sets only a legacy name no longer themes the editor** — this
+  package's initial framing of this issue called the whole change
+  "non-breaking," and that framing was wrong for this one direction (see
+  "Verified, not assumed" above). Accepted because the only fix would keep
+  the legacy name in every shimmed token's resolution path, defeating the
+  purpose of the inversion, and because neither known consumer (`liminis-app`,
+  Zusammen) currently sets a legacy name — this is documented in the
+  CHANGELOG's `## Unreleased` / Breaking changes as of this decision.
 - **`--liminis-editor-primary`/`-100`'s new computed value is a real,
   visible change** for anything relying on the old `#3b82f6`-derived default
   rather than overriding it. This is out of this repository's control —

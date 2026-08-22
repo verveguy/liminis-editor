@@ -3,6 +3,43 @@
 All notable changes to `@liminis/editor` are documented here. This project
 follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Breaking changes
+
+- **`--vscode-*`, `--checkbox-border` and `--editor-brand` (26 names) stop
+  being an override surface.** Every `--liminis-editor-*` name now carries
+  its own real value directly, and every internal consumption site reads
+  `--liminis-editor-*` only — the package no longer reads a legacy name
+  anywhere. **Setting** a legacy name no longer themes the editor; **reading**
+  one still works (each is declared as a one-line shim,
+  `<legacy-name>: var(--liminis-editor-x);`, so `getComputedStyle` still
+  returns a real value for a legacy name, e.g. for Zusammen's
+  `--vscode-errorForeground`/`--vscode-focus-border` reads). Migrate any host
+  still *setting* a legacy name to the corresponding `--liminis-editor-*`
+  name instead. This was verified empirically (`getComputedStyle` in a
+  running Electron shell), not assumed — see ADR-98's "Verified, not
+  assumed" section for the CSS-cascade mechanics and why a shim can only
+  ever preserve reads, not writes, without reintroducing the legacy
+  dependence this change removes.
+- **`--slashmd-*` (61 names) is gone entirely**, with no shim — verified
+  zero hits across both `verveguy/zusammen` and `verveguy/liminis`. The
+  ADR-092 defined-token baseline is updated to match.
+- **`--liminis-editor-primary`/`-100` no longer forward to liminis-app's
+  `--color-primary`/`-100`** (a token this package never defined, so the
+  forward baked a meaningless literal, `#3b82f6`, whenever liminis-app
+  hadn't set it — a defect, not a deliberate default). They now resolve to
+  a value this package actually owns, derived from its own brand color
+  (`--editor-brand`). Anything relying on the old `#3b82f6`-derived default,
+  rather than overriding it, will see a visible color change.
+
+### Added
+
+- **Every `--liminis-editor-*` name carries a real value directly** —
+  including the 23 that previously baked a literal because their alias
+  target was never defined by this package. See `README.md`'s "Theming: CSS
+  custom properties" and ADR-98, superseding ADR-93. (#98)
+
 ## 0.3.0 — 2026-08-21
 
 ### Added
