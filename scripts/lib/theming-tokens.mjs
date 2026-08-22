@@ -251,11 +251,21 @@ export function resolvesWithoutHost(name, consumed, defaulted) {
 
 /**
  * New `--liminis-editor-*` name -> the specific previous name it replaced
- * (#51). An explicit, checked-in table rather than derived by convention:
- * the drift guard (FR-011) needs the reverse mapping (new name -> which of
- * the four old families it actually was) to verify every renamed token's
- * consumption sites preserve a fallback to that exact previous name, and
- * that isn't something "strip the new prefix" can reconstruct on its own.
+ * (#51). An explicit, checked-in table rather than derived by convention —
+ * "strip the new prefix" isn't 1:1 (see the `--checkbox-border` collision
+ * note below). Used by the README's "Previous name" column (`buildInventory`)
+ * as a historical migration record; it is no longer used to guard a
+ * consumption-site fallback (see `resolvesToPreviousName`'s removal, #98 —
+ * that guard's premise, a fallback at the consumption site, is superseded by
+ * `LEGACY_SHIM_TARGET`'s definition-side shim).
+ *
+ * `--liminis-editor-primary`'s entry is `--editor-brand`, not `--color-primary`
+ * (#98): the package's own brand token is what it now actually shims to,
+ * having stopped forwarding to a `--color-*` token it never defined.
+ * `--liminis-editor-primary-100`/`-muted-foreground`/`-muted-100` have no
+ * entry at all — their previous `--color-*` "name" was never something this
+ * package defined either, so recording it as a migration target would imply
+ * a relationship (this package once owned `--color-*`) that never existed.
  *
  * One collision required a deliberate suffix change: `--checkbox-border`
  * and `--vscode-border` both strip to the bare suffix `border`; the
@@ -306,11 +316,8 @@ export const PREVIOUS_NAME = {
   '--liminis-editor-menu-foreground': '--vscode-menu-foreground',
   '--liminis-editor-menu-selectionBackground': '--vscode-menu-selectionBackground',
   '--liminis-editor-menu-separatorBackground': '--vscode-menu-separatorBackground',
-  '--liminis-editor-muted-100': '--color-muted-100',
-  '--liminis-editor-muted-foreground': '--color-muted-foreground',
   '--liminis-editor-notificationsInfoIcon-foreground': '--vscode-notificationsInfoIcon-foreground',
-  '--liminis-editor-primary': '--color-primary',
-  '--liminis-editor-primary-100': '--color-primary-100',
+  '--liminis-editor-primary': '--editor-brand',
   '--liminis-editor-selection': '--vscode-selection',
   '--liminis-editor-token-comment': '--slashmd-token-comment',
   '--liminis-editor-token-function': '--slashmd-token-function',
@@ -324,18 +331,55 @@ export const PREVIOUS_NAME = {
 }
 
 /**
- * True iff `name` is not a renamed (#51) token, or every one of its
- * consumption sites in `consumed` carries an immediate nested fallback to
- * exactly its `PREVIOUS_NAME` entry. This is the FR-011 invariant: a
- * renamed property introduced without a preserved fallback to its previous
- * name must fail the drift guard rather than merge undetected.
+ * Legacy name -> the `--liminis-editor-*` name it forwards to, post-ADR-98
+ * inversion (#98). Every one of these 26 names is declared in `styles.css`'s
+ * deprecated-shim block as a one-line `<legacy>: var(<target>);` — read by
+ * nothing inside this package, kept only so a host still *setting* the
+ * legacy name keeps working via ordinary cascade precedence, not because
+ * anything here consumes it. The 61 `--slashmd-*` names have no entry: #98
+ * deletes them outright rather than shimming them (verified unread by any
+ * known consumer of this package).
  */
-export function resolvesToPreviousName(name, consumed) {
-  const previous = PREVIOUS_NAME[name]
-  if (!previous) return true
-  const entry = consumed.get(name)
-  if (!entry || entry.sites.length === 0) return false
-  return entry.sites.every((site) => site.immediateFallback === previous)
+export const LEGACY_SHIM_TARGET = {
+  '--vscode-font-family': '--liminis-editor-font-family',
+  '--vscode-font-size': '--liminis-editor-font-size',
+  '--vscode-foreground': '--liminis-editor-foreground',
+  '--vscode-background': '--liminis-editor-background',
+  '--vscode-selection': '--liminis-editor-selection',
+  '--vscode-border': '--liminis-editor-border',
+  '--vscode-link': '--liminis-editor-link',
+  '--vscode-external-link': '--liminis-editor-external-link',
+  '--vscode-code-bg': '--liminis-editor-code-bg',
+  '--checkbox-border': '--liminis-editor-checkbox-border',
+  '--editor-brand': '--liminis-editor-primary',
+  '--vscode-button-background': '--liminis-editor-button-background',
+  '--vscode-button-foreground': '--liminis-editor-button-foreground',
+  '--vscode-menu-background': '--liminis-editor-menu-background',
+  '--vscode-menu-border': '--liminis-editor-menu-border',
+  '--vscode-menu-foreground': '--liminis-editor-menu-foreground',
+  '--vscode-menu-selectionBackground': '--liminis-editor-menu-selectionBackground',
+  '--vscode-menu-separatorBackground': '--liminis-editor-menu-separatorBackground',
+  '--vscode-toolbar-hoverBackground': '--liminis-editor-toolbar-hoverBackground',
+  '--vscode-notificationsInfoIcon-foreground': '--liminis-editor-notificationsInfoIcon-foreground',
+  '--vscode-inputValidation-errorBackground': '--liminis-editor-inputValidation-errorBackground',
+  '--vscode-errorForeground': '--liminis-editor-errorForeground',
+  '--vscode-focus-border': '--liminis-editor-focus-border',
+  '--vscode-focusBorder': '--liminis-editor-focusBorder',
+  '--vscode-input-bg': '--liminis-editor-input-bg',
+  '--vscode-foreground-muted': '--liminis-editor-foreground-muted',
+}
+
+/**
+ * True iff `legacyName` is declared in `strippedStylesCssText` (comment-
+ * stripped, e.g. via `stripCssComments`) as a one-line shim forwarding to
+ * `target` — `<legacyName>: var(<target>);` — with no fallback of its own.
+ * This is the FR-002 invariant `LEGACY_SHIM_TARGET` records: a shim that
+ * loses its `var()` forward (or gains a stray literal fallback, silently
+ * reintroducing an independent legacy default) fails this check.
+ */
+export function resolvesToShimTarget(legacyName, target, strippedStylesCssText) {
+  const re = new RegExp(`${legacyName}\\s*:\\s*var\\(\\s*${target}\\s*\\)\\s*;`)
+  return re.test(strippedStylesCssText)
 }
 
 /**
@@ -348,6 +392,22 @@ export function resolvesToPreviousName(name, consumed) {
  * than silently shipping an empty "Controls" cell.
  */
 const TOKEN_DESCRIPTIONS = {
+  // liminis-app's own Tailwind @theme brand tokens (not this package's
+  // vocabulary — see the ADR-98 comment at C4Component.tsx's consumption
+  // sites). These are the "consumed" (depth-0) name at those sites, since
+  // `var(--color-x, var(--liminis-editor-x))`'s outer argument is checked
+  // first by CSS's own fallback rule — --liminis-editor-primary/-100/
+  // muted-foreground/-100 remain fully real, declared defaults (see the
+  // baseline and "Theming" README section) but are read here only as the
+  // nested fallback, so they don't appear as a separate row below.
+  '--color-primary':
+    "liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-primary for the C4 diagram layout-toggle button's active icon/text color.",
+  '--color-primary-100':
+    "liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-primary-100 for the C4 diagram layout-toggle button's active background.",
+  '--color-muted-foreground':
+    "liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-muted-foreground for the C4 diagram layout-toggle button's inactive icon/text color.",
+  '--color-muted-100':
+    "liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-muted-100 for the C4 diagram layout-toggle button's inactive background.",
   '--liminis-editor-background': 'Base background color of the editor surface and its popovers/menus.',
   '--liminis-editor-bold-color': 'Text color of bold (`**text**`) markdown spans.',
   '--liminis-editor-border': 'Default border color used throughout the editor chrome.',

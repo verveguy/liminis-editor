@@ -44,9 +44,11 @@ export function resolvesWithoutHost(
   defaulted: Set<string>,
 ): boolean;
 export const PREVIOUS_NAME: Record<string, string>;
-export function resolvesToPreviousName(
-  name: string,
-  consumed: Map<string, ConsumedTokenEntry>,
+export const LEGACY_SHIM_TARGET: Record<string, string>;
+export function resolvesToShimTarget(
+  legacyName: string,
+  target: string,
+  strippedStylesCssText: string,
 ): boolean;
 export function classify(name: string, properties?: Set<string>): Classification;
 export function describe(name: string): string | undefined;

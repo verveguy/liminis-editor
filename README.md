@@ -260,6 +260,10 @@ than the disjoint sets they were before.
 <!-- theming-tokens:start -->
 | Custom property | Previous name | Controls | Kind | Has a default |
 | --- | --- | --- | --- | --- |
+| `--color-muted-100` | — | liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-muted-100 for the C4 diagram layout-toggle button's inactive background. | Cosmetic | No (inline fallback only) |
+| `--color-muted-foreground` | — | liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-muted-foreground for the C4 diagram layout-toggle button's inactive icon/text color. | Cosmetic | No (inline fallback only) |
+| `--color-primary` | — | liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-primary for the C4 diagram layout-toggle button's active icon/text color. | Cosmetic | No (inline fallback only) |
+| `--color-primary-100` | — | liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-primary-100 for the C4 diagram layout-toggle button's active background. | Cosmetic | No (inline fallback only) |
 | `--liminis-editor-background` | `--vscode-background` | Base background color of the editor surface and its popovers/menus. | Cosmetic | Yes |
 | `--liminis-editor-bold-color` | `--slashmd-bold-color` | Text color of bold (`**text**`) markdown spans. | Cosmetic | Yes |
 | `--liminis-editor-border` | `--vscode-border` | Default border color used throughout the editor chrome. | Cosmetic | Yes |
@@ -304,11 +308,7 @@ than the disjoint sets they were before.
 | `--liminis-editor-menu-foreground` | `--vscode-menu-foreground` | Text color of context menu items. | Cosmetic | Yes |
 | `--liminis-editor-menu-selectionBackground` | `--vscode-menu-selectionBackground` | Background of a hovered/selected context menu item. | Cosmetic | Yes |
 | `--liminis-editor-menu-separatorBackground` | `--vscode-menu-separatorBackground` | Color of separator lines inside context menus. | Cosmetic | Yes |
-| `--liminis-editor-muted-100` | `--color-muted-100` | Background of the C4 diagram layout-toggle buttons when inactive. | Cosmetic | Yes |
-| `--liminis-editor-muted-foreground` | `--color-muted-foreground` | Icon/text color of the C4 diagram layout-toggle buttons when inactive. | Cosmetic | Yes |
 | `--liminis-editor-notificationsInfoIcon-foreground` | `--vscode-notificationsInfoIcon-foreground` | Color of informational icons in inline notifications. | Cosmetic | Yes |
-| `--liminis-editor-primary` | `--color-primary` | Icon/text color of the C4 diagram layout-toggle buttons when active. | Cosmetic | Yes |
-| `--liminis-editor-primary-100` | `--color-primary-100` | Background of the C4 diagram layout-toggle buttons when active. | Cosmetic | Yes |
 | `--liminis-editor-selection` | `--vscode-selection` | Background color of selected/highlighted text. | Cosmetic | Yes |
 | `--liminis-editor-token-comment` | `--slashmd-token-comment` | Syntax-highlight color for comments in fenced code blocks. | Cosmetic | Yes |
 | `--liminis-editor-token-function` | `--slashmd-token-function` | Syntax-highlight color for function names in fenced code blocks. | Cosmetic | Yes |
