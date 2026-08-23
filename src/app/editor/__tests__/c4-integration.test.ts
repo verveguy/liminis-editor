@@ -5,10 +5,14 @@
  * - SlashMenu (block insertion)
  * - Markdown mappers (mdast <-> Lexical round-trip)
  * - Parser + Layout + Renderer pipeline
+ *
+ * The parser/layout engine itself is `@liminis/diagrams`'s concern and is
+ * tested there; this file's job is the markdown `@layout` fence-meta
+ * round-trip contract and the slash-menu wiring, which are this repository's
+ * concern and are not exercised by the extracted package.
  */
 import { describe, it, expect } from 'vitest';
-import { parseC4 } from './parser';
-import { layoutC4Diagram } from './layout';
+import { parseC4, layoutC4Diagram } from '@liminis/diagrams/core';
 import type { Code, Root } from 'mdast';
 
 // Import markdown parsing/stringify for round-trip tests

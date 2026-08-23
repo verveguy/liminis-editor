@@ -31,17 +31,18 @@
  */
 
 // C4 diagram subsystem — parse, layout, and server-side SVG rendering
-export { renderC4DiagramToSVG } from './app/editor/c4/render-to-string'
-export { parseC4, validateC4 } from './app/editor/c4/parser'
-export { layoutC4Diagram } from './app/editor/c4/layout'
+export { renderC4DiagramToSVG } from '@liminis/diagrams/server'
 export {
+  parseC4,
+  validateC4,
+  layoutC4Diagram,
   isSystem,
   isContainer,
   isComponent,
   isPerson,
   isExternal,
   isBoundary,
-} from './app/editor/c4/types'
+} from '@liminis/diagrams/core'
 export type {
   C4ElementType,
   C4Shape,
@@ -59,7 +60,7 @@ export type {
   ParseError,
   ParseResult,
   ManualLayout,
-} from './app/editor/c4/types'
+} from '@liminis/diagrams/core'
 
 // MathJax lite-adaptor factory (equation rendering, server-side export).
 //

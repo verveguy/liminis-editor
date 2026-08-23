@@ -53,6 +53,17 @@ follows [Semantic Versioning](https://semver.org/).
   target was never defined by this package. See `README.md`'s "Theming: CSS
   custom properties" and ADR-98, superseding ADR-93. (#98)
 
+### Changed
+
+- **C4 diagram parsing, layout, and rendering now come from the published
+  `@liminis/diagrams` package instead of a local copy.** `src/app/editor/c4/`
+  is gone; `C4Component.tsx`, `C4Node.tsx`, `mdastToLexical.ts`, `index.ts`
+  and `headless.ts` now import from `@liminis/diagrams/core`,
+  `@liminis/diagrams/react`, and `@liminis/diagrams/server`. This is an
+  internal source-of-implementation change only — `index.ts`'s and
+  `headless.ts`'s exported names are unchanged, and no C4 parsing, layout,
+  or rendering behavior changes. (#100)
+
 ## 0.3.0 — 2026-08-21
 
 ### Added

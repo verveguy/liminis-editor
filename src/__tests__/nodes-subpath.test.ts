@@ -152,6 +152,7 @@ describe('./nodes subpath import graph', () => {
         '@lexical/react/LexicalComposerContext',
         '@lexical/rich-text',
         '@lexical/table',
+        '@liminis/diagrams/core',
         'lexical',
         'mdast',
         'mdast-util-definition-list',
