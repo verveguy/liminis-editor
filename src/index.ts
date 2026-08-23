@@ -129,4 +129,4 @@ export * from './headless'
 export type {
   ParseResult as C4ParseResult,
   ParseError as C4ParseError,
-} from './app/editor/c4/types'
+} from '@liminis/diagrams/core'

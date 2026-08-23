@@ -19,13 +19,11 @@ import {
 } from 'lexical';
 import { Move, RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { parseC4, validateC4 } from '../c4/parser';
-import { layoutC4Diagram } from '../c4/layout';
-import { C4Renderer, C4ErrorDisplay } from '../c4/renderer';
-import { C4InteractiveRenderer } from '../c4/C4InteractiveRenderer';
+import { parseC4, validateC4, layoutC4Diagram } from '@liminis/diagrams/core';
+import { C4Renderer, C4ErrorDisplay, C4InteractiveRenderer } from '@liminis/diagrams/react';
 import { $isC4Node } from './C4Node';
 import { DiagramContextMenu, useDiagramContextMenu } from './DiagramContextMenu';
-import type { ManualLayout } from '../c4/types';
+import type { ManualLayout } from '@liminis/diagrams/core';
 
 // =============================================================================
 // C4 DIAGRAM DISPLAY
