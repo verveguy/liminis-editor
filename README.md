@@ -232,15 +232,17 @@ cascade theory alone — see "Migrating from the old names" below for what to
 do about it. The pre-`0.2.0` `--slashmd-*` names have no shim at all — they
 are deleted outright, verified unread by any known consumer (ADR-98).
 
-One package-owned exception: `--liminis-editor-primary`/`-100` and
-`--liminis-editor-muted-foreground`/`-100` back the C4 diagram's
-layout-toggle buttons, and `C4Component.tsx` checks liminis-app's own
-`--color-primary`/`--color-muted-foreground` Tailwind tokens *first*,
-falling back to this package's own default — so those four rows below are
-documented under their `--color-*` names, not their `--liminis-editor-*`
-names, even though the `--liminis-editor-*` declarations are just as real
-(see ADR-98). This is the only place a non-`--liminis-editor-*` name is a
-supported way to theme this package.
+`--liminis-editor-primary`/`-100` and `--liminis-editor-muted-foreground`/`-100`
+back the C4 diagram's layout-toggle buttons. Until `0.4.0`, `C4Component.tsx`
+checked liminis-app's own `--color-primary`/`--color-muted-foreground`
+Tailwind tokens *first*, falling back to this package's own default — a
+deliberate, documented exception (ADR-98) to the rule above. That exception
+has been removed: these six expressions now read `--liminis-editor-*` only, the
+same as every other consumption site in this package, and a host's
+`--color-*` tokens no longer have any effect on them (see ADR-98's
+amendment). A host that wants to override the C4 diagram colors sets
+`--liminis-editor-primary` and its siblings, the same as for any other
+token.
 
 Renaming or removing a definition is a breaking change, the same as any
 other change to a supported API surface described under "Versioning policy"
@@ -249,16 +251,12 @@ unintentionally (ADR-092).
 
 **Previous name** is the pre-`0.2.0` name this property replaced — the exact
 name to look for if you're migrating a host that still overrides the old
-vocabulary (`—` for a property that was never renamed, including the four
-`--color-*` rows above, which were never a `--liminis-editor-*` rename to
-begin with). **Controls** is a short description of what the token actually
-affects. **Kind** distinguishes tokens that only affect appearance
-(`Cosmetic`) from the handful that also affect layout (`Structural` —
-heading indents and the base font). **Has a default** marks tokens declared
-with a value in `styles.css` directly; every `--liminis-editor-*` row below
-reads "Yes" for that reason directly, not via an alias. The four `--color-*`
-rows read "No (inline fallback only)" — they are liminis-app's own tokens,
-never declared by this package, exactly as before this change.
+vocabulary (`—` for a property that was never renamed). **Controls** is a
+short description of what the token actually affects. **Kind** distinguishes
+tokens that only affect appearance (`Cosmetic`) from the handful that also
+affect layout (`Structural` — heading indents and the base font). **Has a
+default** marks tokens declared with a value in `styles.css` directly; every
+row below reads "Yes" for that reason directly, not via an alias.
 
 This table is generated from `src/` by `node scripts/generate-theming-docs.mjs`
 and checked for staleness in CI (`tests/theming-contract.test.ts`) — a `var(--x)`
@@ -275,10 +273,6 @@ describes, superseding ADR-93.
 <!-- theming-tokens:start -->
 | Custom property | Previous name | Controls | Kind | Has a default |
 | --- | --- | --- | --- | --- |
-| `--color-muted-100` | — | liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-muted-100 for the C4 diagram layout-toggle button's inactive background. | Cosmetic | No (inline fallback only) |
-| `--color-muted-foreground` | — | liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-muted-foreground for the C4 diagram layout-toggle button's inactive icon/text color. | Cosmetic | No (inline fallback only) |
-| `--color-primary` | — | liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-primary for the C4 diagram layout-toggle button's active icon/text color. | Cosmetic | No (inline fallback only) |
-| `--color-primary-100` | — | liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-primary-100 for the C4 diagram layout-toggle button's active background. | Cosmetic | No (inline fallback only) |
 | `--liminis-editor-background` | `--vscode-background` | Base background color of the editor surface and its popovers/menus. | Cosmetic | Yes |
 | `--liminis-editor-bold-color` | `--slashmd-bold-color` | Text color of bold (`**text**`) markdown spans. | Cosmetic | Yes |
 | `--liminis-editor-border` | `--vscode-border` | Default border color used throughout the editor chrome. | Cosmetic | Yes |
@@ -323,7 +317,11 @@ describes, superseding ADR-93.
 | `--liminis-editor-menu-foreground` | `--vscode-menu-foreground` | Text color of context menu items. | Cosmetic | Yes |
 | `--liminis-editor-menu-selectionBackground` | `--vscode-menu-selectionBackground` | Background of a hovered/selected context menu item. | Cosmetic | Yes |
 | `--liminis-editor-menu-separatorBackground` | `--vscode-menu-separatorBackground` | Color of separator lines inside context menus. | Cosmetic | Yes |
+| `--liminis-editor-muted-100` | — | Background of the C4 diagram layout-toggle buttons when inactive. | Cosmetic | Yes |
+| `--liminis-editor-muted-foreground` | — | Icon/text color of the C4 diagram layout-toggle buttons when inactive. | Cosmetic | Yes |
 | `--liminis-editor-notificationsInfoIcon-foreground` | `--vscode-notificationsInfoIcon-foreground` | Color of informational icons in inline notifications. | Cosmetic | Yes |
+| `--liminis-editor-primary` | `--editor-brand` | Icon/text color of the C4 diagram layout-toggle buttons when active. | Cosmetic | Yes |
+| `--liminis-editor-primary-100` | — | Background of the C4 diagram layout-toggle buttons when active. | Cosmetic | Yes |
 | `--liminis-editor-selection` | `--vscode-selection` | Background color of selected/highlighted text. | Cosmetic | Yes |
 | `--liminis-editor-token-comment` | `--slashmd-token-comment` | Syntax-highlight color for comments in fenced code blocks. | Cosmetic | Yes |
 | `--liminis-editor-token-function` | `--slashmd-token-function` | Syntax-highlight color for function names in fenced code blocks. | Cosmetic | Yes |

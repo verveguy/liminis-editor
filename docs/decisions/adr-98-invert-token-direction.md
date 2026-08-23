@@ -151,6 +151,21 @@ this change** — a future pass that "simplifies" it to match every other
 call site would silently stop liminis-app's existing override from working.
 An inline comment at the site says so explicitly, not only this ADR.
 
+> **Amended 2026-08-22 (#101) — this exception is removed.** Measured
+> against both known consumers' current `main`, the two arms resolved
+> identically in liminis-app (`--color-primary` and `--liminis-editor-primary`
+> both trace to `var(--primary)`) and the `--color-*` arm was dead in
+> Zusammen (neither `--color-primary-100` nor `--color-muted-100` was ever
+> defined there). The fallback changed no observable outcome anywhere it was
+> deployed, while permanently coupling this package to a host's Tailwind
+> `@theme` namespace it does not define or control. `C4Component.tsx`'s six
+> sites now read `var(--liminis-editor-x)` only, the same as every other
+> consumption site; a host that wants to override the C4 diagram colours
+> sets `--liminis-editor-primary` and its siblings, exactly as it would for
+> any other token. This confirms the risk this ADR itself flagged above —
+> the "single highest-risk spot" and "permanent asymmetry" — rather than
+> contradicting it.
+
 **`PREVIOUS_NAME` in `scripts/lib/theming-tokens.mjs` drops its `-primary-100`/
 `-muted-foreground`/`-muted-100` entries** (they pointed at `--color-*`,
 which this package never defined — keeping them implied a migration
@@ -235,6 +250,10 @@ instead, describing the override relationship in both directions.
   recorded; there is no CI guard that would catch a well-intentioned but
   wrong simplification here, because the wrong version is textually
   indistinguishable from a normal consumption site.
+  > **Amended 2026-08-22 (#101) — removed.** The exception is gone; see the
+  > amendment in the Decision section above. `--color-*` is now forbidden
+  > under `src/` on the same footing as `--vscode-*`/`--slashmd-*`/
+  > `--checkbox-*`, with no per-file carve-out.
 - **The README's generated token table no longer lists
   `--liminis-editor-primary`/`-100`/`-muted-foreground`/`-muted-100` as
   their own rows** — `--color-primary`/`-100`/`-muted-foreground`/`-muted-100`

@@ -394,22 +394,6 @@ export function resolvesToShimTarget(legacyName, target, strippedStylesCssText) 
  * than silently shipping an empty "Controls" cell.
  */
 const TOKEN_DESCRIPTIONS = {
-  // liminis-app's own Tailwind @theme brand tokens (not this package's
-  // vocabulary — see the ADR-98 comment at C4Component.tsx's consumption
-  // sites). These are the "consumed" (depth-0) name at those sites, since
-  // `var(--color-x, var(--liminis-editor-x))`'s outer argument is checked
-  // first by CSS's own fallback rule — --liminis-editor-primary/-100/
-  // muted-foreground/-100 remain fully real, declared defaults (see the
-  // baseline and "Theming" README section) but are read here only as the
-  // nested fallback, so they don't appear as a separate row below.
-  '--color-primary':
-    "liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-primary for the C4 diagram layout-toggle button's active icon/text color.",
-  '--color-primary-100':
-    "liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-primary-100 for the C4 diagram layout-toggle button's active background.",
-  '--color-muted-foreground':
-    "liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-muted-foreground for the C4 diagram layout-toggle button's inactive icon/text color.",
-  '--color-muted-100':
-    "liminis-app's own Tailwind brand token; when set, wins over --liminis-editor-muted-100 for the C4 diagram layout-toggle button's inactive background.",
   '--liminis-editor-background': 'Base background color of the editor surface and its popovers/menus.',
   '--liminis-editor-bold-color': 'Text color of bold (`**text**`) markdown spans.',
   '--liminis-editor-border': 'Default border color used throughout the editor chrome.',

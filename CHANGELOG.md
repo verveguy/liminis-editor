@@ -32,6 +32,19 @@ follows [Semantic Versioning](https://semver.org/).
   a value this package actually owns, derived from its own brand color
   (`--editor-brand`). Anything relying on the old `#3b82f6`-derived default,
   rather than overriding it, will see a visible color change.
+- **`C4Component.tsx`'s six style expressions no longer read `--color-*`
+  at all** — #98's one deliberate, documented exception (checking
+  liminis-app's own Tailwind `--color-primary`/`-100`/`--color-muted-100`/
+  `--color-muted-foreground` first, falling back to this package's own
+  `--liminis-editor-*` default) is removed. Measured against both known
+  consumers' current `main`, the two arms resolved identically in
+  liminis-app and the fallback was otherwise dead — it changed no
+  observable outcome anywhere it was deployed, while permanently coupling
+  this package to a host-specific Tailwind namespace it does not define or
+  control. Every internal consumption site under `src/` now reads
+  `--liminis-editor-*` only, with no exception. A host that wants to
+  override the C4 diagram colours sets `--liminis-editor-primary` and its
+  siblings, unchanged by this issue. See ADR-98's amendment. (#101)
 
 ### Added
 
