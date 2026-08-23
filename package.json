@@ -99,7 +99,7 @@
     "react-dom": "^19.2.0"
   },
   "dependencies": {
-    "@liminis/diagrams": "^0.1.0",
+    "@liminis/diagrams": "^0.1.1",
     "@mathjax/src": "^4.1.1",
     "lucide-react": "^1.11.0",
     "mdast-util-definition-list": "^2.0.0",
