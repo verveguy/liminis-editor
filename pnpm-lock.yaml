@@ -8,9 +8,9 @@ importers:
 
   .:
     dependencies:
-      '@dagrejs/dagre':
-        specifier: ^3.0.0
-        version: 3.1.1
+      '@liminis/diagrams':
+        specifier: ^0.1.0
+        version: 0.1.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@mathjax/src':
         specifier: ^4.1.1
         version: 4.1.3
@@ -569,6 +569,18 @@ packages:
       yjs: '>=13.5.22'
     peerDependenciesMeta:
       typescript:
+        optional: true
+
+  '@liminis/diagrams@0.1.0':
+    resolution: {integrity: sha512-E/1aiVicWj/29u1FE17fAFIV0LikqqZqTkRe6a/4dBSzvM3YAR72q/Q+ckpIPdooOyLnQ6RV1M1yHjc+qUgV2g==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
         optional: true
 
   '@mathjax/mathjax-newcm-font@4.1.3':
@@ -2838,6 +2850,13 @@ snapshots:
       yjs: 13.6.32
     optionalDependencies:
       typescript: 6.0.3
+
+  '@liminis/diagrams@0.1.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+    dependencies:
+      '@dagrejs/dagre': 3.1.1
+    optionalDependencies:
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
 
   '@mathjax/mathjax-newcm-font@4.1.3': {}
 
