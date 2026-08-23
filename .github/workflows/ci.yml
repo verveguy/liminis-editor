@@ -13,6 +13,14 @@ on:
   push:
     branches: [main]
 
+# Least privilege for the whole workflow. Nothing here writes to the repository:
+# every job checks out, installs and runs checks. The repository default is
+# already `read`, so this changes no behaviour today — it stops a future change
+# to the org or repo default from silently widening what a compromised
+# dependency's install script could reach.
+permissions:
+  contents: read
+
 jobs:
   # Everything that needs no built artifact. Fast, and the job that fails first
   # when something ordinary is wrong.
@@ -21,7 +29,15 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      # `pnpm install` below runs dependency lifecycle scripts, so the checkout
+      # token should not be left readable in `.git/config` for that code — the
+      # same reasoning the other three jobs in this file already apply. This job
+      # was the exception, which was an oversight rather than a decision:
+      # "the heavier jobs run more third-party code" argues for prioritising
+      # them, not for leaving this one exposed.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
 
