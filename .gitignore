@@ -46,3 +46,12 @@ coverage/
 .env
 .env.local
 *.local
+
+# Astro/Starlight documentation site (site/ is its own package).
+# src/content/docs/guide/ is generated from docs/ by site/scripts/sync-docs.mjs;
+# public/demo/ is the demo build staged into the site by stage-demo.mjs.
+site/node_modules/
+site/dist/
+site/.astro/
+site/src/content/docs/guide/
+site/public/demo/

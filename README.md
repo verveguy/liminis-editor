@@ -8,7 +8,8 @@ It is the editor from [Liminis](https://github.com/verveguy/liminis), extracted
 into this repository so it can stand on its own. MIT-licensed.
 
 Its history, and how to read the `ADR-0NNN`, `FR-NNN` and `#NNN` references that
-travelled with the code, are recorded in [`docs/provenance.md`](./docs/provenance.md).
+travelled with the code, are recorded in [`docs/provenance.md`](./docs/provenance.md)
+([on the docs site](https://v3rv.com/liminis-editor/guide/provenance/)).
 
 ## What you get
 
@@ -490,12 +491,35 @@ over the same round-trip fixture corpus the package's own test suite uses, so
 every fixture-representable node class renders somewhere in it. See
 [`examples/demo/README.md`](./examples/demo/README.md).
 
-`examples/demo` is also the source of the public GitHub Pages site: a
+`examples/demo` is also the demo on the public GitHub Pages site, at
+**[v3rv.com/liminis-editor/demo/](https://v3rv.com/liminis-editor/demo/)** — a
 `release`-triggered (not merge-triggered) build of this same shell, showing a
-visible version badge for the published release it represents and a
-Documentation tab rendering this README. Between releases the deployed site
-stays on the last published version even as `main` keeps moving — that
-staleness is intentional, not a bug (see `docs/decisions/adr-082.md`).
+visible version badge for the published release it represents. Between releases
+the deployed site stays on the last published version even as `main` keeps
+moving — that staleness is intentional, not a bug (see
+`docs/decisions/adr-082.md`).
+
+## Documentation site
+
+**[v3rv.com/liminis-editor](https://v3rv.com/liminis-editor/)** publishes the
+pages in [`docs/`](./docs/) with search, cross-links, and the C4 diagrams
+rendered live rather than as pictures.
+
+`docs/*.md` remains the source of truth and is not moved or modified for the
+site: it ships inside the published tarball, `tests/adr-citations.test.ts` walks
+it, and it is cited by path from ADRs, the CHANGELOG and source comments.
+`site/scripts/sync-docs.mjs` generates the site's copy from it, taking each
+page's title from its H1.
+
+```bash
+pnpm --dir site demo    # build the demo and stage it at /demo/ (once)
+pnpm --dir site dev     # serve the docs at http://localhost:4321/liminis-editor/
+pnpm --dir site diagrams # re-render the committed SVGs after editing a ```c4 fence
+```
+
+`site/` is its own package, deliberately not a workspace member — the same
+reasoning as `examples/`. An Astro toolchain has no business in the dev install
+CI runs for lint, typecheck and test.
 
 ## Electron e2e shell
 
@@ -510,7 +534,8 @@ application, to exist. See
 ```bash
 pnpm build:examples   # builds and packs the package once, then builds both
                        # examples/demo and examples/electron against it
-pnpm build:site       # builds examples/demo only — what the release-triggered
+pnpm build:site       # builds examples/demo only — wrapped by the site's
+                       # `pnpm --dir site demo`, which the release-triggered
                        # Pages deploy runs (see the Demo section above)
 ```
 

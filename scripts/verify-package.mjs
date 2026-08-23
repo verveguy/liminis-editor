@@ -233,7 +233,7 @@ check('no sideEffects field is declared', packed.sideEffects === undefined, `got
 
 check('a LICENSE ships in the tarball', existsSync(join(extractDir, 'package', 'LICENSE')))
 check('a README ships in the tarball', existsSync(join(extractDir, 'package', 'README.md')))
-for (const doc of ['editor-api.md', 'markdown-pipeline.md', 'annotations.md']) {
+for (const doc of ['architecture.md', 'editor-api.md', 'markdown-pipeline.md', 'annotations.md']) {
   check(`docs/${doc} ships in the tarball`, existsSync(join(extractDir, 'package', 'docs', doc)))
 }
 check(

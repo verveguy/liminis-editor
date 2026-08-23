@@ -153,6 +153,45 @@ jobs:
       - name: Build the Pages site (smoke test)
         run: pnpm build:site
 
+  # The documentation site, on every pull request. Pages deploys on a release,
+  # so without this a broken site — an unresolvable island import, a page whose
+  # H1 went missing, a diagram edited without re-rendering — would stay
+  # invisible until the next release tried to publish it.
+  #
+  # The demo is not staged here: this job asks whether the documentation builds,
+  # and examples-build above already covers whether the demo does.
+  docs-site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+          cache-dependency-path: site/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: site
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the documentation site
+        working-directory: site
+        run: pnpm build
+
+      # A committed SVG that no longer matches the fence it came from is a
+      # stale picture on github.com and inside the published tarball, which
+      # ships docs/. Stale documentation is worse than none.
+      - name: Check the rendered diagrams are current
+        working-directory: site
+        run: pnpm diagrams:check
+
   # Runs the Electron e2e suite (FR-010): the tests that reproduce the
   # read-only create-affordance defect and the toolbar-surfaced-kind defect
   # named in this package's own issue tracker, against real Electron/Chromium.
