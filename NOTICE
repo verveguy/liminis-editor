@@ -1,0 +1,19 @@
+NOTICE
+======
+
+Third-party attribution for this package. These notices were previously
+appended to the LICENSE file; they are recorded here instead so that LICENSE
+contains the MIT text alone and is correctly detected as MIT.
+
+The license itself is unchanged: see LICENSE.
+
+This package vendors a modified copy of `mdast-util-wiki-link` (MIT,
+Copyright (c) 2020 Mark Hudnall). Its license and a description of the
+modifications ship alongside it, at
+`dist/markdown/vendor/mdast-util-wiki-link/`.
+
+This package derives from the `webview-ui` package of SlashMD
+(https://github.com/wolfdavo/SlashMD) by David Wolfenden, which that project's
+README declares to be MIT-licensed. SlashMD carries no LICENSE file and no
+copyright notice, so none is reproduced here; this notice records the
+derivation and the stated license in their absence.
