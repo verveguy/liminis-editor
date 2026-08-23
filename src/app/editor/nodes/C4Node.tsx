@@ -16,7 +16,7 @@ import {
   $applyNodeReplacement,
 } from 'lexical';
 import { createElement, lazy, Suspense } from 'react';
-import type { ManualLayout } from '../c4/types';
+import type { ManualLayout } from '@liminis/diagrams/core';
 
 const C4Component = lazy(() => import('./C4Component'));
 

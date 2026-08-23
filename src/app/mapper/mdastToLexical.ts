@@ -772,7 +772,7 @@ function isC4PlantUML(code: string): boolean {
 }
 
 /** Extract and validate manual layout data from a C4 code fence's meta string */
-function extractC4LayoutFromMeta(meta: string | null | undefined): import('../editor/c4/types').ManualLayout | undefined {
+function extractC4LayoutFromMeta(meta: string | null | undefined): import('@liminis/diagrams/core').ManualLayout | undefined {
   if (!meta?.startsWith('@layout ')) return undefined;
   try {
     const raw = JSON.parse(meta.slice('@layout '.length));
@@ -786,7 +786,7 @@ function extractC4LayoutFromMeta(meta: string | null | undefined): import('../ed
         return undefined;
       }
     }
-    return raw as import('../editor/c4/types').ManualLayout;
+    return raw as import('@liminis/diagrams/core').ManualLayout;
   } catch {
     return undefined;
   }
