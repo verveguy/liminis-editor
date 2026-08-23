@@ -19,16 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This package vendors a modified copy of `mdast-util-wiki-link` (MIT,
-Copyright (c) 2020 Mark Hudnall). Its license and a description of the
-modifications ship alongside it, at
-`dist/markdown/vendor/mdast-util-wiki-link/`.
-
-This package derives from the `webview-ui` package of SlashMD
-(https://github.com/wolfdavo/SlashMD) by David Wolfenden, which that project's
-README declares to be MIT-licensed. SlashMD carries no LICENSE file and no
-copyright notice, so none is reproduced here; this notice records the
-derivation and the stated license in their absence.
