@@ -45,6 +45,7 @@ const OUT = join(SITE, 'src/content/docs/guide')
  * Silent omission beats a build that breaks because someone added a page.
  */
 const ORDER = [
+  'architecture',
   'editor-api',
   'markdown-pipeline',
   'annotations',
@@ -54,6 +55,7 @@ const ORDER = [
 
 /** One-line summaries, used for the sidebar and for search results. */
 const DESCRIPTIONS = {
+  architecture: 'Which entry point to import, and where the host seam falls.',
   'editor-api': 'The <Editor> component, the host seam, and the handle a host holds.',
   'markdown-pipeline': 'Markdown in, Lexical state out, markdown back — and what survives the trip.',
   annotations: 'Ranges anchored to a document that outlive edits to it.',
@@ -62,6 +64,9 @@ const DESCRIPTIONS = {
 }
 
 const yaml = (s) => `"${s.replace(/"/g, '\\"')}"`
+
+/** Where the real source files live, for the "Edit this page" link. */
+const EDIT_BASE = 'https://github.com/verveguy/liminis-editor/edit/main/docs'
 
 rmSync(OUT, { recursive: true, force: true })
 mkdirSync(OUT, { recursive: true })
@@ -93,6 +98,11 @@ for (const file of pages) {
     '---',
     `title: ${yaml(heading[1].replace(/`/g, ''))}`,
     DESCRIPTIONS[slug] ? `description: ${yaml(DESCRIPTIONS[slug])}` : null,
+    // Per page, not a site-wide editLink.baseUrl. Starlight builds that link by
+    // appending the page's path *relative to src/content/docs* — which here is
+    // the generated copy, gitignored and never committed, so every link would
+    // 404. Only this script knows which real file a page came from.
+    `editUrl: ${yaml(`${EDIT_BASE}/${file}`)}`,
     order === -1 ? null : `sidebar:\n  order: ${order + 1}`,
     '---',
   ]

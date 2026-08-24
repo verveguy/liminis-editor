@@ -36,12 +36,11 @@ export default defineConfig({
       description:
         'A Lexical-based markdown editor component: markdown in, markdown out, with annotations that survive editing.',
       social: { github: 'https://github.com/verveguy/liminis-editor' },
-      // Points at the file a reader can actually edit — the repository's own
-      // docs/, not the generated copy under site/, which would be overwritten
-      // by the next build.
-      editLink: {
-        baseUrl: 'https://github.com/verveguy/liminis-editor/edit/main/',
-      },
+      // No site-wide editLink.baseUrl: Starlight builds that link from the
+      // page's path relative to src/content/docs, which here is the generated
+      // copy — gitignored, never committed, so every link would 404. Each page
+      // carries its own `editUrl` instead, written by sync-docs.mjs from the
+      // real file it came from.
       sidebar: [
         { label: 'Overview', link: '/' },
         {
