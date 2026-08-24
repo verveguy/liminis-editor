@@ -1,0 +1,72 @@
+---
+title: "@liminis/editor"
+description: A Lexical-based markdown editor component — markdown in, markdown out, with annotations that survive editing.
+---
+
+A Lexical-based markdown WYSIWYG editor that round-trips through mdast, with a
+host-injection seam so it can be embedded in an Electron app, a browser app, or
+anything else that can supply a message channel.
+
+There is a **[live demo](./demo/)** if you would rather see it than read about
+it. Everything below is documentation for building against the package.
+
+```bash
+npm install @liminis/editor
+```
+
+## What you get
+
+- **`<Editor>`** — a WYSIWYG markdown editor. Tables, task lists, footnotes,
+  definition lists, callouts, toggles, code blocks with Prism highlighting,
+  images, LaTeX equations, Mermaid diagrams, C4 diagrams, YAML frontmatter and
+  wiki-links.
+- **A markdown pipeline** — `parseMarkdown` / `stringifyMarkdown` and the mdast
+  ↔ Lexical mappers, usable with no editor mounted at all.
+- **An annotation mechanism** — range-anchored markers over document text that
+  survive edits, configured per *kind*. Comments and corrections are not
+  separate features; they are two configurations of one mechanism. Entirely
+  opt-in: configure no kinds and none of it loads.
+- **A host seam** — every service the editor needs from its environment is an
+  optional injected function with a safe default, so `<Editor>` renders in a
+  host that supplies nothing.
+
+## Where the boundary falls
+
+The single most useful thing to understand before building against this package
+is what it deliberately does not do. It has no storage, no file dialogs, no
+network, and no opinion about where a document came from.
+
+```c4 readOnly height=22rem
+Person(author, "Author", "Writes and edits markdown")
+
+System_Boundary(app, "Your application") {
+  Container(shell, "Your shell", "Electron or browser", "Owns documents, storage, windows")
+  Container(editor, "@liminis/editor", "React + Lexical", "The editing surface and the markdown pipeline")
+}
+
+System_Ext(store, "Wherever documents live", "Files, a database, a sync service")
+
+Rel(author, shell, "Edits")
+Rel(shell, editor, "Mounts <Editor>, injects services")
+Rel(editor, shell, "Reports changes, asks for services")
+Rel(shell, store, "Reads and writes")
+```
+
+That diagram is live — drag a box. It is rendered by
+[`@liminis/diagrams`](https://v3rv.com/liminis-diagrams/), the C4 renderer
+extracted from this editor, which the editor still depends on for the C4
+diagrams it draws inside documents.
+
+## Reading order
+
+| Page | Answers |
+|---|---|
+| [Architecture](./guide/architecture/) | Which entry point do I import, and what does each one cost me? |
+| [`<Editor>` and the host seam](./guide/editor-api/) | How do I mount it, and what does the host have to supply? |
+| [The markdown pipeline](./guide/markdown-pipeline/) | What survives a round trip, and what does not? |
+| [Annotations](./guide/annotations/) | How do ranges stay anchored across edits? |
+| [Capability map](./guide/zusammen-editor-capability-map/) | Which capabilities are the editor's, and which are a host's? |
+| [Provenance](./guide/provenance/) | Where did this come from, and how do I read its ADR references? |
+
+The guide pages are the repository's own `docs/`, rendered here. They ship
+inside the published tarball too, so the same text is in your `node_modules`.

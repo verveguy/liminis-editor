@@ -1,0 +1,29 @@
+{
+  "name": "@liminis/editor-site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "//": "Its own package, deliberately not a workspace member: the published package's dev install is what CI runs for lint, typecheck and test on every pull request, and an Astro toolchain has no business in it. Also keeps @liminis/diagrams resolving from the registry rather than being satisfied locally.",
+  "scripts": {
+    "dev": "node scripts/sync-docs.mjs && astro dev",
+    "build": "node scripts/sync-docs.mjs && astro build",
+    "preview": "astro preview",
+    "docs:sync": "node scripts/sync-docs.mjs",
+    "demo": "node scripts/stage-demo.mjs",
+    "diagrams": "node scripts/render-diagrams.mjs",
+    "diagrams:check": "node scripts/render-diagrams.mjs --check"
+  },
+  "dependencies": {
+    "@astrojs/react": "^4.2.1",
+    "@astrojs/starlight": "^0.32.2",
+    "@liminis/diagrams": "^0.1.2",
+    "astro": "^5.5.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "unist-util-visit": "^5.1.0"
+  }
+}

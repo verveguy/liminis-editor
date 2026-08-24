@@ -5,6 +5,16 @@ name: Deploy Pages
 # main cannot break the live site and an evaluator never sees behaviour
 # `npm install` wouldn't give them. See docs/decisions/adr-082.md.
 #
+# The site is now the documentation, with the demo one level down at /demo/.
+# That keeps FR-010's property — the demo is still built from the release —
+# while giving the root URL to the docs, which are what a reader arriving at
+# the project needs first. Anything still linking to the old root lands on the
+# documentation rather than a 404.
+#
+# Documentation moving on a release cadence is a deliberate consequence: a
+# published page always describes a version somebody can install. Use
+# `workflow_dispatch` to publish a documentation fix between releases.
+#
 # `workflow_dispatch` is kept for rebuilding the site without cutting a
 # release — recovering from an infrastructure failure, say. Prefer re-running
 # the release-triggered run when there is one: a dispatched run has no
@@ -53,24 +63,47 @@ jobs:
         id: pages
         uses: actions/configure-pages@v4
 
+      # site/ is its own package, deliberately not a workspace member: the
+      # published package's dev install is what CI runs for lint, typecheck and
+      # test on every pull request, and an Astro toolchain has no business in
+      # it. It also keeps @liminis/diagrams resolving from the registry rather
+      # than from this repo.
+      - name: Install documentation site dependencies
+        working-directory: site
+        run: pnpm install --frozen-lockfile
+
       # Builds @liminis/editor, packs it, regenerates the demo's fixture and
-      # documentation data, and builds examples/demo against the tarball —
-      # see scripts/build-site.mjs. The version badge (FR-011) is sourced
-      # from the triggering release's tag rather than package.json, so the
-      # badge states the version this site was actually built and deployed
-      # from. package.json on main can already carry the *next* version after
-      # a release, and reading it here would label the live site with a
-      # version nobody can install.
-      - name: Build the site
-        run: pnpm build:site
+      # documentation data, builds examples/demo against the tarball, and
+      # stages the result at site/public/demo — see site/scripts/stage-demo.mjs,
+      # which wraps scripts/build-site.mjs. The same command a developer runs.
+      #
+      # The version badge (FR-011) is sourced from the triggering release's tag
+      # rather than package.json, so the badge states the version this site was
+      # actually built and deployed from. package.json on main can already carry
+      # the *next* version after a release, and reading it here would label the
+      # live site with a version nobody can install.
+      - name: Build and stage the demo
+        working-directory: site
+        run: pnpm demo
         env:
           VITE_LIMINIS_EDITOR_VERSION: ${{ github.event.release.tag_name }}
           VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
+      # Astro copies public/ — the staged demo included — into its own output,
+      # so the demo ships as part of the site rather than being assembled
+      # afterwards. One artifact, one deploy.
+      - name: Build the documentation site
+        working-directory: site
+        run: pnpm build
+
+      - name: Check the rendered diagrams are current
+        working-directory: site
+        run: pnpm diagrams:check
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: examples/demo/dist
+          path: site/dist
 
   deploy:
     needs: build
