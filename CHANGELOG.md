@@ -3,6 +3,28 @@
 All notable changes to `@liminis/editor` are documented here. This project
 follows [Semantic Versioning](https://semver.org/).
 
+## 0.4.1 — 2026-08-26
+
+### Changed
+
+- **`@liminis/diagrams` moves to `^0.1.5`.** The range was `^0.1.1` while the
+  lockfile pinned `0.1.1`, so nothing actually resolved the newer builds. Two
+  of the four releases in between affect this package's consumers:
+  - `0.1.2` makes `renderC4DiagramToSVG` byte-identical across macOS and
+    Linux. The same input and version previously produced different bytes per
+    platform, and this package re-exports that function from
+    `@liminis/diagrams/server`, so the inconsistency was passed straight
+    through.
+  - `0.1.3` fixes diagrams rendering clipped — an auto-layout viewBox that did
+    not contain the diagram when an element outside a `System_Boundary`
+    related to one inside it — and adds zoom.
+
+  `0.1.4` and `0.1.5` add `/playground` and `/remark` subpaths, which this
+  package does not use. (#116)
+
+  No API change. The documentation site added since `0.4.0` lives in `site/`
+  and is not part of the published tarball.
+
 ## 0.4.0 — 2026-08-23
 
 ### Breaking changes
