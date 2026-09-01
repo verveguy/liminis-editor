@@ -1,0 +1,52 @@
+name: Dependency drift
+
+# Scheduled, not run on pull requests, and deliberately so.
+#
+# The defect this catches is "we cut a release and never consumed it" — a
+# condition that accumulates over days and belongs to the repository, not to
+# any one change. Running it per-PR would block unrelated work on a network
+# call, and a registry hiccup would turn into a red X on someone's docs typo.
+#
+# The cost of the schedule is latency: drift can exist for up to a week before
+# anyone is told. That is the right trade for a class of bug whose damage is
+# measured in "a fix we shipped is not reaching consumers", not in minutes.
+#
+# workflow_dispatch is here so it can be run on demand — after cutting a
+# release of a package this one depends on, for instance, which is exactly the
+# moment drift appears.
+# Explicit, matching every other workflow here: the repository default is
+# already `read`, so this changes no behaviour today — it stops a future change
+# to the org or repo default from silently widening what a compromised
+# dependency's install script could reach during `pnpm install`.
+permissions:
+  contents: read
+
+on:
+  schedule:
+    - cron: '17 9 * * 1'   # Mondays, 09:17 UTC — an odd minute to avoid the top-of-hour rush
+  workflow_dispatch:
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # --frozen-lockfile above is the point: this must inspect what CI and a
+      # fresh consumer actually resolve, not what a re-resolution would produce.
+      - name: Check for dependency drift
+        run: pnpm check:drift
