@@ -15,7 +15,7 @@ const registry = (table: Record<string, string[]>) => (name: string) => {
   return table[name];
 };
 
-const firstParty = (name: string) => /^@liminis\//.test(name);
+const firstParty = (name: string) => name.startsWith('@liminis/');
 
 describe('analyzeDrift', () => {
   it('flags a first-party package pinned behind its range — the 2026-08-26 case', () => {
