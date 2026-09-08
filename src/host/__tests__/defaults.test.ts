@@ -20,6 +20,7 @@ describe('host service defaults', () => {
     expect(resolved.resolveWikiLinks).toBeUndefined()
     expect(resolved.onScrollToAnchor).toBeUndefined()
     expect(resolved.corrections).toBeUndefined()
+    expect(resolved.resolveTransclusion).toBeUndefined()
   })
 
   it('never throws when the default bridge is exercised', () => {
@@ -64,6 +65,7 @@ describe('host service defaults', () => {
       notifyError: vi.fn(),
       resolveWikiLinks: vi.fn(async () => ({})),
       onScrollToAnchor: vi.fn(() => () => {}),
+      resolveTransclusion: vi.fn(async () => null),
     }
     const resolved = resolveHostServices(services)
     expect(resolved.bridge).toBe(services.bridge)
@@ -71,5 +73,6 @@ describe('host service defaults', () => {
     expect(resolved.notifyError).toBe(services.notifyError)
     expect(resolved.resolveWikiLinks).toBe(services.resolveWikiLinks)
     expect(resolved.onScrollToAnchor).toBe(services.onScrollToAnchor)
+    expect(resolved.resolveTransclusion).toBe(services.resolveTransclusion)
   })
 })
