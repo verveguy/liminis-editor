@@ -25,6 +25,30 @@ export interface ParseResult {
 const wikiLinkOptions = { aliasDivider: '|' };
 const EMPTY_ALIAS_SENTINEL = '__EMPTY_ALIAS__';
 
+// Private-Use-Area sentinel marking a `!` that immediately precedes `[[`
+// (candidate transclusion/embed marker, #119). The next free codepoint after
+// `annotate-sentinels.ts`'s E000-E003 range and `stringify.ts`'s E004.
+//
+// Why substitute at all, rather than just checking "does the wikiLink node
+// have a `!` text sibling" after parsing: the micromark wiki-link tokenizer
+// is not vendored (see the vendor README) and only hooks the `[` character.
+// A literal `!` immediately before `[[` is claimed *first* by the default
+// image-label-start construct (hooked on `!`), and when that construct fails
+// to find a following `(url)`/`[ref]` — which it always will here, since
+// `[[target]]` is not image syntax — CommonMark's own bracket-resolution
+// falls the *entire* `![[target]]` span back to one literal text node,
+// without ever giving the wiki-link tokenizer a chance to fire on the inner
+// `[[`. A backslash-escaped `\!` sidesteps the image construct entirely (it
+// is consumed as a plain escaped character, not a construct trigger) and
+// `[[target]]` parses normally — confirmed empirically against
+// `micromark-extension-wiki-link@0.0.4`'s tokenizer. Swapping the raw `!`
+// for this sentinel *before* parsing reproduces that same escape-shaped
+// bypass without a real backslash reaching the output, so `[[target]]` parses
+// as a normal wikiLink node with the sentinel left on the preceding text
+// node — which `resolveWikiEmbeds` (below) then reads to decide embed vs.
+// plain link, and always strips before the tree leaves `parseMarkdown`.
+const EMBED_MARKER_SENTINEL = '\u{E005}';
+
 interface Replacement {
   normalizedStart: number;
   normalizedEnd: number;
@@ -83,6 +107,94 @@ function escapeWikiLinkPipes(text: string): { text: string; replacements: Replac
 
   result += text.slice(cursor);
   return { text: result, replacements };
+}
+
+/**
+ * Swap every `!` immediately followed by `[[` for {@link EMBED_MARKER_SENTINEL}.
+ * Same-length (one codepoint for one codepoint), so — unlike
+ * `escapeWikiLinkPipes`/`normalizeWikiLinks` above — this never shifts any
+ * subsequent offset and needs no `Replacement` tracking of its own.
+ *
+ * A `!` that is already backslash-escaped (`\![[...]]`) is left alone: that
+ * spelling already means "literal `!`, then a normal wiki-link" with no
+ * substitution needed (CommonMark consumes the escape before the image
+ * construct ever sees the `!`) — see FR-013's requirement that an author can
+ * explicitly opt out of transclusion for a `#^id`-bearing target.
+ */
+function substituteEmbedMarker(text: string): string {
+  return text.replace(/(?<!\\)!(?=\[\[)/g, EMBED_MARKER_SENTINEL);
+}
+
+/**
+ * Retype a `wikiLink` node to `wikiEmbed` when it was immediately preceded by
+ * an {@link EMBED_MARKER_SENTINEL} *and* carries a `data.blockId` (#119).
+ *
+ * Two outcomes when a sentinel-terminated text node precedes a `wikiLink`:
+ *  - **Has `blockId`**: this is a genuine transclusion. Strip the sentinel
+ *    off the preceding text (dropping the text node entirely if it was the
+ *    sentinel alone) and retype the node to `wikiEmbed`, carrying the same
+ *    `value`/`data`.
+ *  - **No `blockId`**: FR-013 — `![[file]]` with no anchor is not a supported
+ *    construct in v1. Restore the literal `!` in the preceding text and leave
+ *    the node as an ordinary `wikiLink`, so it degrades to ordinary
+ *    file-only link treatment (no embedding), matching what plain
+ *    `\![[file]]` already does without any sentinel involved.
+ *
+ * A final sweep restores any sentinel left over from a `!` that didn't end up
+ * immediately before a completed `wikiLink` (e.g. the target never closed) —
+ * this sentinel must never leak into rendered/round-tripped content.
+ */
+function resolveWikiEmbeds(root: Root): Root {
+  function walkChildren(children: any[]): any[] {
+    const result: any[] = [];
+    for (const rawChild of children) {
+      const child = walk(rawChild);
+      if (child?.type === 'wikiLink' && result.length > 0) {
+        const prevIndex = result.length - 1;
+        const prev = result[prevIndex];
+        if (prev.type === 'text' && typeof prev.value === 'string' && prev.value.endsWith(EMBED_MARKER_SENTINEL)) {
+          const blockId = child.data?.blockId;
+          const hasBlockId = typeof blockId === 'string' && blockId.length > 0;
+          const strippedValue = prev.value.slice(0, -1);
+          if (hasBlockId) {
+            if (strippedValue.length === 0) {
+              result.pop();
+            } else {
+              result[prevIndex] = { ...prev, value: strippedValue };
+            }
+            result.push({ ...child, type: 'wikiEmbed' });
+            continue;
+          }
+          result[prevIndex] = { ...prev, value: strippedValue + '!' };
+          result.push(child);
+          continue;
+        }
+      }
+      result.push(child);
+    }
+    return result;
+  }
+
+  function walk(node: any): any {
+    if (!node || typeof node !== 'object') return node;
+    if (node.children && Array.isArray(node.children)) {
+      return { ...node, children: walkChildren(node.children) };
+    }
+    return node;
+  }
+
+  function restoreLeftoverSentinels(node: any): any {
+    if (!node || typeof node !== 'object') return node;
+    if (node.type === 'text' && typeof node.value === 'string' && node.value.includes(EMBED_MARKER_SENTINEL)) {
+      return { ...node, value: node.value.split(EMBED_MARKER_SENTINEL).join('!') };
+    }
+    if (node.children && Array.isArray(node.children)) {
+      return { ...node, children: node.children.map(restoreLeftoverSentinels) };
+    }
+    return node;
+  }
+
+  return restoreLeftoverSentinels(walk(root));
 }
 
 /**
@@ -508,8 +620,13 @@ function addCheckboxesToOrderedLists(root: Root): Root {
 
 export function parseMarkdown(text: string, _options: ParseOptions = {}): ParseResult {
   // Pre-process to handle edge cases
+  // Step 0: Swap a `!` immediately before `[[` for a sentinel so the
+  // wiki-link tokenizer gets a chance to fire (#119; see EMBED_MARKER_SENTINEL).
+  // Same-length, so it needs no offset-replacement tracking of its own.
+  const embedMarked = substituteEmbedMarker(text);
+
   // Step 1: Escape pipes inside wiki-links to protect from GFM table parsing
-  const { text: pipesEscaped, replacements: pipeReplacements } = escapeWikiLinkPipes(text);
+  const { text: pipesEscaped, replacements: pipeReplacements } = escapeWikiLinkPipes(embedMarked);
 
   // Step 2: Normalize empty aliases (existing logic)
   const { text: normalizedText, replacements: aliasReplacements } = normalizeWikiLinks(pipesEscaped);
@@ -538,6 +655,10 @@ export function parseMarkdown(text: string, _options: ParseOptions = {}): ParseR
 
   // Post-process: mark wiki-links that had empty aliases in the source
   root = markEmptyAliasWikiLinks(root);
+
+  // Post-process: retype a sentinel-preceded wiki-link with a blockId to a
+  // transclusion/embed node, and restore the literal `!` everywhere else (#119)
+  root = resolveWikiEmbeds(root);
 
   // Post-process: annotate emphasis/strong marker characters from original source
   root = annotateEmphasisMarkers(root, text, replacements);

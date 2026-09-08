@@ -169,6 +169,95 @@ describe('parseMarkdown', () => {
     })
   })
 
+  describe('block-scoped links and transclusion (#119)', () => {
+    it('parses a block-scoped link as a wikiLink carrying data.blockId', () => {
+      const result = parseMarkdown('[[notes.md#^01ABC]]')
+      const paragraph = result.root.children[0] as any
+      const link = paragraph.children[0]
+      expect(link.type).toBe('wikiLink')
+      expect(link.value).toBe('notes.md')
+      expect(link.data.blockId).toBe('01ABC')
+    })
+
+    it('does not set blockId for an ordinary heading anchor', () => {
+      const result = parseMarkdown('[[notes.md#some-heading]]')
+      const paragraph = result.root.children[0] as any
+      const link = paragraph.children[0]
+      expect(link.type).toBe('wikiLink')
+      expect(link.value).toBe('notes.md#some-heading')
+      expect(link.data.blockId ?? null).toBe(null)
+    })
+
+    it('retypes a transclusion embed to wikiEmbed', () => {
+      const result = parseMarkdown('![[notes.md#^01ABC]]')
+      const paragraph = result.root.children[0] as any
+      expect(paragraph.children).toHaveLength(1)
+      const embed = paragraph.children[0]
+      expect(embed.type).toBe('wikiEmbed')
+      expect(embed.value).toBe('notes.md')
+      expect(embed.data.blockId).toBe('01ABC')
+    })
+
+    it('carries an alias on a transclusion embed', () => {
+      const result = parseMarkdown('![[notes.md#^01ABC|Display]]')
+      const paragraph = result.root.children[0] as any
+      const embed = paragraph.children[0]
+      expect(embed.type).toBe('wikiEmbed')
+      expect(embed.data.alias).toBe('Display')
+    })
+
+    it('preserves surrounding text around an embed', () => {
+      const result = parseMarkdown('before ![[notes.md#^01ABC]] after')
+      const paragraph = result.root.children[0] as any
+      expect(paragraph.children.map((c: any) => c.type)).toEqual(['text', 'wikiEmbed', 'text'])
+      expect(paragraph.children[0].value).toBe('before ')
+      expect(paragraph.children[2].value).toBe(' after')
+    })
+
+    it('does not embed a whole-file transclusion with no #^id (FR-013)', () => {
+      const result = parseMarkdown('![[notes.md]]')
+      const paragraph = result.root.children[0] as any
+      expect(paragraph.children.map((c: any) => c.type)).toEqual(['text', 'wikiLink'])
+      expect(paragraph.children[0].value).toBe('!')
+      expect(paragraph.children[1].value).toBe('notes.md')
+    })
+
+    it('leaves an explicitly escaped ! before a wiki-link alone', () => {
+      const result = parseMarkdown('\\![[notes.md#^01ABC]]')
+      const paragraph = result.root.children[0] as any
+      expect(paragraph.children.map((c: any) => c.type)).toEqual(['text', 'wikiLink'])
+      expect(paragraph.children[0].value).toBe('!')
+      // Explicitly escaped: stays a plain block-scoped link, not an embed.
+      expect(paragraph.children[1].data.blockId).toBe('01ABC')
+    })
+
+    it('parses multiple embeds and links in one paragraph', () => {
+      const result = parseMarkdown('a [[b]] c ![[d#^e]] f [[g|h]] end')
+      const paragraph = result.root.children[0] as any
+      const types = paragraph.children.map((c: any) => c.type)
+      expect(types).toEqual(['text', 'wikiLink', 'text', 'wikiEmbed', 'text', 'wikiLink', 'text'])
+    })
+
+    it('parses an embed inside a table cell', () => {
+      const result = parseMarkdown('| a | ![[foo#^bar]] |\n| --- | --- |\n| 1 | 2 |')
+      const table = result.root.children[0] as any
+      const cell = table.children[0].children[1]
+      expect(cell.children[0].type).toBe('wikiEmbed')
+      expect(cell.children[0].value).toBe('foo')
+      expect(cell.children[0].data.blockId).toBe('bar')
+    })
+
+    it('never leaks the embed-marker sentinel into text content', () => {
+      // A malformed/unclosed wiki-link after the substituted `!` falls back
+      // to plain text — the sentinel must be restored to a literal `!`.
+      const result = parseMarkdown('![[unterminated')
+      const paragraph = result.root.children[0] as any
+      const text = paragraph.children.map((c: any) => c.value ?? '').join('')
+      expect(text).not.toContain('\u{E005}')
+      expect(text).toBe('![[unterminated')
+    })
+  })
+
   describe('wiki-links in tables', () => {
     it('should parse wiki-link with alias inside table cell', () => {
       const markdown = '| Header |\n| - |\n| [[page|alias]] |'

@@ -8,7 +8,7 @@
  * package would silently get different — and wrong — wiki-link behaviour inside
  * markdown tables (#347). Vendoring makes the package self-contained.
  *
- * Four deliberate divergences from upstream:
+ * Five deliberate divergences from upstream:
  *   1. The trailing-backslash strip (see `exitWikiLink`), previously carried as
  *      `liminis-app/patches/mdast-util-wiki-link@0.1.2.patch` in `verveguy/liminis`.
  *   2. Real types instead of `any` on the public option and node shapes.
@@ -16,6 +16,11 @@
  *      closure variable shared by every handler in one `fromMarkdown()` call.
  *   4. `top()` asserts the stack frame is actually a wiki-link, so the
  *      cannot-nest assumption fails loudly rather than corrupting a sibling node.
+ *   5. A trailing `#^blockId` fragment (Obsidian block-reference syntax, #119)
+ *      is split off `value` into `data.blockId` before `pageResolver` runs, so
+ *      `data.permalink`/`data.exists` are computed from the file target alone.
+ *      An ordinary heading anchor (`#heading`, no caret) is untouched — this
+ *      only matches the caret-prefixed block-id form.
  *
  * Nothing else about the parse behaviour changes: `value`, `data.alias`,
  * `data.permalink`, `data.exists`, `data.hName`, `data.hProperties` and
@@ -39,11 +44,22 @@ interface WikiLinkNode {
     alias: string | null
     permalink: string | null
     exists: boolean | null
+    /** Obsidian-style `#^blockId` fragment split off `value`, if present (#119). */
+    blockId?: string | null
     hName?: string
     hProperties?: { className: string; href: string }
     hChildren?: { type: 'text'; value: string }[]
   }
 }
+
+/**
+ * Matches a trailing `#^blockId` fragment — the Obsidian block-reference
+ * convention — at the end of a wiki-link target. Deliberately narrower than a
+ * general `#fragment` match: an ordinary heading anchor (`[[file#heading]]`)
+ * has no caret and must keep flowing through the pre-existing same-file-anchor
+ * handling in the mapper untouched (FR-014).
+ */
+const BLOCK_ID_PATTERN = /#\^([^\s\]#]+)$/
 
 /**
  * The subset of `mdast-util-from-markdown`'s `CompileContext` this handler uses.
@@ -99,6 +115,7 @@ export function fromMarkdown(opts: WikiLinkFromMarkdownOptions = {}) {
         alias: null,
         permalink: null,
         exists: null,
+        blockId: null,
       },
     }
     this.enter(node, token)
@@ -136,6 +153,18 @@ export function fromMarkdown(opts: WikiLinkFromMarkdownOptions = {}) {
     // behaviour this replaces. A post-pass that fixed only `value` would not.
     if (wikiLink.data.alias && wikiLink.value?.endsWith('\\')) {
       wikiLink.value = wikiLink.value.slice(0, -1)
+    }
+    // --------------------------------------------------------------------------
+
+    // --- Liminis divergence from upstream (#119) ------------------------------
+    // Split a trailing `#^blockId` fragment off the target before resolving,
+    // so `data.permalink`/`data.exists` are derived from the file target
+    // alone and a block-scoped link (`[[file#^id]]`) resolves exactly like
+    // today's file-only `[[file]]` for existence-checking purposes.
+    const blockIdMatch = wikiLink.value?.match(BLOCK_ID_PATTERN)
+    if (blockIdMatch) {
+      wikiLink.data.blockId = blockIdMatch[1]
+      wikiLink.value = wikiLink.value.slice(0, blockIdMatch.index)
     }
     // --------------------------------------------------------------------------
 

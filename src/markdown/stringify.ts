@@ -236,8 +236,8 @@ function normalizeWikiLinkNodes(node: any): any {
   if (!node || typeof node !== 'object') {
     return node;
   }
-  
-  if (node.type === 'wikiLink') {
+
+  if (node.type === 'wikiLink' || node.type === 'wikiEmbed') {
     const data = node.data && typeof node.data === 'object' ? { ...node.data } : {};
     return {
       ...node,
@@ -321,6 +321,28 @@ function widenTableDelimiterDashes(markdown: string): string {
   return lines.join('\n');
 }
 
+/**
+ * Format the `[[target...]]` (or `[[target...|alias]]`) body shared by the
+ * `wikiLink` and `wikiEmbed` handlers below — everything between the double
+ * brackets, minus the brackets themselves and (for `wikiEmbed`) the leading
+ * `!`. `data.blockId`, when present, is re-appended as `#^blockId` (#119),
+ * mirroring the vendored `mdast-util-wiki-link/to-markdown.ts` — duplicated
+ * rather than shared because this handler otherwise diverges from the
+ * vendored one already (see the module comment above `stringifyMarkdown`).
+ */
+function formatWikiLinkBody(node: any): string {
+  const value = node.value ?? '';
+  const data = node.data && typeof node.data === 'object' ? node.data : {};
+  const blockId = typeof data.blockId === 'string' && data.blockId.length > 0 ? data.blockId : null;
+  const target = blockId ? `${value}#^${blockId}` : value;
+  const alias = typeof data.alias === 'string' ? data.alias : '';
+  const hasAlias = alias.length > 0 && alias !== value;
+  const emptyAlias = data._emptyAlias === true;
+  const divider = wikiLinkOptions.aliasDivider;
+  const aliasPart = hasAlias ? `${divider}${alias}` : emptyAlias ? divider : '';
+  return `${target}${aliasPart}`;
+}
+
 export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): string {
   // Pre-process: add checkbox text to ordered list items (GFM only outputs for unordered)
   let processedRoot = addCheckboxTextToOrderedLists(root);
@@ -363,15 +385,14 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
             return marker + content + marker;
           },
           escapedChar: (node: any) => `${FORCE_ESCAPE_PLACEHOLDER}${node.value}${FORCE_ESCAPE_PLACEHOLDER}`,
-          wikiLink: (node: any) => {
-            const value = node.value ?? '';
-            const data = node.data && typeof node.data === 'object' ? node.data : {};
-            const alias = typeof data.alias === 'string' ? data.alias : '';
-            const hasAlias = alias.length > 0 && alias !== value;
-            const emptyAlias = data._emptyAlias === true;
-            const aliasPart = hasAlias ? `${wikiLinkOptions.aliasDivider}${alias}` : emptyAlias ? `${wikiLinkOptions.aliasDivider}` : '';
-            return `[[${value}${aliasPart}]]`;
-          },
+          wikiLink: (node: any) => `[[${formatWikiLinkBody(node)}]]`,
+          // Transclusion/embed (#119): the `!`-prefixed form of a block-scoped
+          // wiki-link. `formatWikiLinkBody` requires `data.blockId` be present
+          // to have been produced by `resolveWikiEmbeds` in parse.ts in the
+          // first place (FR-013 never lets a blockId-less node reach this
+          // type), but nothing here depends on that — this handler just emits
+          // whatever the node carries, `!` and all.
+          wikiEmbed: (node: any) => `![[${formatWikiLinkBody(node)}]]`,
           // Override mdast-util-definition-list's default (`:` + 3 spaces, i.e. a
           // 4-char marker matching a 4-space continuation indent) with the
           // single-space `: ` marker convention used throughout PHP Markdown
