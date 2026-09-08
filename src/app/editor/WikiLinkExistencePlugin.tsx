@@ -136,7 +136,12 @@ async function resolvePlainTargets(
   }
   const resolved = await resolveWikiLinks([...targets]);
   for (const target of targets) {
-    result.set(target, resolved[target] !== null && resolved[target] !== undefined);
+    // A missing key (as opposed to an explicit `null`) is treated as
+    // existing, matching this plugin's pre-#119 behavior — resolveWikiLinks
+    // isn't contractually required to return an entry for every target, and
+    // FR-014 requires plain wikilink resolution to be unaffected by this
+    // feature.
+    result.set(target, resolved[target] !== null);
   }
   return result;
 }

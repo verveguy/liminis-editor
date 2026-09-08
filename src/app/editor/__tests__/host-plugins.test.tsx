@@ -412,6 +412,27 @@ describe('WikiLinkExistencePlugin over the injected resolveWikiLinks service', (
     expect(missing.classList.contains('editor-link-broken')).toBe(true)
   })
 
+  it('treats a target missing from the resolveWikiLinks response as existing, not broken (FR-014)', async () => {
+    // resolveWikiLinks isn't contractually required to return an entry for
+    // every requested target. A host that only populates keys it resolved
+    // must not have those omitted targets flagged broken — this is this
+    // plugin's pre-#119 behavior and FR-014 requires it stay unaffected by
+    // the new block-scoped-link handling added alongside it.
+    const resolveWikiLinks = vi.fn(async () => ({ exists: 'notes/exists.md' }))
+
+    const { editor } = await mountPlugin({ resolveWikiLinks }, <WikiLinkExistencePlugin />)
+    await seedWikiLinks(editor)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400)
+    })
+
+    const root = editor.getRootElement()!
+    const [existing, missing] = Array.from(root.querySelectorAll('a[data-wiki-link="true"]'))
+    expect(existing.classList.contains('editor-link-broken')).toBe(false)
+    expect(missing.classList.contains('editor-link-broken')).toBe(false)
+  })
+
   it('leaves every link unmarked, and does not throw, when the host supplies no service', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
