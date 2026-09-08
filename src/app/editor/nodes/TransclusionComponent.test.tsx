@@ -112,7 +112,7 @@ describe('TransclusionComponent (#119)', () => {
     await waitFor(() => {
       expect(container.textContent).toContain('Draft the boundary doc');
     });
-    expect((container.querySelector('input[type="checkbox"]') as HTMLInputElement | null)?.checked).toBe(false);
+    expect(container.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked).toBe(false);
 
     // Simulate the source block changing and the transcluding document
     // re-rendering: any dirty editor update should trigger re-resolution.
@@ -124,7 +124,7 @@ describe('TransclusionComponent (#119)', () => {
     });
 
     await waitFor(() => {
-      const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+      const checkbox = container.querySelector<HTMLInputElement>('input[type="checkbox"]');
       expect(checkbox?.checked).toBe(true);
     });
   });

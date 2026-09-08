@@ -161,7 +161,7 @@ export function fromMarkdown(opts: WikiLinkFromMarkdownOptions = {}) {
     // so `data.permalink`/`data.exists` are derived from the file target
     // alone and a block-scoped link (`[[file#^id]]`) resolves exactly like
     // today's file-only `[[file]]` for existence-checking purposes.
-    const blockIdMatch = wikiLink.value?.match(BLOCK_ID_PATTERN)
+    const blockIdMatch = wikiLink.value ? BLOCK_ID_PATTERN.exec(wikiLink.value) : null
     if (blockIdMatch) {
       wikiLink.data.blockId = blockIdMatch[1]
       wikiLink.value = wikiLink.value.slice(0, blockIdMatch.index)

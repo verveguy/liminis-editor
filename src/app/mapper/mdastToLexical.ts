@@ -1010,7 +1010,7 @@ function $createTransclusionNodeFromMdast(
   const rawAlias = data?.alias;
   const emptyAlias = data?._emptyAlias === true;
   const hasAlias = typeof rawAlias === 'string' && rawAlias.length > 0 && rawAlias !== target;
-  return $createTransclusionNode(target, blockId, hasAlias ? (rawAlias as string) : null, emptyAlias);
+  return $createTransclusionNode(target, blockId, hasAlias ? rawAlias : null, emptyAlias);
 }
 
 function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode | TransclusionNode)[] {

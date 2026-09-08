@@ -79,20 +79,8 @@ export async function resolveAndRenderTransclusion(
 
   const { root } = parseMarkdown(raw);
   const nextVisitedPath = [...visitedPath, key];
-  const content = await renderNodes(root.children as unknown[], resolver, nextVisitedPath);
+  const content = await renderNodes(root.children, resolver, nextVisitedPath);
   return { kind: 'resolved', content: createElement(Fragment, null, ...content) };
-}
-
-/**
- * The transient "resolver call in flight" state — not part of
- * {@link TransclusionRenderState} because it is a UI concern of the
- * lazily-mounted `TransclusionComponent`, not an outcome the pure resolver
- * ever produces (it only returns once fully settled). Also used as the
- * `Suspense` fallback in `TransclusionNode.decorate()` while the component's
- * own code chunk is still loading, so both "waiting" cases look the same.
- */
-export function renderTransclusionLoading(): ReactNode {
-  return createElement('span', { className: 'editor-transclusion-loading' }, 'Loading…');
 }
 
 /** Render a {@link TransclusionRenderState} to a React node, for both the
@@ -220,7 +208,7 @@ async function renderNode(
       // as inert text. Live navigation from inside a transclusion is out of
       // scope (this is a read-only render, not a second editable surface).
       const data = n.data as { alias?: string } | undefined;
-      return (data?.alias as string) || (n.value as string) || '';
+      return data?.alias || (n.value as string) || '';
     }
     default:
       return extractPlainText(n);

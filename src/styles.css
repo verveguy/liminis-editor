@@ -669,6 +669,54 @@ body {
   opacity: 0.8;
 }
 
+/* Block transclusion (#119): live-rendered content from `![[file#^id]]`. Five
+   states — do not collapse "unresolved"/"circular"/"depth-exceeded" into one
+   style; each needs to read as a distinct failure mode at a glance. */
+.editor-transclusion-content {
+  display: inline;
+  padding: 0 0.2em;
+  border-left: 2px solid var(--liminis-editor-border);
+  background: var(--liminis-editor-code-bg);
+}
+
+.editor-transclusion-loading {
+  color: var(--liminis-editor-foreground-muted);
+  font-style: italic;
+}
+
+.editor-transclusion-unresolved,
+.editor-transclusion-circular,
+.editor-transclusion-depth-exceeded {
+  color: var(--liminis-editor-errorForeground);
+  border: 1px dashed var(--liminis-editor-errorForeground);
+  border-radius: 3px;
+  padding: 0 0.3em;
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+.editor-transclusion-paragraph {
+  display: inline;
+}
+
+.editor-transclusion-list,
+.editor-transclusion-list-item {
+  display: inline;
+}
+
+.editor-transclusion-list-item + .editor-transclusion-list-item::before {
+  content: ' ';
+}
+
+.editor-transclusion-list-item input[type='checkbox'] {
+  margin-right: 0.2em;
+  vertical-align: middle;
+}
+
+.editor-transclusion-heading {
+  font-weight: 600;
+}
+
 /* Tables */
 .editor-table {
   width: 100%;

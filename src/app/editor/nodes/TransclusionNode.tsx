@@ -27,7 +27,7 @@ import {
   $applyNodeReplacement,
 } from 'lexical';
 import { createElement, lazy, Suspense } from 'react';
-import { renderTransclusionLoading } from './transclusion-render';
+import { renderTransclusionLoading } from './transclusion-loading';
 
 const TransclusionComponent = lazy(() => import('./TransclusionComponent'));
 

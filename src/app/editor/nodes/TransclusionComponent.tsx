@@ -14,9 +14,9 @@ import { useEditorHost } from '../../../host/context';
 import {
   resolveAndRenderTransclusion,
   renderTransclusionState,
-  renderTransclusionLoading,
   type TransclusionRenderState,
 } from './transclusion-render';
+import { renderTransclusionLoading } from './transclusion-loading';
 
 interface TransclusionComponentProps {
   file: string;
