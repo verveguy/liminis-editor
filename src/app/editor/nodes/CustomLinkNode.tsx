@@ -4,6 +4,10 @@ import { DOMConversionMap, DOMConversionOutput, EditorConfig, LexicalNode } from
 export type SerializedCustomLinkNode = SerializedLinkNode & {
   wikiAliasState?: 'empty';
   wikiLinkOrigin?: true;
+  /** Obsidian-style `#^blockId` fragment (#119), carried as a field separate
+   * from `url` so it never has to round-trip through the lossy `.md#`
+   * URL-string channel the plain anchor-link path uses. */
+  blockId?: string;
 };
 
 /**
@@ -26,6 +30,14 @@ export class CustomLinkNode extends LinkNode {
    * @internal
    */
   __wikiLinkOrigin: boolean;
+  /**
+   * Obsidian-style `#^blockId` fragment (#119), when this link is a
+   * block-scoped wiki-link (`[[file#^id]]`). `null` for an ordinary
+   * file-only or heading-anchor wiki-link. Deliberately a field separate
+   * from `__url` — see `mdastToLexical.ts`/`lexicalToMdast.ts` for why.
+   * @internal
+   */
+  __blockId: string | null;
 
   constructor(
     url: string,
@@ -35,6 +47,7 @@ export class CustomLinkNode extends LinkNode {
     super(url, attributes, key);
     this.__wikiAliasState = null;
     this.__wikiLinkOrigin = false;
+    this.__blockId = null;
   }
 
   static getType(): string {
@@ -49,6 +62,7 @@ export class CustomLinkNode extends LinkNode {
     );
     cloned.__wikiAliasState = node.__wikiAliasState;
     cloned.__wikiLinkOrigin = node.__wikiLinkOrigin;
+    cloned.__blockId = node.__blockId;
     return cloned;
   }
 
@@ -74,6 +88,9 @@ export class CustomLinkNode extends LinkNode {
     if (this.isWikiLink()) {
       element.setAttribute('data-wiki-link', 'true');
       element.setAttribute('data-wiki-target', this.__url);
+      if (this.__blockId) {
+        element.setAttribute('data-block-id', this.__blockId);
+      }
     } else if (this.isExternalLink()) {
       // External links get blue styling to differentiate from wiki-links
       element.classList.add('editor-link-external');
@@ -122,12 +139,20 @@ export class CustomLinkNode extends LinkNode {
       } else {
         anchor.removeAttribute('data-wiki-link');
         anchor.removeAttribute('data-wiki-target');
+        anchor.removeAttribute('data-block-id');
         anchor.classList.remove('editor-link-broken');
         if (this.isExternalLink()) {
           anchor.classList.add('editor-link-external');
         } else {
           anchor.classList.remove('editor-link-external');
         }
+      }
+    }
+    if (this.__blockId !== prevNode.__blockId) {
+      if (this.__blockId && this.isWikiLink()) {
+        anchor.setAttribute('data-block-id', this.__blockId);
+      } else {
+        anchor.removeAttribute('data-block-id');
       }
     }
     if (target !== prevNode.__target) {
@@ -178,6 +203,9 @@ export class CustomLinkNode extends LinkNode {
     if (serializedNode.wikiLinkOrigin) {
       node.__wikiLinkOrigin = true;
     }
+    if (serializedNode.blockId) {
+      node.__blockId = serializedNode.blockId;
+    }
     node.setFormat(serializedNode.format);
     node.setIndent(serializedNode.indent);
     node.setDirection(serializedNode.direction);
@@ -191,6 +219,7 @@ export class CustomLinkNode extends LinkNode {
       version: 1,
       wikiAliasState: this.__wikiAliasState ?? undefined,
       wikiLinkOrigin: this.__wikiLinkOrigin ? true : undefined,
+      blockId: this.__blockId ?? undefined,
     };
   }
 
@@ -211,6 +240,15 @@ export class CustomLinkNode extends LinkNode {
   getWikiLinkOrigin(): boolean {
     return this.__wikiLinkOrigin;
   }
+
+  setBlockId(blockId: string | null): void {
+    const writable = this.getWritable();
+    writable.__blockId = blockId;
+  }
+
+  getBlockId(): string | null {
+    return this.__blockId;
+  }
 }
 
 function convertAnchorElement(domNode: Node): DOMConversionOutput {
@@ -224,6 +262,10 @@ function convertAnchorElement(domNode: Node): DOMConversionOutput {
         target: domNode.getAttribute('target'),
         title: domNode.getAttribute('title'),
       });
+      const blockId = domNode.getAttribute('data-block-id');
+      if (blockId) {
+        node.__blockId = blockId;
+      }
     }
   }
   return { node };
