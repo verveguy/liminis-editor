@@ -87,4 +87,37 @@ describe('mdastToLexical wikiEmbed: malformed input (#119)', () => {
       warn.mockRestore();
     }
   });
+
+  // A `wikiEmbed` node placed directly under `root.children` (block level,
+  // not wrapped in a paragraph) goes through convertBlockNode's separate
+  // `wikiEmbed` case rather than the inline one exercised above — it has its
+  // own independent malformed-input fallback and needs its own coverage.
+  it('block level: preserves the target as placeholder text when blockId is missing', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const root: Root = {
+        type: 'root',
+        children: [{ type: 'wikiEmbed', value: 'notes.md', data: {} } as never],
+      };
+      const text = importRoot(root);
+      expect(text).toBe('![[notes.md]]');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('block level: does not produce a blank paragraph when both are missing', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const root: Root = {
+        type: 'root',
+        children: [{ type: 'wikiEmbed', value: '', data: {} } as never],
+      };
+      expect(() => importRoot(root)).not.toThrow();
+      const text = importRoot(root);
+      expect(text).toBe('![[]]');
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });

@@ -429,6 +429,13 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
       const blockId = wikiEmbed.data?.blockId;
       if (target && blockId) {
         paragraph.append($createTransclusionNodeFromMdast(target, blockId, wikiEmbed.data));
+      } else {
+        // Malformed (missing target or blockId): degrade to inert text
+        // rather than an empty paragraph, which would silently drop the
+        // original content — same reasoning as the inline `wikiEmbed` case.
+        console.warn('[mdastToLexical] block-level wikiEmbed missing target or blockId:', wikiEmbed);
+        const fragment = blockId ? `${target}#^${blockId}` : target;
+        paragraph.append($createTextNode(`![[${fragment}]]`));
       }
       return [paragraph];
     }
