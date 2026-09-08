@@ -16,7 +16,8 @@ travelled with the code, are recorded in [`docs/provenance.md`](./docs/provenanc
 - **`<Editor>`** — a WYSIWYG markdown editor. Tables, task lists (including in
   ordered lists), footnotes, definition lists, callouts, toggles, code blocks
   with Prism highlighting, images, LaTeX equations, Mermaid diagrams, C4
-  diagrams, YAML frontmatter, and wiki-links.
+  diagrams, YAML frontmatter, and wiki-links — including block-scoped links
+  and live transclusion (`[[file#^id]]` / `![[file#^id]]`).
 - **A markdown pipeline** — `parseMarkdown` / `stringifyMarkdown` and the mdast
   ↔ Lexical mappers, usable with no editor mounted.
 - **An annotation mechanism** — range-anchored markers over document text that
@@ -441,6 +442,49 @@ A `toolbar`-surfaced affordance works the same way whether `editable` is
 read-only editor still shows the floating toolbar with the configured
 affordance (formatting controls are omitted there, since they would be
 inert).
+
+## Block-scoped links and transclusion
+
+Wiki-links (`[[target]]` / `[[target|alias]]`) extend to an optional
+Obsidian-style block-id fragment: `[[file#^id]]` links to one specific block
+inside a file rather than the file as a whole, and `![[file#^id]]`
+**transcludes** it — renders that block's actual, current content inline at
+the reference site. This is a live view, not a copy: if the source block's
+text changes, every transclusion of it reflects that on next render.
+
+Resolving `file#^id` to content is host work, through one optional injected
+function:
+
+```tsx
+<EditorHostProvider services={{ resolveTransclusion: async (file, blockId) => {
+  // look up the block by id across your whole corpus — ids are workspace-global,
+  // not scoped to one file (matching Liminis's own `^ULID` convention)
+  return lookupBlockContent(file, blockId) // string | null
+} }}>
+  <Editor initialContent={markdown} onChange={setMarkdown} />
+</EditorHostProvider>
+```
+
+With no resolver injected, or one that returns `null`, `![[file#^id]]`
+renders a clearly marked "unresolved" placeholder rather than throwing —
+consistent with every other host service in this package. A transclusion
+cycle (block A transcludes B, which transcludes A — directly or through a
+longer chain) is detected and rendered as a "circular transclusion"
+indicator rather than hanging; nested transclusion is supported to a bounded
+depth, beyond which it degrades to a clear fallback rather than a crash.
+
+**If you are maintaining this package: do not remove the cycle/depth guard**
+in `src/app/editor/nodes/transclusion-render.tsx`, and **do not loosen the
+embed-marker detection** in `src/markdown/parse.ts` to a bare `!` lookahead
+— see `docs/markdown-pipeline.md`'s "Block-scoped links and transclusion"
+section for what each guards against and the regression fixture that pins
+it down.
+
+`[[file#^id]]` (link-only, no `!`) instead requests navigation to that
+specific block when the host supports it, and degrades no worse than
+today's file-only wiki-link navigation when it doesn't — no extra host
+wiring required beyond the resolver above, which also backs its
+"does this block exist" styling.
 
 ## Documentation
 
