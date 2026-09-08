@@ -47,4 +47,25 @@ describe('createHostMessageApi', () => {
     expect(() => api.requestInit()).not.toThrow()
     expect(() => api.openLink('https://example.com')).not.toThrow()
   })
+
+  // #119: blockId is additive — a host ignoring it still gets `url` and
+  // opens the file exactly as before (FR-004).
+  it('openLink includes blockId in the payload when given', () => {
+    const { bridge, posted } = stubBridge()
+    const api = createHostMessageApi(bridge, silentLog)
+
+    api.openLink('notes.md', '01ABC')
+
+    expect(posted).toEqual([{ type: 'OPEN_LINK', url: 'notes.md', blockId: '01ABC' }])
+  })
+
+  it('openLink omits blockId from the payload when not given', () => {
+    const { bridge, posted } = stubBridge()
+    const api = createHostMessageApi(bridge, silentLog)
+
+    api.openLink('notes.md')
+
+    expect(posted).toEqual([{ type: 'OPEN_LINK', url: 'notes.md' }])
+    expect(posted[0]).not.toHaveProperty('blockId')
+  })
 })
