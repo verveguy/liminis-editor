@@ -1125,10 +1125,13 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageN
       // hand-built mdast tree from an external `./markdown` consumer could
       // still lack one — degrade to inert text rather than crash (FR-008's
       // "never throw" spirit applies just as much to malformed input as to a
-      // missing resolver).
+      // missing resolver). Reconstructs whatever of the original syntax is
+      // available rather than dropping the content: a blank node would
+      // silently erase user-visible text for no parser-level reason.
       if (!target || !blockId) {
         console.warn('[mdastToLexical] wikiEmbed missing target or blockId:', wikiEmbed);
-        return [$createTextNode('')];
+        const fragment = blockId ? `${target ?? ''}#^${blockId}` : (target ?? '');
+        return [$createTextNode(`![[${fragment}]]`)];
       }
 
       return [$createTransclusionNodeFromMdast(target, blockId, wikiEmbed.data)];
