@@ -231,6 +231,30 @@ describe('parseMarkdown', () => {
       expect(paragraph.children[1].data.blockId).toBe('01ABC')
     })
 
+    it('treats an even run of backslashes as not escaping the ! (CommonMark parity)', () => {
+      // Two backslashes pair off into one literal `\`, so the `!` is NOT
+      // escaped and this is still an embed — unlike the single-backslash
+      // case above.
+      const result = parseMarkdown('\\\\![[notes.md#^01ABC]]')
+      const paragraph = result.root.children[0] as any
+      const last = paragraph.children[paragraph.children.length - 1]
+      expect(last.type).toBe('wikiEmbed')
+      expect(last.data.blockId).toBe('01ABC')
+      const precedingText = paragraph.children.slice(0, -1).map((c: any) => c.value ?? '').join('')
+      expect(precedingText).toBe('\\')
+      expect(precedingText).not.toContain('\u{E005}')
+    })
+
+    it('treats an odd run of backslashes (3) as escaping the ! (CommonMark parity)', () => {
+      const result = parseMarkdown('\\\\\\![[notes.md#^01ABC]]')
+      const paragraph = result.root.children[0] as any
+      const last = paragraph.children[paragraph.children.length - 1]
+      expect(last.type).toBe('wikiLink')
+      expect(last.data.blockId).toBe('01ABC')
+      const precedingText = paragraph.children.slice(0, -1).map((c: any) => c.value ?? '').join('')
+      expect(precedingText).toBe('\\!')
+    })
+
     it('parses multiple embeds and links in one paragraph', () => {
       const result = parseMarkdown('a [[b]] c ![[d#^e]] f [[g|h]] end')
       const paragraph = result.root.children[0] as any

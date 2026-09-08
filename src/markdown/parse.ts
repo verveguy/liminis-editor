@@ -139,9 +139,22 @@ function escapeWikiLinkPipes(text: string): { text: string; replacements: Replac
  * substitution needed (CommonMark consumes the escape before the image
  * construct ever sees the `!`) — see FR-013's requirement that an author can
  * explicitly opt out of transclusion for a `#^id`-bearing target.
+ *
+ * "Escaped" here means CommonMark backslash-*parity*, not merely "a `\`
+ * immediately precedes the `!`": an even run of backslashes (`\\!`, `\\\\!`,
+ * ...) pairs off into literal backslashes and does not escape the `!`, while
+ * an odd run (`\!`, `\\\!`, ...) does. A naive one-character lookbehind gets
+ * every even run ≥ 2 wrong (treats the `!` as escaped when it isn't), so the
+ * preceding backslash run is captured and its length checked explicitly.
  */
 function substituteEmbedMarker(text: string): string {
-  return text.replace(/(?<!\\)!(\[\[[^\]\n]*\]\])/g, `${EMBED_MARKER_SENTINEL}$1`);
+  return text.replace(
+    /(\\*)!(\[\[[^\]\n]*\]\])/g,
+    (_match, backslashes: string, bracketed: string) =>
+      backslashes.length % 2 === 1
+        ? `${backslashes}!${bracketed}`
+        : `${backslashes}${EMBED_MARKER_SENTINEL}${bracketed}`,
+  );
 }
 
 /**
