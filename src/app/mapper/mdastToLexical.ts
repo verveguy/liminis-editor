@@ -38,6 +38,7 @@ import {
   $createDefinitionDescriptionNode,
   $createCustomListItemNode,
   $createListItemParagraphBreakNode,
+  $createTransclusionNode,
   HorizontalRuleNode,
   ImageNode,
   CalloutNode,
@@ -46,6 +47,7 @@ import {
   FootnoteNode,
   HtmlNode,
   MermaidNode,
+  TransclusionNode,
   C4Node,
   FrontmatterNode,
   DefinitionListNode,
@@ -393,7 +395,7 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
     case 'wikiLink': {
       // Wiki-links appearing at block level (shouldn't happen, but handle gracefully)
       // Wrap in a paragraph with a link
-      const wikiLink = node as unknown as { value: string; data?: { alias?: string } };
+      const wikiLink = node as unknown as { value: string; data?: { alias?: string; blockId?: string } };
       const target = wikiLink.value || '';
       const rawDisplayText = wikiLink.data?.alias || target;
       const url = getFileType(target) !== 'unknown' ? target : `${target}.md`;
@@ -401,6 +403,9 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
       const paragraph = $createParagraphNode();
       const link = $createCustomLinkNode(url);
       link.setWikiLinkOrigin(true);
+      if (wikiLink.data?.blockId) {
+        link.setBlockId(wikiLink.data.blockId);
+      }
       // Parse format markers in alias (e.g., **bold**, *italic*, ~~strike~~)
       const { text: plainText, formats } = parseFormattedAlias(rawDisplayText);
       const textNode = $createTextNode(plainText);
@@ -409,6 +414,22 @@ function convertBlockNode(node: Content): LexicalBlockNode[] {
       }
       link.append(textNode);
       paragraph.append(link);
+      return [paragraph];
+    }
+    case 'wikiEmbed': {
+      // Transclusion/embed appearing at block level (shouldn't happen — a
+      // `wikiEmbed` is phrasing content, mirroring `wikiLink`/`image` — but
+      // handle gracefully; wrap in a paragraph, matching the wikiLink case above).
+      const wikiEmbed = node as unknown as {
+        value: string;
+        data?: { alias?: string; blockId?: string; _emptyAlias?: boolean };
+      };
+      const paragraph = $createParagraphNode();
+      const target = wikiEmbed.value || '';
+      const blockId = wikiEmbed.data?.blockId;
+      if (target && blockId) {
+        paragraph.append($createTransclusionNodeFromMdast(target, blockId, wikiEmbed.data));
+      }
       return [paragraph];
     }
     case 'footnoteDefinition': {
@@ -967,10 +988,32 @@ interface WikiLink {
   data?: {
     alias?: string;
     permalink?: string;
+    blockId?: string;
   };
 }
 
-function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] {
+/**
+ * Build a `TransclusionNode` from a `wikiEmbed` mdast node's `value`/`data`,
+ * shared by the block-level (defensive) and inline `wikiEmbed` cases below.
+ *
+ * `alias`/`_emptyAlias` are carried purely for byte-identical round-trip
+ * (#119, FR-003) — an embed never *displays* its alias text (it renders the
+ * resolved block's live content instead), so unlike `wikiLink` there is no
+ * rendered text to infer "was there an alias" from on export; the flag has
+ * to be stored explicitly on the node.
+ */
+function $createTransclusionNodeFromMdast(
+  target: string,
+  blockId: string,
+  data: { alias?: string; _emptyAlias?: boolean } | undefined,
+): TransclusionNode {
+  const rawAlias = data?.alias;
+  const emptyAlias = data?._emptyAlias === true;
+  const hasAlias = typeof rawAlias === 'string' && rawAlias.length > 0 && rawAlias !== target;
+  return $createTransclusionNode(target, blockId, hasAlias ? (rawAlias as string) : null, emptyAlias);
+}
+
+function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode | TransclusionNode)[] {
   // Defensive: handle null/undefined nodes
   if (!node?.type) {
     console.warn('[mdastToLexical] convertInlineNode received invalid node:', node);
@@ -1052,6 +1095,12 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageN
       // (convertLinkNode) always emits it back as a wiki-link even when a host
       // has disabled promotion of ordinary links (liminis#951).
       link.setWikiLinkOrigin(true);
+      // Block-scoped link (#119): carried as a field separate from `url` so
+      // it never inherits the lossy `.md#`-anchor URL-string round trip the
+      // plain heading-anchor branches above use.
+      if (wikiLink.data?.blockId) {
+        link.setBlockId(wikiLink.data.blockId);
+      }
       // Preserve empty-alias state for round-trip
       if ((wikiLink as any).data?._emptyAlias) {
         link.setWikiAliasState('empty');
@@ -1064,6 +1113,25 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageN
       }
       link.append(textNode);
       return [link];
+    }
+    case 'wikiEmbed': {
+      // Transclusion/embed from parse.ts's embed-sentinel post-process: `![[file#^id]]`
+      const wikiEmbed = node as unknown as WikiLink;
+      const target = wikiEmbed.value;
+      const blockId = wikiEmbed.data?.blockId;
+
+      // Never produced by parseMarkdown without both (FR-002/FR-013 guarantee
+      // a `wikiEmbed` always carries a file target and a blockId), but a
+      // hand-built mdast tree from an external `./markdown` consumer could
+      // still lack one — degrade to inert text rather than crash (FR-008's
+      // "never throw" spirit applies just as much to malformed input as to a
+      // missing resolver).
+      if (!target || !blockId) {
+        console.warn('[mdastToLexical] wikiEmbed missing target or blockId:', wikiEmbed);
+        return [$createTextNode('')];
+      }
+
+      return [$createTransclusionNodeFromMdast(target, blockId, wikiEmbed.data)];
     }
     case 'html': {
       // Check for inline equation: $...$
