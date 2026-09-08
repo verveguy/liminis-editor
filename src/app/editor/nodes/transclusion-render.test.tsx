@@ -40,6 +40,16 @@ describe('resolveAndRenderTransclusion (#119)', () => {
     expect(kind).toBe('unresolved');
   });
 
+  it('renders "unresolved" rather than throwing when the resolver returns a non-string value', async () => {
+    // A resolver that violates its own Promise<string | null> contract (a
+    // host bug, or a non-TS host) must still degrade safely instead of
+    // reaching parseMarkdown with a non-string and throwing.
+    const resolver = vi.fn(async () => 42) as unknown as TransclusionResolver;
+    const { kind, html } = await renderResult('notes.md', '01ABC', resolver);
+    expect(kind).toBe('unresolved');
+    expect(html).toContain('editor-transclusion-unresolved');
+  });
+
   it('renders resolved plain-text content', async () => {
     const resolver: TransclusionResolver = vi.fn(async () => 'Hello world');
     const { kind, html } = await renderResult('notes.md', '01ABC', resolver);

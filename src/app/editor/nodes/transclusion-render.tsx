@@ -73,14 +73,25 @@ export async function resolveAndRenderTransclusion(
     // unhandled error into the editor.
     raw = null;
   }
-  if (raw === null || raw === undefined) {
+  if (raw === null || raw === undefined || typeof raw !== 'string') {
+    // The `typeof` guard is load-bearing, not defensive padding: a resolver
+    // that violates its own `Promise<string | null>` contract (returns a
+    // number/object/etc.) must still degrade to "unresolved" rather than
+    // reaching `parseMarkdown` with a non-string and throwing.
     return { kind: 'unresolved' };
   }
 
-  const { root } = parseMarkdown(raw);
-  const nextVisitedPath = [...visitedPath, key];
-  const content = await renderNodes(root.children, resolver, nextVisitedPath);
-  return { kind: 'resolved', content: createElement(Fragment, null, ...content) };
+  try {
+    const { root } = parseMarkdown(raw);
+    const nextVisitedPath = [...visitedPath, key];
+    const content = await renderNodes(root.children, resolver, nextVisitedPath);
+    return { kind: 'resolved', content: createElement(Fragment, null, ...content) };
+  } catch {
+    // Never let a parse/render failure on resolved content escape as an
+    // unhandled error into the editor — same "never throw" invariant as the
+    // resolver-rejection guard above.
+    return { kind: 'unresolved' };
+  }
 }
 
 /** Render a {@link TransclusionRenderState} to a React node, for both the
