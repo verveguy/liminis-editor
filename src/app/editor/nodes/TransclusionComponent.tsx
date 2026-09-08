@@ -24,6 +24,12 @@ interface TransclusionComponentProps {
   nodeKey: NodeKey;
 }
 
+// Matches WikiLinkExistencePlugin's debounce window for the same reason:
+// both re-run a host resolver on every dirty editor update, and without
+// debouncing that fires one resolver call (potentially I/O-bound) per
+// keystroke per visible reference.
+const RESOLVE_DEBOUNCE_MS = 300;
+
 export default function TransclusionComponent({ file, blockId }: TransclusionComponentProps): JSX.Element {
   const [editor] = useLexicalComposerContext();
   const { resolveTransclusion } = useEditorHost();
@@ -35,6 +41,7 @@ export default function TransclusionComponent({ file, blockId }: TransclusionCom
 
   useEffect(() => {
     let cancelled = false;
+    let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const resolve = async (): Promise<void> => {
       const generation = ++generationRef.current;
@@ -51,15 +58,19 @@ export default function TransclusionComponent({ file, blockId }: TransclusionCom
     // resolver reflects it — shows up without the host having to remount
     // the editor. Pull-based and unmemoized (every dirty update re-resolves
     // every visible transclusion): an accepted v1 cost, not a correctness
-    // gap — see the Plan's "no push/invalidation channel" risk note.
+    // gap — see the Plan's "no push/invalidation channel" risk note. The
+    // debounce below only bounds *how often* that cost is paid per burst of
+    // edits, mirroring WikiLinkExistencePlugin's existing convention.
     const unregister = editor.registerUpdateListener(({ dirtyElements, dirtyLeaves }) => {
       if (dirtyElements.size > 0 || dirtyLeaves.size > 0) {
-        void resolve();
+        if (debounceTimeout) clearTimeout(debounceTimeout);
+        debounceTimeout = setTimeout(() => { void resolve() }, RESOLVE_DEBOUNCE_MS);
       }
     });
 
     return () => {
       cancelled = true;
+      if (debounceTimeout) clearTimeout(debounceTimeout);
       unregister();
     };
   }, [editor, file, blockId, resolveTransclusion]);

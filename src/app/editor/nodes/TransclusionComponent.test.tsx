@@ -129,6 +129,32 @@ describe('TransclusionComponent (#119)', () => {
     });
   });
 
+  it('debounces re-resolution across a burst of rapid document updates', async () => {
+    // Without debouncing, N dirty updates in quick succession would each
+    // fire their own resolver call — an I/O-bound host resolver invoked
+    // once per keystroke per visible transclusion. WikiLinkExistencePlugin
+    // already debounces its own resolver for the same reason; this pins
+    // the same behavior here.
+    const resolveTransclusion = vi.fn(async () => 'content');
+    const editorRef: { current: LexicalEditor | null } = { current: null };
+    mountTransclusion('notes.md', '01ABC', { resolveTransclusion }, editorRef);
+
+    await waitFor(() => expect(resolveTransclusion).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      for (let i = 0; i < 5; i++) {
+        editorRef.current!.update(() => {
+          $getRoot().append($createParagraphNode());
+        });
+      }
+    });
+
+    // The burst above should coalesce into at most one additional resolve,
+    // not one per update, once the debounce window elapses.
+    await new Promise((r) => setTimeout(r, 400));
+    expect(resolveTransclusion.mock.calls.length).toBeLessThanOrEqual(2);
+  });
+
   it('never throws when the resolver rejects', async () => {
     const resolveTransclusion = vi.fn(async () => {
       throw new Error('boom');
