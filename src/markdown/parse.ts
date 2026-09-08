@@ -146,15 +146,100 @@ function escapeWikiLinkPipes(text: string): { text: string; replacements: Replac
  * an odd run (`\!`, `\\\!`, ...) does. A naive one-character lookbehind gets
  * every even run ≥ 2 wrong (treats the `!` as escaped when it isn't), so the
  * preceding backslash run is captured and its length checked explicitly.
+ *
+ * A match inside a fenced code block or inline code span must be skipped
+ * entirely, not just left un-embedded: inside those constructs the wiki-link
+ * tokenizer never runs at all (code content is verbatim), so a substituted
+ * sentinel would never get a `wikiLink` node to attach to and restore from —
+ * `resolveWikiEmbeds`'s leftover-sentinel sweep only walks `text` nodes, not
+ * a `code`/`inlineCode` node's `value`, so the sentinel would otherwise leak
+ * through as a literal, invisible Private-Use-Area character in the final
+ * output instead of being restored to `!`. {@link findProtectedRanges}
+ * identifies those spans so the substitution can leave them untouched.
  */
 function substituteEmbedMarker(text: string): string {
+  const protectedRanges = findProtectedRanges(text);
   return text.replace(
     /(\\*)!(\[\[[^\]\n]*\]\])/g,
-    (_match, backslashes: string, bracketed: string) =>
-      backslashes.length % 2 === 1
+    (match, backslashes: string, bracketed: string, offset: number) => {
+      if (protectedRanges.some((r) => offset >= r.start && offset < r.end)) {
+        return match;
+      }
+      return backslashes.length % 2 === 1
         ? `${backslashes}!${bracketed}`
-        : `${backslashes}${EMBED_MARKER_SENTINEL}${bracketed}`,
+        : `${backslashes}${EMBED_MARKER_SENTINEL}${bracketed}`;
+    },
   );
+}
+
+interface TextRange {
+  start: number;
+  end: number;
+}
+
+/**
+ * Finds fenced code blocks and inline code spans in raw markdown text, so
+ * {@link substituteEmbedMarker} can avoid mutating their (verbatim) content.
+ * Deliberately approximate rather than a full CommonMark tokenizer — good
+ * enough to protect the common cases (``` fences, `inline` spans) without
+ * duplicating the real tokenizer this file elsewhere avoids vendoring.
+ */
+function findProtectedRanges(text: string): TextRange[] {
+  const ranges: TextRange[] = [];
+
+  // Fenced code blocks: a line of (up to 3 leading spaces then) 3+ backticks
+  // or tildes opens one; it's closed by a later line of at least as many of
+  // the same character (optionally indented, nothing else on the line).
+  const fenceOpenRe = /^ {0,3}(`{3,}|~{3,})/;
+  let fenceChar: string | null = null;
+  let fenceLen = 0;
+  let fenceStart = -1;
+  let cursor = 0;
+  for (const line of text.split('\n')) {
+    const lineEnd = cursor + line.length;
+    if (fenceChar === null) {
+      const m = fenceOpenRe.exec(line);
+      if (m) {
+        fenceChar = m[1][0];
+        fenceLen = m[1].length;
+        fenceStart = cursor;
+      }
+    } else {
+      const closeRe = new RegExp(`^ {0,3}\\${fenceChar}{${fenceLen},}\\s*$`);
+      if (closeRe.test(line)) {
+        ranges.push({ start: fenceStart, end: lineEnd });
+        fenceChar = null;
+        fenceLen = 0;
+        fenceStart = -1;
+      }
+    }
+    cursor = lineEnd + 1; // +1 for the '\n' consumed by split
+  }
+  if (fenceChar !== null) {
+    ranges.push({ start: fenceStart, end: text.length });
+  }
+
+  // Inline code spans, outside any fenced block already found: a backtick
+  // run opens a span, closed by the next run of the *same* length (a run of
+  // a different length is span content, not a delimiter) — CommonMark's own
+  // code-span rule. An opening run with no matching close is not a code
+  // span at all (its backticks are literal), so it protects nothing.
+  const isInFence = (pos: number) => ranges.some((r) => pos >= r.start && pos < r.end);
+  const backtickRun = /`+/g;
+  let pendingOpen: { start: number; len: number } | null = null;
+  let match: RegExpExecArray | null;
+  while ((match = backtickRun.exec(text)) !== null) {
+    if (isInFence(match.index)) continue;
+    const len = match[0].length;
+    if (pendingOpen === null) {
+      pendingOpen = { start: match.index, len };
+    } else if (len === pendingOpen.len) {
+      ranges.push({ start: pendingOpen.start, end: match.index + len });
+      pendingOpen = null;
+    }
+  }
+
+  return ranges;
 }
 
 /**

@@ -701,6 +701,10 @@ describe('block transclusion byte-identical round-trip (#119)', () => {
     'a [[b]] c ![[d#^e]] f [[g|h]] end',
     // #347 regression class: link + embed constructs mixed inside a table cell.
     '| Content |\n| --- |\n| See [[page|link]] and ![[block#^01ABC]] here |',
+    // Documenting the syntax in prose must not be interpreted as an embed:
+    // the embed-marker sentinel must never fire inside verbatim content.
+    'Use `![[file#^id]]` syntax.',
+    '```\n![[file#^id]]\n```',
   ]
 
   it.each(cases)('round-trips %s byte-identically', (markdown) => {

@@ -280,6 +280,27 @@ describe('parseMarkdown', () => {
       expect(text).not.toContain('\u{E005}')
       expect(text).toBe('![[unterminated')
     })
+
+    it('never leaks the embed-marker sentinel into an inline code span', () => {
+      // Inside a code span the wiki-link tokenizer never runs at all (the
+      // content is verbatim), so there is no wikiLink node for
+      // resolveWikiEmbeds's leftover-sentinel sweep to clean up around, and
+      // that sweep doesn't walk into inlineCode's `value` anyway — the
+      // substitution must not fire here in the first place.
+      const result = parseMarkdown('Use `![[file#^id]]` syntax.')
+      const paragraph = result.root.children[0] as any
+      const codeNode = paragraph.children.find((c: any) => c.type === 'inlineCode')
+      expect(codeNode.value).toBe('![[file#^id]]')
+      expect(codeNode.value).not.toContain('\u{E005}')
+    })
+
+    it('never leaks the embed-marker sentinel into a fenced code block', () => {
+      const result = parseMarkdown('```\n![[file#^id]]\n```')
+      const codeNode = result.root.children[0] as any
+      expect(codeNode.type).toBe('code')
+      expect(codeNode.value).toBe('![[file#^id]]')
+      expect(codeNode.value).not.toContain('\u{E005}')
+    })
   })
 
   describe('wiki-links in tables', () => {
