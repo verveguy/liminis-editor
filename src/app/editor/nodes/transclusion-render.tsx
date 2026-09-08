@@ -83,6 +83,18 @@ export async function resolveAndRenderTransclusion(
   return { kind: 'resolved', content: createElement(Fragment, null, ...content) };
 }
 
+/**
+ * The transient "resolver call in flight" state — not part of
+ * {@link TransclusionRenderState} because it is a UI concern of the
+ * lazily-mounted `TransclusionComponent`, not an outcome the pure resolver
+ * ever produces (it only returns once fully settled). Also used as the
+ * `Suspense` fallback in `TransclusionNode.decorate()` while the component's
+ * own code chunk is still loading, so both "waiting" cases look the same.
+ */
+export function renderTransclusionLoading(): ReactNode {
+  return createElement('span', { className: 'editor-transclusion-loading' }, 'Loading…');
+}
+
 /** Render a {@link TransclusionRenderState} to a React node, for both the
  * top-level `TransclusionComponent` and a nested `wikiEmbed` inside
  * resolved content — the two share the same visual vocabulary. */

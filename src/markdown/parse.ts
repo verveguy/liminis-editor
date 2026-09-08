@@ -110,10 +110,29 @@ function escapeWikiLinkPipes(text: string): { text: string; replacements: Replac
 }
 
 /**
- * Swap every `!` immediately followed by `[[` for {@link EMBED_MARKER_SENTINEL}.
- * Same-length (one codepoint for one codepoint), so — unlike
+ * Swap a `!` for {@link EMBED_MARKER_SENTINEL}, but only when it is
+ * immediately followed by a *complete, single-line* `[[...]]` span with no
+ * internal `]` — i.e. exactly the shape the wiki-link tokenizer's own
+ * `consumeTarget`/`consumeAlias` states require to succeed (a bare `]` not
+ * immediately followed by a second `]` aborts the whole construct; so does a
+ * line ending). One codepoint swapped for one codepoint, so — unlike
  * `escapeWikiLinkPipes`/`normalizeWikiLinks` above — this never shifts any
  * subsequent offset and needs no `Replacement` tracking of its own.
+ *
+ * The "complete span" requirement is load-bearing, not a nicety: an `!`
+ * immediately before `[` is *also* how a real image's alt text starting with
+ * a literal `[` looks at the character level (`![[leading] bracket](x.png)`
+ * is `![` + alt text `[leading] bracket` + `](x.png)`, i.e. contains the raw
+ * substring `![[`). Matching on `!(?=\[\[)` alone — with no lookahead past
+ * the second `[` — can't tell that case apart from a genuine embed candidate
+ * and would substitute inside it, preventing the image construct (which
+ * needs the literal `!`) from ever being tried and corrupting the image
+ * (caught by the `903-image-alt-leading-bracket` regression fixture).
+ * Requiring the run between `[[` and `]]` to contain no internal `]` rules
+ * that case out: `[leading] bracket](x.png)` hits an un-doubled `]` right
+ * after `leading`, so the pattern below never matches there, `!` survives
+ * untouched, and the image construct parses exactly as before this feature
+ * existed (FR-014).
  *
  * A `!` that is already backslash-escaped (`\![[...]]`) is left alone: that
  * spelling already means "literal `!`, then a normal wiki-link" with no
@@ -122,7 +141,7 @@ function escapeWikiLinkPipes(text: string): { text: string; replacements: Replac
  * explicitly opt out of transclusion for a `#^id`-bearing target.
  */
 function substituteEmbedMarker(text: string): string {
-  return text.replace(/(?<!\\)!(?=\[\[)/g, EMBED_MARKER_SENTINEL);
+  return text.replace(/(?<!\\)!(\[\[[^\]\n]*\]\])/g, `${EMBED_MARKER_SENTINEL}$1`);
 }
 
 /**

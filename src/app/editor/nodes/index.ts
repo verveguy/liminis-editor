@@ -36,6 +36,9 @@ export type { SerializedEquationNode } from './EquationNode';
 export { MermaidNode, $createMermaidNode, $isMermaidNode } from './MermaidNode';
 export type { SerializedMermaidNode } from './MermaidNode';
 
+export { TransclusionNode, $createTransclusionNode, $isTransclusionNode } from './TransclusionNode';
+export type { SerializedTransclusionNode } from './TransclusionNode';
+
 export { C4Node, $createC4Node, $isC4Node } from './C4Node';
 export type { SerializedC4Node } from './C4Node';
 

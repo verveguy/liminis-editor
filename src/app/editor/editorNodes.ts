@@ -31,6 +31,7 @@ import {
   DefinitionTermNode,
   DefinitionDescriptionNode,
   CustomListItemNode,
+  TransclusionNode,
 } from './nodes';
 
 export const editorNodes: Klass<LexicalNode>[] = [
@@ -53,6 +54,7 @@ export const editorNodes: Klass<LexicalNode>[] = [
   HorizontalRuleNode,
   EquationNode,
   MermaidNode,
+  TransclusionNode,
   C4Node,
   FrontmatterNode,
   FootnoteNode,
