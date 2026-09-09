@@ -688,7 +688,16 @@ function splitTextNodeBlockAnchors(node: any, normalizedText: string): any[] {
     return [node];
   }
 
-  const matches = [...decoded.matchAll(BLOCK_ANCHOR_PATTERN)];
+  // Reject a match whose leading `^` came from a backslash escape (`\^`) in
+  // the source. `decoded` has already resolved `\^` to a plain `^`, so the
+  // regex can't tell the two apart on its own — an author who deliberately
+  // escaped a caret immediately before what looks like a ULID meant literal
+  // text, not an anchor, and `stringify.ts`'s `blockAnchor` handler always
+  // emits a bare `^id` with no escaping, so badging it would silently drop
+  // the escape on the next save. `parts[match.index]` is the decoded part
+  // for that `^` (1:1 with `decoded`'s offsets by construction), so its
+  // `escaped` flag says exactly this.
+  const matches = [...decoded.matchAll(BLOCK_ANCHOR_PATTERN)].filter((match) => !parts[match.index].escaped);
   if (matches.length === 0) {
     return [node];
   }

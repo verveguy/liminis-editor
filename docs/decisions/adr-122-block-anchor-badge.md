@@ -184,6 +184,19 @@ rather than introducing a new popover/menu affordance.
   block anchor is left unsplit** (the same conservative bail-out `#17`
   already accepts for escaped punctuation) — a missed badge in that narrow
   combination, not a corrupted one.
+- **A backslash-escaped caret (`\^`) immediately followed by a ULID-shaped
+  run is never badged**, even though `decoded` (the value the matcher runs
+  against) has already resolved `\^` to a plain `^` by the time the regex
+  sees it. The matcher consults `replayDecodeEscapes`'s per-offset `escaped`
+  flag and rejects any match whose `^` came from an escape, on the same
+  reasoning as the character-reference bail-out above: badging it would
+  defeat an author's deliberate escape and, since `stringify.ts`'s
+  `blockAnchor` handler always emits a bare `^id`, silently drop the
+  backslash on the next save. This only prevents the *new* harm (wrongly
+  badging escaped-looking text); it does not fix the pre-existing, unrelated
+  gap that `^` is outside `FORCE_ESCAPE_CHARS`, so a bare `\^` — anchor-
+  shaped or not — already does not round-trip its backslash today. Repairing
+  that is out of scope for this issue.
 
 ## References
 

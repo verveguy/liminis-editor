@@ -728,6 +728,15 @@ $$`
       expect(children.every((c) => c.type === 'text')).toBe(true)
     })
 
+    it('does not badge a backslash-escaped caret immediately before a ULID-shaped run', () => {
+      // `decoded` resolves `\^` to a plain `^` before matching, so without
+      // consulting `replayDecodeEscapes`'s per-offset `escaped` flag the
+      // matcher can't tell this apart from a genuine anchor — but a badge
+      // here would defeat the escape the author deliberately wrote.
+      const children = paragraphChildren(`escaped \\^${ULID} stays literal`)
+      expect(children.every((c) => c.type === 'text')).toBe(true)
+    })
+
     it('round-trips byte-identical through parse -> stringify', () => {
       const markdown = `- [ ] @me Draft the boundary doc by 2026-09-15 ^${ULID}\n`
       const result = parseMarkdown(markdown)

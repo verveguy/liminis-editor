@@ -349,6 +349,17 @@ with no "protected ranges" pre-parse machinery required (unlike
 `substituteEmbedMarker` above, which needs that machinery only because it has
 to influence tokenization itself).
 
+The matcher also rejects a match whose leading `^` came from a backslash
+escape (`\^`) in the source, using the same `replayDecodeEscapes` output the
+decode-replay machinery above already computes. Without this check, an
+author who deliberately wrote `\^` before a ULID-shaped run to mean literal
+text — not an anchor — would still get a badge, and since the `blockAnchor`
+stringify handler always emits a bare, unescaped `^id`, saving would silently
+drop their backslash. This does not repair the pre-existing, unrelated gap
+that `^` sits outside `FORCE_ESCAPE_CHARS`: a bare `\^` with no adjacent
+ULID-shaped run still loses its backslash on round-trip today, anchor or
+not — see ADR-122's accepted limitations.
+
 The pass runs in `parseMarkdown`'s post-process sequence after
 `resolveWikiEmbeds`/`annotateEmphasisMarkers` — so it never sees wiki-link or
 embed target text — and immediately before `splitEscapedPunctuation` (which
