@@ -725,7 +725,14 @@ $$`
       ['x^2'],
       ['2^10'],
       ['a ^ b'],
-    ])('does not badge the non-anchor caret in %s (SC-004)', (markdown) => {
+      ['mc^2'],
+      ['10^100'],
+      ['The value is 2^10'],
+      ['The value is 2^10 today'],
+      ['A googol is 10^100'],
+      ['Einstein wrote mc^2'],
+      ['Compare a ^ b here'],
+    ])('does not badge the non-anchor caret in %s (SC-004/FR-003)', (markdown) => {
       const children = paragraphChildren(markdown)
       expect(children.every((c) => c.type === 'text')).toBe(true)
     })
@@ -744,6 +751,74 @@ $$`
       const result = parseMarkdown(markdown)
       const output = stringifyMarkdown(result.root)
       expect(output).toBe(markdown)
+    })
+  })
+
+  describe('block anchor badges - widened id forms (#124)', () => {
+    function paragraphChildren(markdown: string): any[] {
+      const result = parseMarkdown(markdown)
+      const paragraph = result.root.children[0] as any
+      return paragraph.children
+    }
+
+    it.each([
+      ['raw-decimal snowflake', '1867432905318744064'],
+      ['NanoID-shaped (underscore/hyphen)', 'V1StGXR8_Z5jdHi6B-myT'],
+      ['mixed-case base62', '2Xq9vBc1aZk'],
+      ['UUID-shaped (hyphens)', '018f3a2c-1234-7abc-9def-0123456789ab'],
+      ['short alphanumeric', 'a1b2c3'],
+    ])('badges a %s id at end of line, preceded by whitespace (FR-001/SC-001)', (_label, id) => {
+      const children = paragraphChildren(`A block. ^${id}`)
+      expect(children.map((c) => c.type)).toEqual(['text', 'blockAnchor'])
+      expect(children[1].id).toBe(id)
+    })
+
+    it('badges a bare short numeric run at line end preceded by whitespace — an accepted, rare false positive, not a bug (spec Edge Cases)', () => {
+      const children = paragraphChildren('The answer is ^100')
+      expect(children.map((c) => c.type)).toEqual(['text', 'blockAnchor'])
+      expect(children[1].id).toBe('100')
+    })
+
+    it('agrees with the resolver position rule across every case discussed on the issue (SC-005)', () => {
+      const cases: Array<[string, boolean]> = [
+        ['Ship the thing ^01KKE2V4H0B2DRJ6CEER5S4E6F', true],
+        ['Ship the thing ^1867432905318744064', true],
+        ['A block. ^V1StGXR8_Z5jdHi6B-myT', true],
+        ['A block. ^2Xq9vBc1aZk', true],
+        ['The value is 2^10 today', false],
+        ['The value is 2^10', false],
+        ['A googol is 10^100', false],
+        ['Einstein wrote mc^2', false],
+        ['Compare a ^ b here', false],
+      ]
+      for (const [markdown, shouldBadge] of cases) {
+        const children = paragraphChildren(markdown)
+        const hasAnchor = children.some((c) => c.type === 'blockAnchor')
+        expect(hasAnchor).toBe(shouldBadge)
+      }
+    })
+
+    it('leaves a wider-charset id inside an inline code span as literal text (FR-005)', () => {
+      const children = paragraphChildren('`^a1b2c3-snowflake_id`')
+      expect(children).toHaveLength(1)
+      expect(children[0].type).toBe('inlineCode')
+      expect(children[0].value).toBe('^a1b2c3-snowflake_id')
+    })
+
+    it('leaves a wider-charset id inside a fenced code block as literal text (FR-005)', () => {
+      const result = parseMarkdown('```\n^a1b2c3-snowflake_id\n```')
+      const code = result.root.children[0] as any
+      expect(code.type).toBe('code')
+      expect(code.value).toBe('^a1b2c3-snowflake_id')
+    })
+
+    it('leaves a wider-charset id inside inline math as literal text (FR-005)', () => {
+      const result = parseMarkdown('The value $x^{a1b2c3}$ stays literal.')
+      const paragraph = result.root.children[0] as any
+      const inlineMath = paragraph.children.find((c: any) => c.type === 'inlineMath')
+      expect(inlineMath).toBeDefined()
+      expect(inlineMath.value).toBe('x^{a1b2c3}')
+      expect(paragraph.children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
     })
   })
 })
