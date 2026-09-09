@@ -27,14 +27,18 @@ export default function BlockAnchorComponent({ id }: BlockAnchorComponentProps):
   }, [id]);
 
   return (
-    <span
+    <button
+      type="button"
       className="block-anchor-badge"
       title={id}
+      aria-label={`Block anchor ${id}. Click to copy.`}
       onClick={handleClick}
       contentEditable={false}
       style={{
         display: 'inline-block',
         cursor: 'pointer',
+        border: 'none',
+        font: 'inherit',
         fontSize: '0.75em',
         lineHeight: '1.4em',
         padding: '0 0.4em',
@@ -47,6 +51,6 @@ export default function BlockAnchorComponent({ id }: BlockAnchorComponentProps):
       }}
     >
       {copied ? 'Copied' : '^'}
-    </span>
+    </button>
   );
 }
