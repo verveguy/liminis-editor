@@ -839,6 +839,34 @@ $$`
         expect(children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
       },
     )
+
+    it('preserves a backslash-escaped delimiter inside an id that does badge, so it round-trips byte-identically (review finding)', () => {
+      // Unlike `\#`/`\]` (excluded from WIDE_ID_CHAR, so they truncate the
+      // capture — see the test above), an escaped backtick decodes to a
+      // plain backtick, which IS a valid id character, so the capture
+      // reaches end of line and the run badges. The `id` must therefore be
+      // captured from raw source (keeping the backslash), not from
+      // `decoded`, or the escape an author deliberately wrote is silently
+      // dropped when `stringify.ts` re-emits `^${node.id}` verbatim on the
+      // next save — and, unlike a bare backtick in ordinary prose, dropping
+      // it here is not even meaning-preserving: an unescaped backtick could
+      // pair with another one later on the line and open an unintended
+      // inline code span.
+      //
+      // (An escaped underscore is deliberately not used for this case: this
+      // codebase already unescapes intraword underscores globally in
+      // stringify.ts, since CommonMark's flanking rules mean an intraword
+      // `_` can never open emphasis — so that one backslash is dropped for
+      // an unrelated, pre-existing reason, not by this bug.)
+      const markdown = 'A block ^ab\\`cd'
+      const children = paragraphChildren(markdown)
+      const anchor = children.find((c: any) => c.type === 'blockAnchor')
+      expect(anchor).toBeDefined()
+      expect(anchor.id).toBe('ab\\`cd')
+
+      const result = parseMarkdown(markdown)
+      expect(stringifyMarkdown(result.root)).toBe(`${markdown}\n`)
+    })
   })
 })
 

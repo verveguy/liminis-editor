@@ -835,9 +835,17 @@ function splitTextNodeBlockAnchors(node: any, normalizedText: string): any[] {
       result.push(makeTextNode(value, start + parts[cursor].srcStart, start + parts[matchStart - 1].srcEnd));
     }
 
+    // Captured from raw `source`, not `decoded`: stringify.ts's `blockAnchor`
+    // handler re-emits `^${node.id}` verbatim with no escaping, so the id
+    // must already carry any backslash the author wrote (e.g. `^ab\_cd`) or
+    // that escape is silently dropped on the next save — a round-trip
+    // corruption distinct from, and not covered by, the decoded-vs-raw
+    // truncation reasoning above (that reasoning only shows the *match
+    // boundary* never diverges; it says nothing about what ends up inside
+    // an id that does match).
     result.push({
       type: 'blockAnchor',
-      id: decoded.slice(matchStart + 1, matchEnd),
+      id: source.slice(parts[matchStart + 1].srcStart, parts[matchEnd - 1].srcEnd),
       position: makePosition(start + parts[matchStart].srcStart, start + parts[matchEnd - 1].srcEnd),
     });
 
