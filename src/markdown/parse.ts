@@ -731,7 +731,14 @@ function findBlockAnchorMatches(
     // regression test.
     let idEnd = i + 1;
     while (idEnd < decoded.length && WIDE_ID_CHAR.test(decoded[idEnd])) idEnd++;
-    if (idEnd === i + 1) continue; // empty capture, e.g. `a ^ b`
+    // Empty capture: the character right after `^` is already whitespace
+    // (or end of text), e.g. `a ^ b`, `a ^`, `x ^\t`. `a ^ b` would also be
+    // rejected by the right-boundary check below regardless (the trailing
+    // `b` isn't end-of-line), but a bare trailing caret like `a ^` or
+    // `x ^\t` reaches true end-of-line/end-of-document and would otherwise
+    // pass that check with an empty id — this guard is what actually stops
+    // that case. See "does not badge a bare trailing caret" regression test.
+    if (idEnd === i + 1) continue;
 
     // Right boundary: only trailing spaces/tabs before end of line or end of
     // document — peeking past this node's own end into `normalizedText` if

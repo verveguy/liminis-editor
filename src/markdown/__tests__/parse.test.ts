@@ -867,6 +867,26 @@ $$`
       const result = parseMarkdown(markdown)
       expect(stringifyMarkdown(result.root)).toBe(`${markdown}\n`)
     })
+
+    it.each([
+      ['a ^', 'end of document'],
+      ['x ^\nmore text follows', 'end of a soft-wrapped line, more text after'],
+      ['x ^\t', 'trailing tab at end of document'],
+    ])(
+      'does not badge a bare trailing caret with an empty id (%s: %s) — review finding',
+      (markdown) => {
+        // The character right after `^` is already whitespace or end of
+        // text, so the id capture is empty. Without the empty-capture guard
+        // in `findBlockAnchorMatches`, these three all pass the right-
+        // boundary check anyway (trailing spaces/tabs, then end-of-line or
+        // end-of-document) and would badge with `id: ''` — an empty badge.
+        // Round-trip stays byte-identical either way (`^${node.id}` still
+        // reproduces the bare `^`), so no roundtrip/ fixture would catch a
+        // regression here; only this unit test does.
+        const children = paragraphChildren(markdown)
+        expect(children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
+      },
+    )
   })
 })
 
