@@ -707,16 +707,18 @@ $$`
       expect(code.value).toBe(`^${ULID}`)
     })
 
-    it('does not badge a truncated/malformed id', () => {
+    it('badges a 25-character run via Branch B even though it is one character short of a ULID (#124)', () => {
       const children = paragraphChildren('^01M00VDX0S4JHMDNA7F776Y8R') // 25 chars
       expect(children).toHaveLength(1)
-      expect(children[0].type).toBe('text')
+      expect(children[0].type).toBe('blockAnchor')
+      expect(children[0].id).toBe('01M00VDX0S4JHMDNA7F776Y8R')
     })
 
-    it('does not badge a longer run of the same charset (no truncated-prefix match)', () => {
+    it('badges the full run when a ULID-shaped id is followed by more of the same charset (widened charset, no truncation) (#124)', () => {
       const children = paragraphChildren(`^${ULID}EXTRA`)
       expect(children).toHaveLength(1)
-      expect(children[0].type).toBe('text')
+      expect(children[0].type).toBe('blockAnchor')
+      expect(children[0].id).toBe(`${ULID}EXTRA`)
     })
 
     it.each([
