@@ -820,6 +820,25 @@ $$`
       expect(inlineMath.value).toBe('x^{a1b2c3}')
       expect(paragraph.children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
     })
+
+    it.each([
+      ['A block ^abc\\#def', 'a delimiter mid-id, more text after'],
+      ['A block ^abc\\]   ', 'a delimiter mid-id, only trailing whitespace after'],
+      ['A block ^abc\\#', 'a delimiter as the final character of the line'],
+    ])(
+      'does not badge an id containing a backslash-escaped delimiter (%s: %s) — review finding: confirmed no badge/resolver disagreement',
+      (markdown) => {
+        // A `\#`/`\]` inside an id decodes to a literal `#`/`]`, which
+        // WIDE_ID_CHAR excludes, so the capture truncates before that point.
+        // Verified (not just asserted) that this never diverges from what a
+        // raw-text match would decide: whatever follows the truncation is
+        // identical, non-whitespace content either way, so the end-of-line
+        // right-boundary check rejects the match under both models alike —
+        // see the comment above `findBlockAnchorMatches`'s id-capture loop.
+        const children = paragraphChildren(markdown)
+        expect(children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
+      },
+    )
   })
 })
 

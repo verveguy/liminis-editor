@@ -717,7 +717,18 @@ function findBlockAnchorMatches(
     const leftOk = i > 0 ? /\s/.test(decoded[i - 1]) : start === 0 || /\s/.test(normalizedText[start - 1]);
     if (!leftOk) continue;
 
-    // Id capture: greedy run of non-whitespace, non-`]`, non-`#`.
+    // Id capture: greedy run of non-whitespace, non-`]`, non-`#`, tested
+    // against `decoded` rather than raw source. A backslash-escaped `#` or
+    // `]` inside an id (`^abc\#def`) therefore truncates the capture one
+    // character earlier than a regex run over raw, undecoded file text
+    // would (the resolver's own matching model) — but this never produces a
+    // badge/resolver disagreement: whatever follows the truncation point is
+    // identical, non-whitespace content in both the decoded and raw views
+    // (backslash-escaping only ever turns `\X` into `X`, never anything
+    // into whitespace), so the right-boundary check below rejects the match
+    // in both models alike whenever this truncation is reachable. See the
+    // "does not badge an id containing a backslash-escaped delimiter"
+    // regression test.
     let idEnd = i + 1;
     while (idEnd < decoded.length && WIDE_ID_CHAR.test(decoded[idEnd])) idEnd++;
     if (idEnd === i + 1) continue; // empty capture, e.g. `a ^ b`
