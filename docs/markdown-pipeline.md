@@ -314,7 +314,7 @@ is called at each level. Removing either turns an authoring mistake into an
 infinite loop or unbounded recursion instead of a contained "circular
 transclusion"/"nested too deeply" indicator.
 
-## Block anchor badges (#122)
+## Block anchor badges (#122, widened by #124)
 
 A block anchor — a bare `^ULID` at its *definition* site, most commonly
 trailing an action-item checkbox (`- [ ] ... ^01M00VDX0S4JHMDNA7F776Y8R8`) —
@@ -370,38 +370,61 @@ punctuation left in the anchor split's "before"/"after" text siblings.
 with no escaping — lossless by construction, the same way `wikiLink`/
 `wikiEmbed` are.
 
-### The detection regex, and why it is narrower than the wiki-link reference side
+### The detection rule: two branches, ULID permissive and everything else position-gated (#124)
+
+`findBlockAnchorMatches` in `parse.ts` tries two branches at each unescaped
+`^`, left to right, Branch A first:
+
+**Branch A — ULID, unconstrained by position** (unchanged since #122):
 
 ```ts
-/\^[0-9A-HJKMNP-TV-Z]{26}(?![0-9A-HJKMNP-TV-Z])/
+/^\^[0-9A-HJKMNP-TV-Z]{26}(?![0-9A-HJKMNP-TV-Z])/
 ```
 
-26-character, uppercase Crockford Base32 — the ULID shape both real examples
-in this feature's issue conform to — with a trailing negative lookahead so a
-longer or malformed run of the same charset never badges a truncated
-26-character prefix of itself.
+26-character, uppercase Crockford Base32, with a trailing negative lookahead
+so a longer or malformed run of the same charset never badges a truncated
+26-character prefix of itself. No word-boundary or preceding-whitespace
+requirement: an anchor is expected immediately after other inline syntax
+with no preceding space (e.g. right after a wiki-link or an emphasis run),
+and a boundary rule would exclude that case structurally — see
+`anchor-after-wikilink.md`/`anchor-in-emphasis-strong.md` in the fixture
+corpus. It is also not required to run to end of line —
+`multiple-anchors.md` badges an anchor followed by further prose on the same
+line.
 
-This is deliberately **narrower** than the wiki-link *reference* side's
-blockId pattern (`vendor/mdast-util-wiki-link/from-markdown.ts`'s
-`BLOCK_ID_PATTERN = /#\^([^\s\]#]+)$/`), which accepts any non-whitespace
-token as a block id — ULIDs, snowflake-style numeric ids, short ids, slugs.
-That permissiveness is safe there only because the surrounding `[[...]]`
-brackets bound the match; a bare, undelimited definition-site matcher has no
-such protection. Widening this matcher to the same permissiveness would
-reintroduce exactly the false positives a badge-at-every-caret approach must
-avoid: `x^2`, `2^10`, `a ^ b` read naturally as prose (an exponent, informal
-math), not as anchors. A charset choice alone cannot satisfy both "match
-every id form the reference side accepts" and "never badge a prose caret" —
-see ADR-122 for the full reasoning and the rejected alternatives (a
-whitespace-before-`^` rule, a position rule). No word-boundary or
-preceding-whitespace requirement is used either: an anchor is expected
-immediately after other inline syntax with no preceding space (e.g. right
-after a wiki-link or an emphasis run), and a boundary rule would exclude that
-case structurally.
+**Branch B — any other id shape, gated by the resolver's own position rule**
+(added by #124): any id the resolver and the wiki-link reference side already
+accept — raw-decimal snowflake ids, NanoID-style ids with `_`/`-`, mixed-case
+base62, UUID-shaped hyphenated ids, short alphanumeric ids — badges if and
+only if the caret starts a token (line-start or preceded by whitespace) and
+the captured id (`[^\s\]#]+`, the same charset the wiki-link reference side
+and the resolver use) runs to end of line, i.e. `/(?:^|\s)\^([^\s\]#]+)\s*$/`
+applied against the text run. This is the resolver's own regex
+(`liminis-app/src/main/fs.ts`, verveguy/liminis#1109) adopted verbatim, so
+badge and resolver agree by construction rather than by coincidence.
 
-Extending detection to snowflake- or short-id anchors is a deliberately
-deferred, isolated follow-up, to be taken up once that convention has
-first-party evidence — not addressed here.
+**Why two branches instead of one universal rule.** Applying Branch B's
+position rule to ULID as well was considered and rejected: #122's own
+fixtures and unit tests require a ULID to badge immediately after a
+wiki-link/emphasis run with no preceding space, and require a ULID followed
+by more prose on the same line to badge — both of which a universal position
+rule breaks. Widening Branch A's charset without adding position-gating was
+also rejected: `x^2`/`2^10`/`a ^ b` would badge as false positives, since
+nothing else bounds an undelimited charset match the way `[[...]]` brackets
+bound the wiki-link reference side's use of the same charset. The two-branch
+split is what lets ULID keep its original permissive rule (no regression)
+while every other id form gets exactly the disambiguation it needs (no
+charset or length reasoning, just position) — see ADR-122's 2026-09-09
+amendment for the full history, including the rejected minimum-length
+threshold.
+
+Branch B's boundary checks may need to peek one character outside the
+current text node's own source span — into the surrounding normalized
+document text, one character before the node's start or from the node's end
+onward — since a preceding/following sibling (e.g. a wiki-link) has no
+character of its own for the matcher to inspect directly. This is
+equivalent to inspecting the sibling node and needs no AST traversal to do
+it.
 
 ### The Lexical side: `BlockAnchorNode`, mirroring `FootnoteNode`
 

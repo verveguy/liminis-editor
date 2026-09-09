@@ -780,7 +780,7 @@ $$`
     })
 
     it('agrees with the resolver position rule across every case discussed on the issue (SC-005)', () => {
-      const cases: Array<[string, boolean]> = [
+      const cases: [string, boolean][] = [
         ['Ship the thing ^01KKE2V4H0B2DRJ6CEER5S4E6F', true],
         ['Ship the thing ^1867432905318744064', true],
         ['A block. ^V1StGXR8_Z5jdHi6B-myT', true],

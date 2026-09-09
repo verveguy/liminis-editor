@@ -198,9 +198,65 @@ rather than introducing a new popover/menu affordance.
   shaped or not — already does not round-trip its backslash today. Repairing
   that is out of scope for this issue.
 
+> **Amended 2026-09-09 (#124) — "length is the disambiguating signal" no
+> longer holds; the resolver's position rule is.** #122 shipped detecting
+> only the 26-character ULID shape, arguing (§1 above) that length alone
+> resolved the FR-005/SC-004 tension, and that a wider charset would
+> reintroduce false positives like `x^2`/`2^10`. That argument turned out to
+> rest on a premise this ADR didn't state explicitly: math and code are
+> excluded from detection *structurally*, by mdast node type (§2), not by
+> charset — the text-splitter pass never reaches inside `inlineCode`, `code`
+> or `inlineMath`. So the only false-positive risk length was actually
+> protecting against was a bare caret in ordinary prose, outside any math or
+> code construct — and that risk is a *position* problem (where the caret
+> sits on the line), not a charset-width problem.
+>
+> #124 (Widen block-anchor badge detection beyond strict ULID) adopts the
+> resolver's own position rule verbatim as a second detection branch:
+> `/(?:^|\s)\^([^\s\]#]+)\s*$/` — the caret must start a token (line-start or
+> preceded by whitespace) and the captured id must run to end of line. This
+> branch now badges every id form the resolver and the wiki-link reference
+> side already accept (ULID, raw-decimal snowflake, NanoID with `_`/`-`,
+> mixed-case base62, UUID-shaped hyphenated ids, short alphanumeric ids),
+> closing the gap §168's "Bad / accepted" section flagged as deliberately
+> deferred.
+>
+> **The original ULID branch (§"Decision" above) is kept exactly as shipped,
+> unconstrained by position, as a first branch tried before the new one.**
+> Applying the position rule to ULID too was considered and rejected: #122's
+> own fixtures and unit tests require a ULID to badge immediately after a
+> wiki-link or emphasis run with no preceding space (§1's "required-
+> whitespace-before-`^`... rejected" reasoning, still valid), and require a
+> ULID followed by further prose on the same line to badge
+> (`multiple-anchors.md`). A single, universally-applied position rule breaks
+> both. Keeping ULID's original permissive rule frozen, and adding position-
+> gating only for every other id shape, satisfies both requirements at once
+> without reopening #122's already-settled charset reasoning for the case it
+> was actually designed for.
+>
+> **A minimum-length threshold (e.g. ~8 characters) was considered and
+> rejected**, as an alternative to the position rule, to exclude the one
+> residual false positive the position rule alone doesn't resolve: a bare
+> short number at line end preceded by whitespace, such as `^100`. Rejected
+> because #124's own requirements include badging short alphanumeric ids
+> (`^a1b2c3`, 6 characters) — any length floor high enough to exclude `^100`
+> also excludes ids of that length, reintroducing the exact false-negative
+> #124 exists to fix. The residual `^100`-at-line-end false positive is
+> therefore accepted, not filtered: it requires an author to end a line on a
+> lone number with a caret in front of it and nothing after, which is not how
+> exponents are normally written (`2^10` continues the sentence; real math is
+> wrapped in MathJax `$...$`, itself excluded structurally per §2).
+>
+> Math/code exclusion (§2) is unaffected by this amendment — both detection
+> branches remain a post-parse pass over already-typed `text` nodes, so the
+> structural exclusion holds for every id shape, not just ULID, with no new
+> "protected ranges" machinery. See `specs/124-widen-block-anchor-badge/spec.md`
+> for the full analysis, including the rejected `^=`-sigil alternative.
+
 ## References
 
 - Issue #122 (this decision)
+- Issue #124 (2026-09-09 amendment above — widened detection beyond ULID)
 - `docs/markdown-pipeline.md` ("Block anchor badges (#122)" section — the
   detection regex, the post-parse text-split technique, and the round-trip
   contract)

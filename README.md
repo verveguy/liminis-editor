@@ -498,9 +498,12 @@ needs. The underlying markdown, and the id itself, are never changed by
 this: it is a display concern only, and the badge edits and deletes like
 ordinary text.
 
-Detection is scoped to the ULID shape (26-character, uppercase Crockford
-Base32) rather than every id form `[[file#^id]]` accepts, so that a caret in
-ordinary prose (`x^2`, `2^10`) is never mistaken for an anchor — see
+Detection accepts every id form `[[file#^id]]` and its resolver accept —
+ULIDs, raw-decimal snowflake ids, NanoID-style ids, mixed-case base62, UUIDs,
+short alphanumeric ids — so the badge and the resolver agree on what counts
+as an anchor. A caret in ordinary prose (`x^2`, `2^10`, `mc^2`, `a ^ b`) is
+never mistaken for one, by the same position rule the resolver itself uses:
+the caret must start a token, and the id must run to end of line — see
 `docs/markdown-pipeline.md`'s "Block anchor badges" section for the full
 rationale.
 
