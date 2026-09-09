@@ -44,8 +44,8 @@ export default function BlockAnchorComponent({ id }: BlockAnchorComponentProps):
         padding: '0 0.4em',
         marginLeft: '0.3em',
         borderRadius: '1em',
-        backgroundColor: '#eef1f6',
-        color: '#5b6472',
+        backgroundColor: 'var(--liminis-editor-muted-100)',
+        color: 'var(--liminis-editor-muted-foreground)',
         userSelect: 'none',
         verticalAlign: 'middle',
       }}
