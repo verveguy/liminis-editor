@@ -314,6 +314,137 @@ is called at each level. Removing either turns an authoring mistake into an
 infinite loop or unbounded recursion instead of a contained "circular
 transclusion"/"nested too deeply" indicator.
 
+## Block anchor badges (#122)
+
+A block anchor — a bare `^ULID` at its *definition* site, most commonly
+trailing an action-item checkbox (`- [ ] ... ^01M00VDX0S4JHMDNA7F776Y8R8`) —
+renders as a compact badge instead of the raw caret-plus-id text. This is
+presentation only: the underlying markdown, and the id itself, never change.
+It has no relationship to the `#^blockId` fragment inside `[[file#^id]]`
+above other than sharing a source convention — this section is about the
+anchor's own definition site, not a link's target.
+
+### `blockAnchor` is a new mdast node type, detected by a post-parse text split
+
+```ts
+{ type: 'blockAnchor', id: '01M00VDX0S4JHMDNA7F776Y8R8' }
+```
+
+Unlike the embed marker (`![[...]]`), a bare `^ULID` needs no tokenizer
+unlock — there is no bracket syntax to let through. Detection is therefore a
+**post-parse** pass (`splitTextNodeBlockAnchors`/`splitBlockAnchors` in
+`parse.ts`) walking already-typed mdast `text` nodes and splitting a matching
+run into its own `blockAnchor` node, mirroring `#17`'s
+`splitTextNodeEscapes`/`splitEscapedPunctuation` (including its decode-replay
+position-mapping machinery and the same conservative bail-out: if a text
+node's replayed decoding doesn't exactly reproduce `node.value` — e.g. a
+character reference is present — the whole run is left unsplit rather than
+risk a wrong split).
+
+Because this only ever inspects a `text` node's own `value`, it structurally
+cannot see into `inlineCode`, `code`, `inlineMath`, `wikiLink` or `wikiEmbed`
+node content — none of those are `text` nodes once mdast has typed them —
+which satisfies the code-span/fenced-code/math edge case and FR-006 for free,
+with no "protected ranges" pre-parse machinery required (unlike
+`substituteEmbedMarker` above, which needs that machinery only because it has
+to influence tokenization itself).
+
+The matcher also rejects a match whose leading `^` came from a backslash
+escape (`\^`) in the source, using the same `replayDecodeEscapes` output the
+decode-replay machinery above already computes. Without this check, an
+author who deliberately wrote `\^` before a ULID-shaped run to mean literal
+text — not an anchor — would still get a badge, and since the `blockAnchor`
+stringify handler always emits a bare, unescaped `^id`, saving would silently
+drop their backslash. This does not repair the pre-existing, unrelated gap
+that `^` sits outside `FORCE_ESCAPE_CHARS`: a bare `\^` with no adjacent
+ULID-shaped run still loses its backslash on round-trip today, anchor or
+not — see ADR-122's accepted limitations.
+
+The pass runs in `parseMarkdown`'s post-process sequence after
+`resolveWikiEmbeds`/`annotateEmphasisMarkers` — so it never sees wiki-link or
+embed target text — and immediately before `splitEscapedPunctuation` (which
+stays last), so that pass still sees, and can process, any escaped
+punctuation left in the anchor split's "before"/"after" text siblings.
+
+`stringify.ts`'s `blockAnchor` handler emits exactly `^` + the node's `id`,
+with no escaping — lossless by construction, the same way `wikiLink`/
+`wikiEmbed` are.
+
+### The detection regex, and why it is narrower than the wiki-link reference side
+
+```ts
+/\^[0-9A-HJKMNP-TV-Z]{26}(?![0-9A-HJKMNP-TV-Z])/
+```
+
+26-character, uppercase Crockford Base32 — the ULID shape both real examples
+in this feature's issue conform to — with a trailing negative lookahead so a
+longer or malformed run of the same charset never badges a truncated
+26-character prefix of itself.
+
+This is deliberately **narrower** than the wiki-link *reference* side's
+blockId pattern (`vendor/mdast-util-wiki-link/from-markdown.ts`'s
+`BLOCK_ID_PATTERN = /#\^([^\s\]#]+)$/`), which accepts any non-whitespace
+token as a block id — ULIDs, snowflake-style numeric ids, short ids, slugs.
+That permissiveness is safe there only because the surrounding `[[...]]`
+brackets bound the match; a bare, undelimited definition-site matcher has no
+such protection. Widening this matcher to the same permissiveness would
+reintroduce exactly the false positives a badge-at-every-caret approach must
+avoid: `x^2`, `2^10`, `a ^ b` read naturally as prose (an exponent, informal
+math), not as anchors. A charset choice alone cannot satisfy both "match
+every id form the reference side accepts" and "never badge a prose caret" —
+see ADR-122 for the full reasoning and the rejected alternatives (a
+whitespace-before-`^` rule, a position rule). No word-boundary or
+preceding-whitespace requirement is used either: an anchor is expected
+immediately after other inline syntax with no preceding space (e.g. right
+after a wiki-link or an emphasis run), and a boundary rule would exclude that
+case structurally.
+
+Extending detection to snowflake- or short-id anchors is a deliberately
+deferred, isolated follow-up, to be taken up once that convention has
+first-party evidence — not addressed here.
+
+### The Lexical side: `BlockAnchorNode`, mirroring `FootnoteNode`
+
+`BlockAnchorNode` (`src/app/editor/nodes/BlockAnchorNode.tsx`) is an inline
+`DecoratorNode<JSX.Element>` carrying the id, a format bitmask, and
+strong/emphasis marker fields — the same shape as `FootnoteNode`, so an
+anchor sitting inside `**bold**`/`_italic_` still round-trips its original
+marker style rather than silently dropping it (the defect class already
+fixed once for other inline decorators, `#898`/`#908`). `BlockAnchorComponent`
+renders the actual badge: the full id is exposed via the native `title`
+tooltip on hover, and a click copies it via `navigator.clipboard.writeText`
+with brief "Copied" feedback — mirroring `CodeBlockPlugin.tsx`'s existing
+copy pattern, rather than a new interaction affordance (User Story 2/SC-003).
+
+`convertInlineNode` (`mdastToLexical.ts`) maps a `blockAnchor` mdast node to
+`$createBlockAnchorNode`; the reverse direction in `lexicalToMdast.ts` adds an
+`$isBlockAnchorNode` branch at every site that already special-cases
+`$isFootnoteNode` (`isHoistableConstruct`, `getMergeableFormat`,
+`resolveMarkers`, and each content-conversion call site) so a `BlockAnchorNode`
+participates in bold/italic wrapping, mark-boundary hoisting, and format
+merging exactly like every other round-trip-sensitive inline construct.
+
+**If you are maintaining this package: `convertListItemNode` keeps a
+`BlockAnchorNode` inline, unlike an image/equation/footnote/inline-HTML
+child of a list item** (a documented, pre-existing gap — see
+`hoistedTokenReachesOutput`'s docstring in `lexicalToMdast.ts` — where those
+constructs fall to the block dispatcher and do not survive a round trip
+inline). `- [ ] ... ^ULID` is this feature's primary real-world shape, so
+dropping a trailing anchor there would break the checkbox-action-item
+pattern the spec calls out explicitly. Do not fold the `$isBlockAnchorNode`
+branch back into the generic block-dispatch fallback.
+
+### Round-trip contract
+
+`parseMarkdown` → `stringifyMarkdown` reproduces a document containing block
+anchors byte-identically (FR-002/SC-002), including inside a checkbox action
+item, adjacent to a wiki-link or emphasis run with no preceding whitespace,
+and inside bold/italic text. A caret inside inline code, a fenced code
+block, or inline math is never touched — it round-trips as plain literal
+text, since the post-parse pass never sees inside those node types. See
+`src/app/mapper/__tests__/fixtures/roundtrip/122-block-anchor/` for the
+fixture corpus.
+
 ## Wiki-link promotion on export
 
 Everything above is about *parsing* `[[target]]` syntax the author already wrote.

@@ -57,6 +57,9 @@ export type { SerializedCustomListItemNode } from './CustomListItemNode';
 export { FootnoteNode, $createFootnoteNode, $isFootnoteNode } from './FootnoteNode';
 export type { SerializedFootnoteNode } from './FootnoteNode';
 
+export { BlockAnchorNode, $createBlockAnchorNode, $isBlockAnchorNode } from './BlockAnchorNode';
+export type { SerializedBlockAnchorNode } from './BlockAnchorNode';
+
 export {
   DefinitionListNode,
   DefinitionTermNode,

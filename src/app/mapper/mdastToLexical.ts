@@ -26,6 +26,8 @@ import {
   $isEquationNode,
   $createFootnoteNode,
   $isFootnoteNode,
+  $createBlockAnchorNode,
+  $isBlockAnchorNode,
   $createHtmlNode,
   $isHtmlNode,
   $createMermaidNode,
@@ -45,6 +47,7 @@ import {
   ToggleContainerNode,
   EquationNode,
   FootnoteNode,
+  BlockAnchorNode,
   HtmlNode,
   MermaidNode,
   TransclusionNode,
@@ -1020,7 +1023,7 @@ function $createTransclusionNodeFromMdast(
   return $createTransclusionNode(target, blockId, hasAlias ? rawAlias : null, emptyAlias);
 }
 
-function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode | TransclusionNode)[] {
+function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | BlockAnchorNode | HtmlNode | LineBreakNode | TransclusionNode)[] {
   // Defensive: handle null/undefined nodes
   if (!node?.type) {
     console.warn('[mdastToLexical] convertInlineNode received invalid node:', node);
@@ -1057,6 +1060,12 @@ function convertInlineNode(node: PhrasingContent): (TextNode | LinkNode | ImageN
       // Footnote reference: use FootnoteNode to preserve identity for round-trip
       const fnRef = node as unknown as { identifier: string; label?: string };
       return [$createFootnoteNode(fnRef.identifier)];
+    }
+    case 'blockAnchor': {
+      // Block anchor badge (#122): render `^ULID` as a compact badge instead
+      // of raw text, using BlockAnchorNode to preserve the id for round-trip.
+      const anchor = node as unknown as { id: string };
+      return [$createBlockAnchorNode(anchor.id)];
     }
     case 'wikiLink': {
       // Wiki-links from mdast-util-wiki-link: [[path|alias]]
@@ -1195,8 +1204,8 @@ function applyFormatToLinkChildren(
   }
 }
 
-function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] {
-  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] = [];
+function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | BlockAnchorNode | HtmlNode | LineBreakNode)[] {
+  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | BlockAnchorNode | HtmlNode | LineBreakNode)[] = [];
   const marker = (node as any).data?._strongMarker;
   for (const child of node.children) {
     const converted = convertInlineNode(child);
@@ -1211,7 +1220,7 @@ function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode | Equatio
         // Apply bold formatting to wiki link's text children
         applyFormatToLinkChildren(n, 'bold', marker);
         nodes.push(n);
-      } else if ($isEquationNode(n) || $isFootnoteNode(n)) {
+      } else if ($isEquationNode(n) || $isFootnoteNode(n) || $isBlockAnchorNode(n)) {
         if (!n.hasFormat('bold')) {
           n.toggleFormat('bold');
         }
@@ -1228,8 +1237,8 @@ function convertStrong(node: Strong): (TextNode | LinkNode | ImageNode | Equatio
   return nodes;
 }
 
-function convertEmphasis(node: Emphasis): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] {
-  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] = [];
+function convertEmphasis(node: Emphasis): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | BlockAnchorNode | HtmlNode | LineBreakNode)[] {
+  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | BlockAnchorNode | HtmlNode | LineBreakNode)[] = [];
   const marker = (node as any).data?._emphasisMarker;
   for (const child of node.children) {
     const converted = convertInlineNode(child);
@@ -1244,7 +1253,7 @@ function convertEmphasis(node: Emphasis): (TextNode | LinkNode | ImageNode | Equ
         // Apply italic formatting to wiki link's text children
         applyFormatToLinkChildren(n, 'italic', marker);
         nodes.push(n);
-      } else if ($isEquationNode(n) || $isFootnoteNode(n)) {
+      } else if ($isEquationNode(n) || $isFootnoteNode(n) || $isBlockAnchorNode(n)) {
         if (!n.hasFormat('italic')) {
           n.toggleFormat('italic');
         }
@@ -1334,8 +1343,8 @@ function convertLink(node: Link): LinkNode {
   return link;
 }
 
-function convertDelete(node: Delete): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] {
-  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | HtmlNode | LineBreakNode)[] = [];
+function convertDelete(node: Delete): (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | BlockAnchorNode | HtmlNode | LineBreakNode)[] {
+  const nodes: (TextNode | LinkNode | ImageNode | EquationNode | FootnoteNode | BlockAnchorNode | HtmlNode | LineBreakNode)[] = [];
   for (const child of node.children) {
     const converted = convertInlineNode(child);
     for (const n of converted) {
@@ -1346,7 +1355,7 @@ function convertDelete(node: Delete): (TextNode | LinkNode | ImageNode | Equatio
         // Apply strikethrough formatting to wiki link's text children
         applyFormatToLinkChildren(n, 'strikethrough');
         nodes.push(n);
-      } else if ($isEquationNode(n) || $isFootnoteNode(n)) {
+      } else if ($isEquationNode(n) || $isFootnoteNode(n) || $isBlockAnchorNode(n)) {
         if (!n.hasFormat('strikethrough')) {
           n.toggleFormat('strikethrough');
         }

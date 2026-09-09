@@ -643,6 +643,150 @@ function splitTextNodeEscapes(node: any, normalizedText: string): any[] {
   return result;
 }
 
+// Detects a block anchor (`^ULID`) at its *definition* site: a bare caret
+// immediately followed by a 26-character, uppercase Crockford Base32 run
+// (ULIDs) — Douglas Crockford's Base32 alphabet, which excludes I, L, O and U
+// to avoid visual confusion with 1/1/0/V. The trailing negative lookahead
+// stops a longer or malformed run of the same charset from badging a
+// truncated 26-character prefix of itself (issue #122).
+//
+// Deliberately narrower than the wiki-link *reference* side's blockId
+// pattern (`[^\s\]#]+`, `vendor/mdast-util-wiki-link/from-markdown.ts`):
+// that pattern is safe at any width only because `[[...]]` brackets bound
+// it, whereas this matcher runs over bare prose with no such delimiter.
+// Widening it to match every id form the reference side accepts would
+// reintroduce exactly the false positives (`x^2`, `2^10`) SC-004 forbids —
+// see the Plan stage's "Key Decisions" for the full rationale. Extending
+// this to cover snowflake- or short-id anchors is a deliberately deferred,
+// isolated follow-up once that convention has first-party evidence.
+const BLOCK_ANCHOR_PATTERN = /\^[0-9A-HJKMNP-TV-Z]{26}(?![0-9A-HJKMNP-TV-Z])/g;
+
+/**
+ * Split a single `text` node into `[before, blockAnchor, after, ...]`
+ * siblings wherever it contains a {@link BLOCK_ANCHOR_PATTERN} match,
+ * mirroring `splitTextNodeEscapes`'s decode-replay + position-mapping
+ * machinery exactly (including its conservative bail-out when replayed
+ * decoding doesn't exactly reproduce `node.value`, e.g. a character
+ * reference in the span) rather than duplicating it (#122).
+ *
+ * Because this only ever inspects a `text` node's own `value`, it can never
+ * see into `inlineCode`, `code`, `inlineMath`, `wikiLink` or `wikiEmbed`
+ * node content — none of those are `text` nodes once mdast has typed them —
+ * which satisfies the code-span/fenced-code/math edge case and FR-006 by
+ * construction, with no "protected ranges" pre-parse machinery needed.
+ */
+function splitTextNodeBlockAnchors(node: any, normalizedText: string): any[] {
+  const start = node.position?.start?.offset;
+  const end = node.position?.end?.offset;
+  if (start == null || end == null) {
+    return [node];
+  }
+
+  const source = normalizedText.slice(start, end);
+  const { decoded, parts } = replayDecodeEscapes(source);
+  if (decoded !== node.value) {
+    return [node];
+  }
+
+  // Reject a match whose leading `^` came from a backslash escape (`\^`) in
+  // the source. `decoded` has already resolved `\^` to a plain `^`, so the
+  // regex can't tell the two apart on its own — an author who deliberately
+  // escaped a caret immediately before what looks like a ULID meant literal
+  // text, not an anchor, and `stringify.ts`'s `blockAnchor` handler always
+  // emits a bare `^id` with no escaping, so badging it would silently drop
+  // the escape on the next save. `parts[match.index]` is the decoded part
+  // for that `^` (1:1 with `decoded`'s offsets by construction), so its
+  // `escaped` flag says exactly this.
+  const matches = [...decoded.matchAll(BLOCK_ANCHOR_PATTERN)].filter((match) => !parts[match.index].escaped);
+  if (matches.length === 0) {
+    return [node];
+  }
+
+  const startPos = node.position.start;
+  // Per-offset line/column within `source`, mirroring splitTextNodeEscapes.
+  const positionAt: { line: number; column: number }[] = new Array(source.length + 1);
+  {
+    let line = startPos.line;
+    let column = startPos.column;
+    positionAt[0] = { line, column };
+    for (let i = 0; i < source.length; i++) {
+      if (source[i] === '\n') {
+        line += 1;
+        column = 1;
+      } else {
+        column += 1;
+      }
+      positionAt[i + 1] = { line, column };
+    }
+  }
+  const makePosition = (srcStart: number, srcEnd: number): any => ({
+    start: { ...positionAt[srcStart - start], offset: srcStart },
+    end: { ...positionAt[srcEnd - start], offset: srcEnd },
+  });
+  const makeTextNode = (value: string, srcStart: number, srcEnd: number): any => ({
+    type: 'text',
+    value,
+    position: makePosition(srcStart, srcEnd),
+  });
+
+  const result: any[] = [];
+  let cursor = 0; // index into `parts`/`decoded`
+  for (const match of matches) {
+    const matchStart = match.index;
+    const matchEnd = matchStart + match[0].length;
+
+    if (matchStart > cursor) {
+      const value = parts.slice(cursor, matchStart).map((p) => p.char).join('');
+      result.push(makeTextNode(value, start + parts[cursor].srcStart, start + parts[matchStart - 1].srcEnd));
+    }
+
+    result.push({
+      type: 'blockAnchor',
+      id: match[0].slice(1),
+      position: makePosition(start + parts[matchStart].srcStart, start + parts[matchEnd - 1].srcEnd),
+    });
+
+    cursor = matchEnd;
+  }
+
+  if (cursor < parts.length) {
+    const value = parts.slice(cursor, parts.length).map((p) => p.char).join('');
+    result.push(makeTextNode(value, start + parts[cursor].srcStart, start + parts[parts.length - 1].srcEnd));
+  }
+
+  return result;
+}
+
+/**
+ * Walk the tree and split every `text` node containing a block anchor (see
+ * `splitTextNodeBlockAnchors`) into siblings. Run after `resolveWikiEmbeds`/
+ * `annotateEmphasisMarkers` (so this never sees wiki-link/embed target text —
+ * FR-006) and before `splitEscapedPunctuation` (so that pass still sees, and
+ * can process, any escaped punctuation left in this split's "before"/"after"
+ * text siblings) (#122).
+ */
+function splitBlockAnchors(root: Root, normalizedText: string): Root {
+  function walk(node: any): any {
+    if (!node || typeof node !== 'object') return node;
+
+    if (node.children && Array.isArray(node.children)) {
+      const children: any[] = [];
+      for (const child of node.children) {
+        if (child?.type === 'text') {
+          children.push(...splitTextNodeBlockAnchors(child, normalizedText));
+        } else {
+          children.push(walk(child));
+        }
+      }
+      return { ...node, children };
+    }
+
+    return node;
+  }
+
+  return walk(root);
+}
+
 /**
  * Walk the tree and split every `text` node containing a force-escaped
  * character (see `splitTextNodeEscapes`) into siblings. Run last, after all
@@ -779,6 +923,10 @@ export function parseMarkdown(text: string, _options: ParseOptions = {}): ParseR
 
   // Post-process: annotate emphasis/strong marker characters from original source
   root = annotateEmphasisMarkers(root, text, replacements);
+
+  // Post-process: split a bare `^ULID` block anchor out of its surrounding
+  // text so it can render as a badge instead of raw text (#122)
+  root = splitBlockAnchors(root, normalizedText);
 
   // Post-process: split out backslash-escaped punctuation so its escape can
   // be carried through Lexical and restored at stringify time (#17)

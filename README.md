@@ -17,7 +17,8 @@ travelled with the code, are recorded in [`docs/provenance.md`](./docs/provenanc
   ordered lists), footnotes, definition lists, callouts, toggles, code blocks
   with Prism highlighting, images, LaTeX equations, Mermaid diagrams, C4
   diagrams, YAML frontmatter, and wiki-links — including block-scoped links
-  and live transclusion (`[[file#^id]]` / `![[file#^id]]`).
+  and live transclusion (`[[file#^id]]` / `![[file#^id]]`), with a `^ULID`
+  block anchor at its definition site rendering as a compact, copyable badge.
 - **A markdown pipeline** — `parseMarkdown` / `stringifyMarkdown` and the mdast
   ↔ Lexical mappers, usable with no editor mounted.
 - **An annotation mechanism** — range-anchored markers over document text that
@@ -485,6 +486,23 @@ specific block when the host supports it, and degrades no worse than
 today's file-only wiki-link navigation when it doesn't — no extra host
 wiring required beyond the resolver above, which also backs its
 "does this block exist" styling.
+
+## Block anchor badges
+
+A block anchor — a bare `^ULID` at the point it was defined, most commonly
+trailing an action-item checkbox (`- [ ] ... ^01M00VDX0S4JHMDNA7F776Y8R8`) —
+renders as a compact badge instead of the raw 26-character id sitting inline
+in the prose. Hover the badge to see the full id, or click it to copy the
+exact id to the clipboard — the same id a `[[file#^id]]` reference above
+needs. The underlying markdown, and the id itself, are never changed by
+this: it is a display concern only, and the badge edits and deletes like
+ordinary text.
+
+Detection is scoped to the ULID shape (26-character, uppercase Crockford
+Base32) rather than every id form `[[file#^id]]` accepts, so that a caret in
+ordinary prose (`x^2`, `2^10`) is never mistaken for an anchor — see
+`docs/markdown-pipeline.md`'s "Block anchor badges" section for the full
+rationale.
 
 ## Documentation
 

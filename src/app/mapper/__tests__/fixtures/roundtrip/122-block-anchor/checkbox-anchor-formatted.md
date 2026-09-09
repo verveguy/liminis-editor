@@ -1,0 +1,2 @@
+- [ ] @me Draft the boundary doc by 2026-09-15 **^01M00VDX0S4JHMDNA7F776Y8R8**
+- [ ] @me A second item with an italic anchor _^01M00VDX0S4JHMDNA7F776Y8R9_

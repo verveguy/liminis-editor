@@ -28,6 +28,7 @@ import {
   $isC4Node,
   $isFrontmatterNode,
   $isFootnoteNode,
+  $isBlockAnchorNode,
   $isCustomListNode,
   $isDefinitionListNode,
   $isDefinitionTermNode,
@@ -348,6 +349,7 @@ function isHoistableConstruct(node: LexicalNode): boolean {
     $isImageNode(node) ||
     $isEquationNode(node) ||
     $isFootnoteNode(node) ||
+    $isBlockAnchorNode(node) ||
     $isHtmlNode(node) ||
     $isTransclusionNode(node)
   );
@@ -484,25 +486,31 @@ function canCarryHoistedTokens(parent: LexicalNode | null): boolean {
  * The same question asked of the *construct* rather than its container, because
  * one container routes its children unevenly.
  *
- * `convertListItemNode` sends only text runs, line breaks and links through the
- * inline phrasing path; every other child goes to the block dispatcher, which
- * has nowhere to put a phrasing token. Hoisting a boundary onto one of those
- * would drop the token silently, and `locateLiveMarkdownRange` would then fail
- * to find the mark at all.
+ * `convertListItemNode` sends only text runs, line breaks, links and block
+ * anchors through the inline phrasing path; every other child goes to the
+ * block dispatcher, which has nowhere to put a phrasing token. Hoisting a
+ * boundary onto one of those would drop the token silently, and
+ * `locateLiveMarkdownRange` would then fail to find the mark at all.
  *
- * No document reaches that state today, which is why this is a guard rather
- * than a fix: an image, inline equation, footnote reference or inline HTML
- * inside a list item is *itself* block-promoted by that same dispatcher, so it
- * does not survive a round trip inline (`- The value $x^2$ matters` exports as
- * three blocks) and any range over it is already rejected by
- * `locateLiveMarkdownRange`'s slice check. Repairing that unrelated,
- * pre-existing round-trip defect must not silently regress annotation ranges as
- * its side effect.
+ * No document reaches that state today for the remaining types, which is why
+ * this is a guard rather than a fix: an image, inline equation, footnote
+ * reference or inline HTML inside a list item is *itself* block-promoted by
+ * that same dispatcher, so it does not survive a round trip inline (`- The
+ * value $x^2$ matters` exports as three blocks) and any range over it is
+ * already rejected by `locateLiveMarkdownRange`'s slice check. Repairing that
+ * unrelated, pre-existing round-trip defect must not silently regress
+ * annotation ranges as its side effect.
+ *
+ * Block anchors are the one exception (#122): `- [ ] ... ^ULID` is the
+ * primary real-world shape this issue targets, so `convertListItemNode` keeps
+ * a `BlockAnchorNode` inline rather than letting it fall to the block
+ * dispatcher — see the `$isBlockAnchorNode` branch there — and a hoisted
+ * boundary onto one genuinely does reach the output.
  */
 function hoistedTokenReachesOutput(node: LexicalNode): boolean {
   let parent = node.getParent();
   while (parent && $isMarkNode(parent)) parent = parent.getParent();
-  return $isListItemNode(parent) ? $isLinkNode(node) : true;
+  return $isListItemNode(parent) ? ($isLinkNode(node) || $isBlockAnchorNode(node)) : true;
 }
 
 /**
@@ -836,6 +844,8 @@ function convertFootnoteInlineChildren(labelNode: LexicalNode): PhrasingContent[
         identifier: child.getFootnoteId(),
         label: child.getFootnoteId(),
       } as unknown as PhrasingContent);
+    } else if ($isBlockAnchorNode(child)) {
+      contentChildren.push({ type: 'blockAnchor', id: child.getId() } as unknown as PhrasingContent);
     }
     contentChildren.push(...hoistedTokenNodesFor(child, 'after'));
     restIndex++;
@@ -1123,6 +1133,33 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean, spread: bool
       inlineChildren.push(
         ...hoistedTokenNodesFor(child, 'before'),
         convertLinkNode(child),
+        ...hoistedTokenNodesFor(child, 'after'),
+      );
+    } else if ($isBlockAnchorNode(child)) {
+      // A block anchor sitting directly under a ListItemNode — the primary
+      // real-world shape this issue targets (`- [ ] ... ^ULID`, #122) — must
+      // stay inline rather than fall to the block dispatcher below: unlike
+      // image/equation/footnote/html (a documented, pre-existing gap this
+      // issue does not touch — see `hoistedTokenReachesOutput`'s docstring),
+      // a dropped anchor here would break the checkbox-action-item pattern
+      // the spec calls out as the primary usage.
+      //
+      // Unlike the $isLinkNode branch above, a link's format lives on its
+      // text children (applied on import via applyFormatToLinkChildren), but
+      // a BlockAnchorNode carries its own format bits directly (like
+      // FootnoteNode/EquationNode) — so they must be wrapped here explicitly,
+      // the same way the general inline path does via getMergeableFormat +
+      // buildFormattedContent, or a bold/italic badge would silently lose its
+      // markers on export.
+      flushTextRun();
+      const anchorMdast = { type: 'blockAnchor', id: child.getId() } as unknown as PhrasingContent;
+      const format = getMergeableFormat(child) ?? 0;
+      const anchorContent = format
+        ? wrapWithFormat([anchorMdast], format, child.getStrongMarker(), child.getEmphasisMarker())
+        : anchorMdast;
+      inlineChildren.push(
+        ...hoistedTokenNodesFor(child, 'before'),
+        anchorContent,
         ...hoistedTokenNodesFor(child, 'after'),
       );
     } else {
@@ -1518,7 +1555,7 @@ function getMergeableFormat(child: LexicalNode): number | null {
   if ($isTextNode(child)) {
     return child.getFormat() & MERGEABLE_FORMAT_MASK;
   }
-  if ($isEquationNode(child) || $isFootnoteNode(child)) {
+  if ($isEquationNode(child) || $isFootnoteNode(child) || $isBlockAnchorNode(child)) {
     return child.getFormat() & MERGEABLE_FORMAT_MASK;
   }
   return null;
@@ -1557,6 +1594,9 @@ function convertSingleInlineChild(child: LexicalNode): PhrasingContentLike[] {
       identifier: child.getFootnoteId(),
       label: child.getFootnoteId(),
     } as unknown as PhrasingContent];
+  } else if ($isBlockAnchorNode(child)) {
+    // Block anchor badge (#122): convert back to a blockAnchor mdast node
+    return [{ type: 'blockAnchor', id: child.getId() } as unknown as PhrasingContent];
   } else if ($isHtmlNode(child)) {
     // Inline HTML preserved opaquely: convert back to a phrasing html mdast node
     return [{ type: 'html', value: child.getHtml() } as unknown as PhrasingContent];
@@ -1649,6 +1689,9 @@ function convertLeavesRaw(nodes: LexicalNode[]): PhrasingContent[] {
         identifier: node.getFootnoteId(),
         label: node.getFootnoteId(),
       } as unknown as PhrasingContent);
+    } else if ($isBlockAnchorNode(node)) {
+      flushCode();
+      content.push({ type: 'blockAnchor', id: node.getId() } as unknown as PhrasingContent);
     }
   }
   flushCode();
@@ -1677,7 +1720,7 @@ function resolveMarkers(nodes: LexicalNode[]): { strongMarker: '_' | '*' | null;
       const style = node.getStyle() || '';
       strongMarker = strongMarker ?? getMarkdownMarker(style, '--md-strong-marker');
       emphasisMarker = emphasisMarker ?? getMarkdownMarker(style, '--md-emphasis-marker');
-    } else if ($isEquationNode(node) || $isFootnoteNode(node)) {
+    } else if ($isEquationNode(node) || $isFootnoteNode(node) || $isBlockAnchorNode(node)) {
       strongMarker = strongMarker ?? node.getStrongMarker();
       emphasisMarker = emphasisMarker ?? node.getEmphasisMarker();
     }
@@ -2123,6 +2166,8 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
         identifier: child.getFootnoteId(),
         label: child.getFootnoteId(),
       } as unknown as PhrasingContent);
+    } else if ($isBlockAnchorNode(child)) {
+      children.push({ type: 'blockAnchor', id: child.getId() } as unknown as PhrasingContent);
     } else if ($isHtmlNode(child)) {
       children.push({ type: 'html', value: child.getHtml() } as unknown as PhrasingContent);
     }

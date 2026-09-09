@@ -653,6 +653,97 @@ $$`
       expect(after.position.end.column).toBe(9)
     })
   })
+
+  describe('block anchor badges (#122)', () => {
+    const ULID = '01M00VDX0S4JHMDNA7F776Y8R8'
+
+    function paragraphChildren(markdown: string): any[] {
+      const result = parseMarkdown(markdown)
+      const paragraph = result.root.children[0] as any
+      return paragraph.children
+    }
+
+    it('splits a bare ^ULID at the end of a line into a blockAnchor node', () => {
+      const children = paragraphChildren(`Draft the boundary doc ^${ULID}`)
+      expect(children.map((c) => c.type)).toEqual(['text', 'blockAnchor'])
+      expect(children[1].id).toBe(ULID)
+      expect(children[0].value).toBe('Draft the boundary doc ')
+    })
+
+    it('renders multiple independent anchors, each split out on its own', () => {
+      const ULID2 = '01M00VDX0S4JHMDNA7F776Y8R9'
+      const children = paragraphChildren(`first ^${ULID} and second ^${ULID2}`)
+      const anchors = children.filter((c) => c.type === 'blockAnchor')
+      expect(anchors).toHaveLength(2)
+      expect(anchors.map((a) => a.id)).toEqual([ULID, ULID2])
+    })
+
+    it('matches an anchor immediately after a link with no preceding space', () => {
+      const children = paragraphChildren(`[[notes]]^${ULID}`)
+      expect(children[0].type).toBe('wikiLink')
+      expect(children[1].type).toBe('blockAnchor')
+      expect(children[1].id).toBe(ULID)
+    })
+
+    it('matches an anchor immediately after emphasis with no preceding space', () => {
+      const result = parseMarkdown(`*text*^${ULID}`)
+      const paragraph = result.root.children[0] as any
+      expect(paragraph.children[0].type).toBe('emphasis')
+      expect(paragraph.children[1].type).toBe('blockAnchor')
+      expect(paragraph.children[1].id).toBe(ULID)
+    })
+
+    it('leaves a caret inside an inline code span as literal text', () => {
+      const children = paragraphChildren(`\`^${ULID}\``)
+      expect(children).toHaveLength(1)
+      expect(children[0].type).toBe('inlineCode')
+      expect(children[0].value).toBe(`^${ULID}`)
+    })
+
+    it('leaves a caret inside a fenced code block as literal text', () => {
+      const result = parseMarkdown('```\n^' + ULID + '\n```')
+      const code = result.root.children[0] as any
+      expect(code.type).toBe('code')
+      expect(code.value).toBe(`^${ULID}`)
+    })
+
+    it('does not badge a truncated/malformed id', () => {
+      const children = paragraphChildren('^01M00VDX0S4JHMDNA7F776Y8R') // 25 chars
+      expect(children).toHaveLength(1)
+      expect(children[0].type).toBe('text')
+    })
+
+    it('does not badge a longer run of the same charset (no truncated-prefix match)', () => {
+      const children = paragraphChildren(`^${ULID}EXTRA`)
+      expect(children).toHaveLength(1)
+      expect(children[0].type).toBe('text')
+    })
+
+    it.each([
+      ['x^2'],
+      ['2^10'],
+      ['a ^ b'],
+    ])('does not badge the non-anchor caret in %s (SC-004)', (markdown) => {
+      const children = paragraphChildren(markdown)
+      expect(children.every((c) => c.type === 'text')).toBe(true)
+    })
+
+    it('does not badge a backslash-escaped caret immediately before a ULID-shaped run', () => {
+      // `decoded` resolves `\^` to a plain `^` before matching, so without
+      // consulting `replayDecodeEscapes`'s per-offset `escaped` flag the
+      // matcher can't tell this apart from a genuine anchor — but a badge
+      // here would defeat the escape the author deliberately wrote.
+      const children = paragraphChildren(`escaped \\^${ULID} stays literal`)
+      expect(children.every((c) => c.type === 'text')).toBe(true)
+    })
+
+    it('round-trips byte-identical through parse -> stringify', () => {
+      const markdown = `- [ ] @me Draft the boundary doc by 2026-09-15 ^${ULID}\n`
+      const result = parseMarkdown(markdown)
+      const output = stringifyMarkdown(result.root)
+      expect(output).toBe(markdown)
+    })
+  })
 })
 
 describe('type guards', () => {
