@@ -2,7 +2,7 @@
 
 **Feature Branch**: `fabrik/issue-124`
 **Created**: 2026-09-09
-**Status**: Draft
+**Status**: Specified
 **Input**: User description: "Widen block-anchor badge detection beyond strict ULID (badge and resolver currently disagree)"
 
 ## Background
@@ -33,7 +33,7 @@ A third option — an unambiguous sigil (`^=`) instead of a heuristic — was co
 
 **Decision: keep the `^` sigil, and adopt the resolver's position rule in the badge detector**, so badge and resolver agree by construction rather than by coincidence. This supersedes the charset/length-heuristic approach and ADR-122's "length is the disambiguating signal" rationale.
 
-One point from the resolution remains open: whether to layer an optional minimum-length threshold on top of the position rule, to exclude short numeric tokens at line end such as `^100` (see Open Questions).
+**Minimum-length threshold: considered and rejected.** A threshold (e.g. ~8 characters) was proposed to exclude the one contrived case the position rule alone doesn't resolve — a bare short number at line end preceded by whitespace, such as `^100`. It is rejected: this issue's own examples require short alphanumeric ids to badge (`^a1b2c3`, 6 characters), and any floor high enough to exclude `^100` also excludes ids of that length, reintroducing the exact false-negative this issue exists to fix. The residual false-positive risk — a bare number, preceded by whitespace, at the very end of a line, outside a MathJax block — is accepted rather than filtered: it requires an author to end a line on a lone number with a caret in front of it and nothing after, which is not how exponents are normally written (`2^10` continues the sentence; real math is wrapped in MathJax). No length floor is applied; the position rule (FR-002) is the sole disambiguator.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -72,7 +72,7 @@ As an editor user writing normal prose or inline math outside MathJax delimiters
 
 ### Edge Cases
 
-- A short, all-digit caret token at line end preceded by whitespace, such as `^100` — genuinely ambiguous between "a short numeric id" and "a small exponent typed as a trailing note." See Open Questions.
+- A short, all-digit caret token at line end preceded by whitespace, such as `^100` — genuinely ambiguous between "a short numeric id" and "a small exponent typed as a trailing note." Resolved: this is an accepted, rare false positive rather than a gap to close — see Background for why a length threshold was rejected.
 - Math and code contexts are confirmed structurally excluded already (they are separate node types, never reached by the text splitter); no new handling is required, but a regression test should confirm this remains true.
 
 ## Requirements *(mandatory)*
@@ -85,7 +85,7 @@ As an editor user writing normal prose or inline math outside MathJax delimiters
 - **FR-004**: Round-trip MUST remain byte-identical; #122's `roundtrip/122-block-anchor/` fixtures continue to pass unchanged.
 - **FR-005**: Math and code contexts MUST remain unbadged. This is already true structurally (separate node types); this requirement is a regression check, not new behavior.
 - **FR-006**: The block-anchor sigil remains `^` (no change to `^=` or any other marker). No migration of existing anchors is required, and no change to `liminis-framework`'s anchor-writing tooling is in scope.
-- **FR-007**: ADR-122 MUST be updated — by amendment, not rewrite, per this repository's ADR conventions — to record that the position rule, not charset or length, is the disambiguating signal, and why: math/code are excluded structurally by node type, and position handles prose carets.
+- **FR-007**: ADR-122 MUST be updated — by amendment, not rewrite, per this repository's ADR conventions — to record that the position rule, not charset or length, is the disambiguating signal, and why: math/code are excluded structurally by node type, position handles prose carets, and a minimum-length threshold was considered and rejected because it conflicts with badging short alphanumeric ids (see Background).
 
 ### Key Entities *(if applicable)*
 
@@ -106,6 +106,7 @@ Not applicable — no new data entities.
 - Obsidian interoperability is not a hard requirement for this project, but keeping the `^` sigil preserves it at no cost, so the sigil is retained rather than switched to an explicit marker like `^=`.
 - The resolver's regex operates line-wise over file text, while the badge detector operates over inline text runs in the editor. This spec assumes an equivalent position rule can be implemented against the editor's text-run model; confirming the `\s*$` (end-of-line) semantics translate correctly to inline runs is a research-stage concern, not a spec-level one.
 - The position rule alone resolves the false-positive risk without any charset restriction, so no enumeration of "known" id formats is needed — the detector stays encoding-agnostic, and a future switch from ULID to another id scheme needs no change here.
+- No minimum-length threshold is applied on top of the position rule (see Background) — the residual false positive on a bare trailing number like `^100` is accepted as rarer and less costly than excluding legitimate short alphanumeric ids.
 
 ## Out of Scope *(optional)*
 
@@ -113,10 +114,6 @@ Not applicable — no new data entities.
 - Any change to the reference-side parser.
 - Introducing a new sigil (e.g., `^=`) for block anchors — considered and rejected in favor of keeping `^`.
 - Migrating existing `^`-prefixed anchors, or changing how `liminis-framework`'s actions tooling writes anchors.
-
-## Open Questions *(only if unresolved questions remain)*
-
-- [ ] Should badge detection layer an optional minimum-length threshold on top of the position rule, to exclude short all-digit tokens at line end such as `^100`? If yes, what value (e.g., ~8 characters), and what justifies it against the shortest realistic generated id versus the longest plausible inline exponent?
 
 ## Source References *(optional)*
 
