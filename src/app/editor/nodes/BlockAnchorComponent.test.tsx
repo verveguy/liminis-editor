@@ -25,7 +25,7 @@ describe('BlockAnchorComponent (#122)', () => {
     });
 
     const { container } = render(<BlockAnchorComponent id={ULID} />);
-    const badge = container.querySelector('.block-anchor-badge') as HTMLElement;
+    const badge = container.querySelector<HTMLElement>('.block-anchor-badge')!;
     fireEvent.click(badge);
 
     expect(writeText).toHaveBeenCalledWith(ULID);

@@ -723,7 +723,7 @@ function splitTextNodeBlockAnchors(node: any, normalizedText: string): any[] {
   const result: any[] = [];
   let cursor = 0; // index into `parts`/`decoded`
   for (const match of matches) {
-    const matchStart = match.index as number;
+    const matchStart = match.index;
     const matchEnd = matchStart + match[0].length;
 
     if (matchStart > cursor) {
