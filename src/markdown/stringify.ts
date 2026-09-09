@@ -385,6 +385,11 @@ export function stringifyMarkdown(root: Root, options: StringifyOptions = {}): s
             return marker + content + marker;
           },
           escapedChar: (node: any) => `${FORCE_ESCAPE_PLACEHOLDER}${node.value}${FORCE_ESCAPE_PLACEHOLDER}`,
+          // Block anchor badge (#122): a `blockAnchor` node produced by
+          // `splitBlockAnchors` in parse.ts always carries exactly the id
+          // matched from the source, so re-emitting `^id` is lossless by
+          // construction — no escaping needed, mirroring `wikiLink`/`wikiEmbed`.
+          blockAnchor: (node: any) => `^${node.id}`,
           wikiLink: (node: any) => `[[${formatWikiLinkBody(node)}]]`,
           // Transclusion/embed (#119): the `!`-prefixed form of a block-scoped
           // wiki-link. `formatWikiLinkBody` requires `data.blockId` be present

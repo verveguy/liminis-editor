@@ -727,3 +727,38 @@ describe('block transclusion byte-identical round-trip (#119)', () => {
     expect(stringifyMarkdown(reparsed.root).trim()).toBe(stringified)
   })
 })
+
+describe('block anchor badge (#122)', () => {
+  it('stringifies a bare blockAnchor node back to ^id', () => {
+    const root: Root = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            { type: 'text', value: 'Draft the boundary doc ' },
+            { type: 'blockAnchor', id: '01M00VDX0S4JHMDNA7F776Y8R8' } as any,
+          ],
+        } as any,
+      ],
+    }
+    const result = stringifyMarkdown(root)
+    expect(result.trim()).toBe('Draft the boundary doc ^01M00VDX0S4JHMDNA7F776Y8R8')
+  })
+
+  const ULID = '01M00VDX0S4JHMDNA7F776Y8R8'
+  const cases = [
+    `- [ ] @me Draft the boundary doc by 2026-09-15 ^${ULID}`,
+    `first ^${ULID} and second ^01M00VDX0S4JHMDNA7F776Y8R9`,
+    `[[notes]]^${ULID}`,
+    `*text*^${ULID}`,
+    `\`^${ULID}\` stays literal`,
+    'x^2 and 2^10 and a ^ b are untouched',
+  ]
+
+  it.each(cases)('round-trips %s byte-identically', (markdown) => {
+    const parsed = parseMarkdown(markdown)
+    const stringified = stringifyMarkdown(parsed.root).trim()
+    expect(stringified).toBe(markdown)
+  })
+})
