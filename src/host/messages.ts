@@ -23,7 +23,13 @@ export interface HostMessageApi {
   requestSettings: () => void
   applyTextEdits: (edits: TextEdit[], reason: 'typing' | 'drag' | 'paste' | 'format') => void
   writeAsset: (dataUri: string, suggestedName?: string) => void
-  openLink: (url: string) => void
+  /**
+   * `blockId` is additive (#119): a host that hasn't implemented block-aware
+   * navigation still receives `url` and opens the file exactly as before —
+   * FR-004's "degrades no worse than today's file-only wikilink navigation"
+   * falls out for free, with no host-side change required.
+   */
+  openLink: (url: string, blockId?: string) => void
 }
 
 export function createHostMessageApi(bridge: EditorHostBridge, log: EditorLogger): HostMessageApi {
@@ -55,9 +61,9 @@ export function createHostMessageApi(bridge: EditorHostBridge, log: EditorLogger
       postMessage({ type: 'WRITE_ASSET', dataUri, suggestedName })
     },
 
-    openLink: (url) => {
-      log.debug('openLink', { url })
-      postMessage({ type: 'OPEN_LINK', url })
+    openLink: (url, blockId) => {
+      log.debug('openLink', { url, blockId })
+      postMessage(blockId ? { type: 'OPEN_LINK', url, blockId } : { type: 'OPEN_LINK', url })
     },
   }
 }

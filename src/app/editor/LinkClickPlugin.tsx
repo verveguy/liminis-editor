@@ -53,7 +53,11 @@ export function LinkClickPlugin({ editable = true }: LinkClickPluginProps) {
         // URL is stored in data-href (not href) to prevent webview interception
         const url = linkElement.getAttribute('data-href');
         if (url) {
-          openLink(url);
+          // Block-scoped link (#119): additive, so a host that hasn't
+          // implemented block-aware navigation still gets `url` and opens
+          // the file exactly as before (FR-004).
+          const blockId = linkElement.getAttribute('data-block-id') ?? undefined;
+          openLink(url, blockId);
         }
       }
       // In editable mode without modifier: No action needed - since there's no href,

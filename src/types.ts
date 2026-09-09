@@ -109,7 +109,7 @@ export type UIToHostMessage =
   | { type: 'WRITE_ASSET'; dataUri: string; suggestedName?: string }
   | { type: 'REQUEST_INIT' }
   | { type: 'REQUEST_SETTINGS' }
-  | { type: 'OPEN_LINK'; url: string };
+  | { type: 'OPEN_LINK'; url: string; blockId?: string };
 
 // =============================================================================
 // VALIDATION HELPER

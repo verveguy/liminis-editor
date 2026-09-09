@@ -37,5 +37,22 @@ upstream pulled in.
 
 3. **Types.** The `any`-typed option and node shapes are given real types.
 
+4. **`#^blockId` fragment splitting (#119).** `from-markdown.ts` splits a
+   trailing `#^blockId` fragment off the target into `data.blockId` before
+   `pageResolver` runs, so `data.permalink`/`data.exists` are computed from
+   the file target alone; `to-markdown.ts` re-appends it on the way back out.
+   An ordinary heading anchor (`[[file#heading]]`, no caret) is untouched —
+   only the caret-prefixed Obsidian block-reference form matches. This is
+   deliberately scoped to the `wikiLink` node shape only: the `!`-prefixed
+   transclusion/embed form (`![[file#^id]]`) is *not* handled here — that
+   detection lives in `src/markdown/parse.ts`/`stringify.ts` (a same-length
+   sentinel substitution around the unvendored micromark tokenizer, since a
+   leading `!` before `[[` today makes the *whole* `![[...]]` span fall back
+   to inert text — see the tokenizer's `text: {33: ...}` image-label
+   precedence). A raw `./markdown`-subpath consumer therefore gets
+   `data.blockId` for free but not embed/transclusion detection; this
+   asymmetry is deliberate (documented in `docs/markdown-pipeline.md`) rather
+   than duplicating the sentinel machinery into a second vendored package.
+
 Parse and serialize behaviour is otherwise unchanged. Parity is covered by
 `src/markdown/__tests__/vendor-wiki-link.test.ts`.

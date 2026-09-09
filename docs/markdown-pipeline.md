@@ -199,16 +199,120 @@ inside the extension:
   `[[target]]` only because `parseMarkdown` substitutes a sentinel before parsing
   and sets `data._emptyAlias` after. The extensions alone produce no wiki-link
   node at all for that input.
+- **Transclusion/embed detection (`![[target]]`, #119).** The `!`-prefixed form
+  is recognized only by `parseMarkdown`'s own embed-sentinel pre/post-processing
+  (see below) — the raw extensions have no concept of it at all. A `!` before a
+  raw-extension `[[...]]` is just ordinary preceding text; the extensions never
+  produce a `wikiEmbed` node. `data.blockId` on a plain `wikiLink` node *is*
+  available through the raw extensions (it's pure token-value splitting inside
+  the vendored `mdast-util-wiki-link`, not pipeline-level surgery) — only the
+  embed marker itself is main-pipeline-only.
 
-So: **if your pipeline enables GFM tables, or you care about `[[target|]]`, call
-`parseMarkdown` rather than assembling the extensions yourself.** Reach for the
-raw extensions only when you control the input and neither case applies.
+So: **if your pipeline enables GFM tables, cares about `[[target|]]`, or needs
+`![[target#^id]]` transclusion detection, call `parseMarkdown` rather than
+assembling the extensions yourself.** Reach for the raw extensions only when
+you control the input and none of those cases apply.
 
 Note also that `<Editor>`'s own *serialization* does not go through
 `wikiLinkToMarkdown`: `stringifyMarkdown` carries a hand-rolled wiki-link handler
-that additionally understands `data._emptyAlias`. `wikiLinkToMarkdown` is the
-faithful vendored upstream serializer, not a byte-for-byte match for what the
+that additionally understands `data._emptyAlias` and `wikiEmbed` nodes.
+`wikiLinkToMarkdown` is the faithful vendored upstream serializer (extended with
+`data.blockId` re-appending, see below), not a byte-for-byte match for what the
 editor emits.
+
+## Block-scoped links and transclusion (#119)
+
+`[[file#^id]]` is a block-scoped link — the same `[[...]]` construct as
+above, extended with an optional `#^blockId` fragment (Obsidian's
+block-reference convention: a caret immediately after the `#`). It parses to
+the same `wikiLink` node shape, with `data.blockId` set:
+
+```ts
+{ type: 'wikiLink', value: 'file', data: { alias, permalink, exists, blockId: 'id', /* … */ } }
+```
+
+An ordinary heading anchor (`[[file#heading]]`, no caret) is untouched —
+`data.blockId` is only ever set for the caret-prefixed form, so this is
+purely additive to the existing anchor-link behavior described elsewhere in
+this document.
+
+`![[file#^id]]` — the same target+id addressing, `!`-prefixed — is
+**transclusion**: a live, resolver-driven rendering of that block's current
+content in place of the reference, not a link. It parses to a distinct
+`wikiEmbed` node, not a `wikiLink` with a flag:
+
+```ts
+{ type: 'wikiEmbed', value: 'file', data: { alias, blockId: 'id', /* … */ } }
+```
+
+`![[file]]` with no `#^id` fragment (whole-file transclusion) is not a
+supported construct — the parser leaves it as an ordinary `[[file]]` link
+(no embedding), never a `wikiEmbed`.
+
+### Why `wikiEmbed` is a separate node type, not a field on `wikiLink`
+
+Every existing `wikiLink` consumer — including this repository's own
+mdast↔Lexical mappers — is untouched by this addition. `[[file#^id]]` (link)
+and `![[file#^id]]` (embed) are trivially distinguishable by `node.type` for
+any downstream consumer, rather than requiring a new-field check added to
+code that predates this feature.
+
+### How the embed marker is detected without a second vendored tokenizer
+
+`micromark-extension-wiki-link` (unvendored, straight from npm) hooks only
+the `[` character, with no `!`-prefix awareness. A literal `!` immediately
+before `[[` is claimed *first* by the default CommonMark image-label-start
+construct; when that construct fails to find a following `(url)`/`[ref]`
+(which it always does for `[[target]]` — that isn't image syntax), bracket
+resolution falls the *entire* `![[target]]` span back to one literal text
+node, without the wiki-link tokenizer ever getting a chance to fire on the
+inner `[[`.
+
+Rather than vendoring a second tokenizer package to add `!`-prefix detection
+(the LICENSE/provenance/parity-test burden this repository already paid once
+for #347's `mdast-util-wiki-link` fix), `parseMarkdown` swaps a `!` for a
+Private-Use-Area sentinel codepoint *before* parsing — but only when it is
+immediately followed by a complete, single-line `[[...]]` span with no
+internal `]`, exactly the grammar the tokenizer's own target/alias states
+require to succeed. That condition is load-bearing, not incidental: a naive
+"any `!` before `[[`" substitution collides with a real image whose alt text
+starts with a literal bracket (`![[leading] bracket](img.png)` contains the
+raw substring `![[`), and would prevent the image construct — which needs
+the literal `!` — from ever being tried.
+
+After parsing, a post-process retypes a sentinel-preceded `wikiLink` node to
+`wikiEmbed` only when it carries a `blockId`; otherwise the literal `!` is
+restored and the node stays an ordinary `wikiLink` (`![[file]]` with no id
+degrades to a plain link, per the "not a supported construct" rule above).
+The swap is one codepoint for one codepoint, so it needs no offset-remapping
+the way the pipe-escaping/empty-alias-normalization pre-passes above do.
+
+**If you are maintaining this package: do not remove or loosen the
+"complete span, no internal `]`" condition on the embed-marker substitution
+in `parse.ts`.** It looks like it could be simplified to a bare
+`!(?=\[\[)` lookahead. Doing so silently corrupts any image whose alt text
+starts with a bracketed span — caught before merge by the
+`903-image-alt-leading-bracket` round-trip fixture, which is the regression
+gate for this specific failure mode.
+
+### The transclusion resolver
+
+`![[file#^id]]` renders the resolved block's live content via an optional
+host-injected `resolveTransclusion(file, blockId) => Promise<string | null>`
+(see `docs/editor-api.md`), consumed by a lazily-loaded component — not at
+mapper time, since resolution is async and `mdastToLexical`/`lexicalToMdast`
+are synchronous. With no resolver injected, or one that returns `null`, the
+transclusion renders a clearly marked "unresolved" placeholder rather than
+throwing or rendering nothing.
+
+**If you are maintaining this package: do not remove the cycle/depth guard**
+in `src/app/editor/nodes/transclusion-render.tsx`. A transclusion cycle (A
+embeds B, B embeds A — directly, or transitively through a longer chain) is
+guarded by a per-branch visited-path of `file#^blockId` keys, and nested
+transclusion is bounded to a depth of 8, both checked *before* the resolver
+is called at each level. Removing either turns an authoring mistake into an
+infinite loop or unbounded recursion instead of a contained "circular
+transclusion"/"nested too deeply" indicator.
 
 ## Wiki-link promotion on export
 

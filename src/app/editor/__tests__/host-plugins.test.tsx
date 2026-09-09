@@ -412,6 +412,27 @@ describe('WikiLinkExistencePlugin over the injected resolveWikiLinks service', (
     expect(missing.classList.contains('editor-link-broken')).toBe(true)
   })
 
+  it('treats a target missing from the resolveWikiLinks response as existing, not broken (FR-014)', async () => {
+    // resolveWikiLinks isn't contractually required to return an entry for
+    // every requested target. A host that only populates keys it resolved
+    // must not have those omitted targets flagged broken — this is this
+    // plugin's pre-#119 behavior and FR-014 requires it stay unaffected by
+    // the new block-scoped-link handling added alongside it.
+    const resolveWikiLinks = vi.fn(async () => ({ exists: 'notes/exists.md' }))
+
+    const { editor } = await mountPlugin({ resolveWikiLinks }, <WikiLinkExistencePlugin />)
+    await seedWikiLinks(editor)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400)
+    })
+
+    const root = editor.getRootElement()!
+    const [existing, missing] = Array.from(root.querySelectorAll('a[data-wiki-link="true"]'))
+    expect(existing.classList.contains('editor-link-broken')).toBe(false)
+    expect(missing.classList.contains('editor-link-broken')).toBe(false)
+  })
+
   it('leaves every link unmarked, and does not throw, when the host supplies no service', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -433,6 +454,112 @@ describe('WikiLinkExistencePlugin over the injected resolveWikiLinks service', (
       expect(error).not.toHaveBeenCalled()
     } finally {
       warn.mockRestore()
+      error.mockRestore()
+    }
+  })
+})
+
+describe('WikiLinkExistencePlugin over the injected resolveTransclusion service (#119)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  /** Put a block-scoped and a plain wiki-link in the document. */
+  async function seedMixedLinks(editor: LexicalEditor): Promise<void> {
+    await act(async () => {
+      editor.update(() => {
+        const paragraph = $createParagraphNode()
+
+        const blockLink = $createCustomLinkNode('notes.md')
+        blockLink.setBlockId('01ABC')
+        blockLink.append($createTextNode('notes.md'))
+        paragraph.append(blockLink)
+
+        const missingBlockLink = $createCustomLinkNode('notes.md')
+        missingBlockLink.setBlockId('99ZZZ')
+        missingBlockLink.append($createTextNode('notes.md'))
+        paragraph.append(missingBlockLink)
+
+        const plainLink = $createCustomLinkNode('exists')
+        plainLink.append($createTextNode('exists'))
+        paragraph.append(plainLink)
+
+        $getRoot().clear().append(paragraph)
+      })
+    })
+  }
+
+  it('marks only unresolved block-scoped links broken, via resolveTransclusion', async () => {
+    const resolveTransclusion = vi.fn(async (file: string, blockId: string) =>
+      file === 'notes.md' && blockId === '01ABC' ? '- [ ] Draft the boundary doc' : null
+    )
+    const resolveWikiLinks = vi.fn(async (targets: string[]) =>
+      Object.fromEntries(targets.map((t) => [t, 'notes/exists.md']))
+    )
+
+    const { editor } = await mountPlugin(
+      { resolveTransclusion, resolveWikiLinks },
+      <WikiLinkExistencePlugin />
+    )
+    await seedMixedLinks(editor)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400)
+    })
+
+    // Called once per unique block-scoped reference, never the plain one.
+    expect(resolveTransclusion).toHaveBeenCalledWith('notes.md', '01ABC')
+    expect(resolveTransclusion).toHaveBeenCalledWith('notes.md', '99ZZZ')
+    expect(resolveTransclusion).toHaveBeenCalledTimes(2)
+    // Plain resolver only ever sees the plain (non-block-scoped) target.
+    expect(resolveWikiLinks).toHaveBeenCalledWith(['exists'])
+
+    const root = editor.getRootElement()!
+    const [resolvedBlock, unresolvedBlock, plain] = Array.from(
+      root.querySelectorAll('a[data-wiki-link="true"]')
+    )
+    expect(resolvedBlock.classList.contains('editor-link-broken')).toBe(false)
+    expect(unresolvedBlock.classList.contains('editor-link-broken')).toBe(true)
+    expect(plain.classList.contains('editor-link-broken')).toBe(false)
+  })
+
+  it('leaves block-scoped links unmarked, and does not throw, when resolveTransclusion is absent (FR-008)', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { editor } = await mountPlugin({}, <WikiLinkExistencePlugin />)
+      await seedMixedLinks(editor)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400)
+      })
+
+      const root = editor.getRootElement()!
+      const links = Array.from(root.querySelectorAll('a[data-wiki-link="true"]'))
+      expect(links).toHaveLength(3)
+      for (const link of links) {
+        expect(link.classList.contains('editor-link-broken')).toBe(false)
+      }
+      expect(error).not.toHaveBeenCalled()
+    } finally {
+      error.mockRestore()
+    }
+  })
+
+  it('treats a rejected resolveTransclusion as unresolved rather than throwing (FR-009)', async () => {
+    const resolveTransclusion = vi.fn(async () => {
+      throw new Error('boom')
+    })
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { editor } = await mountPlugin({ resolveTransclusion }, <WikiLinkExistencePlugin />)
+      await seedMixedLinks(editor)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(400)
+      })
+
+      const root = editor.getRootElement()!
+      const [resolvedBlock] = Array.from(root.querySelectorAll('a[data-wiki-link="true"]'))
+      expect(resolvedBlock.classList.contains('editor-link-broken')).toBe(true)
+    } finally {
       error.mockRestore()
     }
   })

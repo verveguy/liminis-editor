@@ -603,6 +603,26 @@ describe('round-trip fidelity', () => {
       markdown: '[[target|Display Name]]',
     },
     {
+      name: 'block-scoped wiki-link (#119)',
+      markdown: '[[notes.md#^01ABC]]',
+    },
+    {
+      name: 'block-scoped wiki-link with alias (#119)',
+      markdown: '[[notes.md#^01ABC|Display]]',
+    },
+    {
+      name: 'transclusion embed (#119)',
+      markdown: '![[notes.md#^01ABC]]',
+    },
+    {
+      name: 'transclusion embed with alias (#119)',
+      markdown: '![[notes.md#^01ABC|Display]]',
+    },
+    {
+      name: 'mixed links and embeds (#119)',
+      markdown: 'a [[b]] c ![[d#^e]] f [[g|h]] end',
+    },
+    {
       name: 'emphasis with asterisks',
       markdown: '*italic* and **bold**',
     },
@@ -666,5 +686,44 @@ describe('round-trip fidelity', () => {
 
       expect(normalizeTree(reparsed.root)).toEqual(normalizeTree(parsed.root))
     })
+  })
+})
+
+// SC-001 / User Story 5: block-scoped links and transclusion round-trip
+// byte-identically through parse -> stringify.
+describe('block transclusion byte-identical round-trip (#119)', () => {
+  const cases = [
+    '[[notes.md#^01ABC]]',
+    '[[notes.md#^01ABC|Display]]',
+    '![[notes.md#^01ABC]]',
+    '![[notes.md#^01ABC|Display]]',
+    'before ![[notes.md#^01ABC]] after',
+    'a [[b]] c ![[d#^e]] f [[g|h]] end',
+    // #347 regression class: link + embed constructs mixed inside a table cell.
+    '| Content |\n| --- |\n| See [[page|link]] and ![[block#^01ABC]] here |',
+    // Documenting the syntax in prose must not be interpreted as an embed:
+    // the embed-marker sentinel must never fire inside verbatim content.
+    'Use `![[file#^id]]` syntax.',
+    '```\n![[file#^id]]\n```',
+  ]
+
+  it.each(cases)('round-trips %s byte-identically', (markdown) => {
+    const parsed = parseMarkdown(markdown)
+    const stringified = stringifyMarkdown(parsed.root).trim()
+    expect(stringified).toBe(markdown)
+  })
+
+  // FR-013: a whole-file `![[file]]` (no #^id) is not a supported construct —
+  // it degrades to an ordinary link, and the literal `!` round-trips as an
+  // explicit escape (`\!`) so the degraded parse (text "!" + wikiLink) is
+  // preserved rather than silently reinterpreted as one inert text run.
+  it('degrades ![[file]] (no blockId) to an escaped ! plus a plain link', () => {
+    const parsed = parseMarkdown('![[notes.md]]')
+    const stringified = stringifyMarkdown(parsed.root).trim()
+    expect(stringified).toBe('\\![[notes.md]]')
+
+    // Idempotent: the degraded form is stable on a second round trip.
+    const reparsed = parseMarkdown(stringified)
+    expect(stringifyMarkdown(reparsed.root).trim()).toBe(stringified)
   })
 })

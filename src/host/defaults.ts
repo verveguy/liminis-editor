@@ -56,5 +56,6 @@ export function resolveHostServices(
     resolveWikiLinks: services?.resolveWikiLinks,
     onScrollToAnchor: services?.onScrollToAnchor,
     corrections: services?.corrections,
+    resolveTransclusion: services?.resolveTransclusion,
   }
 }

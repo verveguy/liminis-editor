@@ -3,6 +3,25 @@
 All notable changes to `@liminis/editor` are documented here. This project
 follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- **Block-scoped wiki-links and transclusion** (#119). `[[file#^id]]` links
+  to one specific block inside a file (Obsidian-style block-reference
+  syntax) rather than the file as a whole; `![[file#^id]]` transcludes it —
+  renders that block's live, current content inline at the reference site,
+  reflecting source changes on next render. Backed by one new optional host
+  service, `resolveTransclusion(file, blockId) => Promise<string | null>`
+  (see `docs/editor-api.md`); with none injected, or one that can't resolve
+  a reference, `![[file#^id]]` renders a clearly marked "unresolved"
+  placeholder rather than throwing. A transclusion cycle is detected and
+  rendered as a "circular transclusion" indicator rather than hanging;
+  nesting is bounded to a depth of 8. Existing file-only `[[target]]` /
+  `[[target|alias]]` wiki-links are unaffected — this is purely additive.
+  See the README's "Block-scoped links and transclusion" section and
+  `docs/decisions/adr-119-block-transclusion.md`.
+
 ## 0.4.1 — 2026-08-26
 
 ### Changed

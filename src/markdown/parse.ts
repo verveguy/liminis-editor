@@ -25,6 +25,30 @@ export interface ParseResult {
 const wikiLinkOptions = { aliasDivider: '|' };
 const EMPTY_ALIAS_SENTINEL = '__EMPTY_ALIAS__';
 
+// Private-Use-Area sentinel marking a `!` that immediately precedes `[[`
+// (candidate transclusion/embed marker, #119). The next free codepoint after
+// `annotate-sentinels.ts`'s E000-E003 range and `stringify.ts`'s E004.
+//
+// Why substitute at all, rather than just checking "does the wikiLink node
+// have a `!` text sibling" after parsing: the micromark wiki-link tokenizer
+// is not vendored (see the vendor README) and only hooks the `[` character.
+// A literal `!` immediately before `[[` is claimed *first* by the default
+// image-label-start construct (hooked on `!`), and when that construct fails
+// to find a following `(url)`/`[ref]` — which it always will here, since
+// `[[target]]` is not image syntax — CommonMark's own bracket-resolution
+// falls the *entire* `![[target]]` span back to one literal text node,
+// without ever giving the wiki-link tokenizer a chance to fire on the inner
+// `[[`. A backslash-escaped `\!` sidesteps the image construct entirely (it
+// is consumed as a plain escaped character, not a construct trigger) and
+// `[[target]]` parses normally — confirmed empirically against
+// `micromark-extension-wiki-link@0.0.4`'s tokenizer. Swapping the raw `!`
+// for this sentinel *before* parsing reproduces that same escape-shaped
+// bypass without a real backslash reaching the output, so `[[target]]` parses
+// as a normal wikiLink node with the sentinel left on the preceding text
+// node — which `resolveWikiEmbeds` (below) then reads to decide embed vs.
+// plain link, and always strips before the tree leaves `parseMarkdown`.
+const EMBED_MARKER_SENTINEL = '\u{E005}';
+
 interface Replacement {
   normalizedStart: number;
   normalizedEnd: number;
@@ -83,6 +107,211 @@ function escapeWikiLinkPipes(text: string): { text: string; replacements: Replac
 
   result += text.slice(cursor);
   return { text: result, replacements };
+}
+
+/**
+ * Swap a `!` for {@link EMBED_MARKER_SENTINEL}, but only when it is
+ * immediately followed by a *complete, single-line* `[[...]]` span with no
+ * internal `]` — i.e. exactly the shape the wiki-link tokenizer's own
+ * `consumeTarget`/`consumeAlias` states require to succeed (a bare `]` not
+ * immediately followed by a second `]` aborts the whole construct; so does a
+ * line ending). One codepoint swapped for one codepoint, so — unlike
+ * `escapeWikiLinkPipes`/`normalizeWikiLinks` above — this never shifts any
+ * subsequent offset and needs no `Replacement` tracking of its own.
+ *
+ * The "complete span" requirement is load-bearing, not a nicety: an `!`
+ * immediately before `[` is *also* how a real image's alt text starting with
+ * a literal `[` looks at the character level (`![[leading] bracket](x.png)`
+ * is `![` + alt text `[leading] bracket` + `](x.png)`, i.e. contains the raw
+ * substring `![[`). Matching on `!(?=\[\[)` alone — with no lookahead past
+ * the second `[` — can't tell that case apart from a genuine embed candidate
+ * and would substitute inside it, preventing the image construct (which
+ * needs the literal `!`) from ever being tried and corrupting the image
+ * (caught by the `903-image-alt-leading-bracket` regression fixture).
+ * Requiring the run between `[[` and `]]` to contain no internal `]` rules
+ * that case out: `[leading] bracket](x.png)` hits an un-doubled `]` right
+ * after `leading`, so the pattern below never matches there, `!` survives
+ * untouched, and the image construct parses exactly as before this feature
+ * existed (FR-014).
+ *
+ * A `!` that is already backslash-escaped (`\![[...]]`) is left alone: that
+ * spelling already means "literal `!`, then a normal wiki-link" with no
+ * substitution needed (CommonMark consumes the escape before the image
+ * construct ever sees the `!`) — see FR-013's requirement that an author can
+ * explicitly opt out of transclusion for a `#^id`-bearing target.
+ *
+ * "Escaped" here means CommonMark backslash-*parity*, not merely "a `\`
+ * immediately precedes the `!`": an even run of backslashes (`\\!`, `\\\\!`,
+ * ...) pairs off into literal backslashes and does not escape the `!`, while
+ * an odd run (`\!`, `\\\!`, ...) does. A naive one-character lookbehind gets
+ * every even run ≥ 2 wrong (treats the `!` as escaped when it isn't), so the
+ * preceding backslash run is captured and its length checked explicitly.
+ *
+ * A match inside a fenced code block or inline code span must be skipped
+ * entirely, not just left un-embedded: inside those constructs the wiki-link
+ * tokenizer never runs at all (code content is verbatim), so a substituted
+ * sentinel would never get a `wikiLink` node to attach to and restore from —
+ * `resolveWikiEmbeds`'s leftover-sentinel sweep only walks `text` nodes, not
+ * a `code`/`inlineCode` node's `value`, so the sentinel would otherwise leak
+ * through as a literal, invisible Private-Use-Area character in the final
+ * output instead of being restored to `!`. {@link findProtectedRanges}
+ * identifies those spans so the substitution can leave them untouched.
+ */
+function substituteEmbedMarker(text: string): string {
+  const protectedRanges = findProtectedRanges(text);
+  return text.replace(
+    /(\\*)!(\[\[[^\]\n]*\]\])/g,
+    (match, backslashes: string, bracketed: string, offset: number) => {
+      if (protectedRanges.some((r) => offset >= r.start && offset < r.end)) {
+        return match;
+      }
+      return backslashes.length % 2 === 1
+        ? `${backslashes}!${bracketed}`
+        : `${backslashes}${EMBED_MARKER_SENTINEL}${bracketed}`;
+    },
+  );
+}
+
+interface TextRange {
+  start: number;
+  end: number;
+}
+
+/**
+ * Finds fenced code blocks and inline code spans in raw markdown text, so
+ * {@link substituteEmbedMarker} can avoid mutating their (verbatim) content.
+ * Deliberately approximate rather than a full CommonMark tokenizer — good
+ * enough to protect the common cases (``` fences, `inline` spans) without
+ * duplicating the real tokenizer this file elsewhere avoids vendoring.
+ */
+function findProtectedRanges(text: string): TextRange[] {
+  const ranges: TextRange[] = [];
+
+  // Fenced code blocks: a line of (up to 3 leading spaces then) 3+ backticks
+  // or tildes opens one; it's closed by a later line of at least as many of
+  // the same character (optionally indented, nothing else on the line).
+  const fenceOpenRe = /^ {0,3}(`{3,}|~{3,})/;
+  let fenceChar: string | null = null;
+  let fenceLen = 0;
+  let fenceStart = -1;
+  let cursor = 0;
+  for (const line of text.split('\n')) {
+    const lineEnd = cursor + line.length;
+    if (fenceChar === null) {
+      const m = fenceOpenRe.exec(line);
+      if (m) {
+        fenceChar = m[1][0];
+        fenceLen = m[1].length;
+        fenceStart = cursor;
+      }
+    } else {
+      const closeRe = new RegExp(`^ {0,3}\\${fenceChar}{${fenceLen},}\\s*$`);
+      if (closeRe.test(line)) {
+        ranges.push({ start: fenceStart, end: lineEnd });
+        fenceChar = null;
+        fenceLen = 0;
+        fenceStart = -1;
+      }
+    }
+    cursor = lineEnd + 1; // +1 for the '\n' consumed by split
+  }
+  if (fenceChar !== null) {
+    ranges.push({ start: fenceStart, end: text.length });
+  }
+
+  // Inline code spans, outside any fenced block already found: a backtick
+  // run opens a span, closed by the next run of the *same* length (a run of
+  // a different length is span content, not a delimiter) — CommonMark's own
+  // code-span rule. An opening run with no matching close is not a code
+  // span at all (its backticks are literal), so it protects nothing.
+  const isInFence = (pos: number) => ranges.some((r) => pos >= r.start && pos < r.end);
+  const backtickRun = /`+/g;
+  let pendingOpen: { start: number; len: number } | null = null;
+  let match: RegExpExecArray | null;
+  while ((match = backtickRun.exec(text)) !== null) {
+    if (isInFence(match.index)) continue;
+    const len = match[0].length;
+    if (pendingOpen === null) {
+      pendingOpen = { start: match.index, len };
+    } else if (len === pendingOpen.len) {
+      ranges.push({ start: pendingOpen.start, end: match.index + len });
+      pendingOpen = null;
+    }
+  }
+
+  return ranges;
+}
+
+/**
+ * Retype a `wikiLink` node to `wikiEmbed` when it was immediately preceded by
+ * an {@link EMBED_MARKER_SENTINEL} *and* carries a `data.blockId` (#119).
+ *
+ * Two outcomes when a sentinel-terminated text node precedes a `wikiLink`:
+ *  - **Has `blockId`**: this is a genuine transclusion. Strip the sentinel
+ *    off the preceding text (dropping the text node entirely if it was the
+ *    sentinel alone) and retype the node to `wikiEmbed`, carrying the same
+ *    `value`/`data`.
+ *  - **No `blockId`**: FR-013 — `![[file]]` with no anchor is not a supported
+ *    construct in v1. Restore the literal `!` in the preceding text and leave
+ *    the node as an ordinary `wikiLink`, so it degrades to ordinary
+ *    file-only link treatment (no embedding), matching what plain
+ *    `\![[file]]` already does without any sentinel involved.
+ *
+ * A final sweep restores any sentinel left over from a `!` that didn't end up
+ * immediately before a completed `wikiLink` (e.g. the target never closed) —
+ * this sentinel must never leak into rendered/round-tripped content.
+ */
+function resolveWikiEmbeds(root: Root): Root {
+  function walkChildren(children: any[]): any[] {
+    const result: any[] = [];
+    for (const rawChild of children) {
+      const child = walk(rawChild);
+      if (child?.type === 'wikiLink' && result.length > 0) {
+        const prevIndex = result.length - 1;
+        const prev = result[prevIndex];
+        if (prev.type === 'text' && typeof prev.value === 'string' && prev.value.endsWith(EMBED_MARKER_SENTINEL)) {
+          const blockId = child.data?.blockId;
+          const hasBlockId = typeof blockId === 'string' && blockId.length > 0;
+          const strippedValue = prev.value.slice(0, -1);
+          if (hasBlockId) {
+            if (strippedValue.length === 0) {
+              result.pop();
+            } else {
+              result[prevIndex] = { ...prev, value: strippedValue };
+            }
+            result.push({ ...child, type: 'wikiEmbed' });
+            continue;
+          }
+          result[prevIndex] = { ...prev, value: strippedValue + '!' };
+          result.push(child);
+          continue;
+        }
+      }
+      result.push(child);
+    }
+    return result;
+  }
+
+  function walk(node: any): any {
+    if (!node || typeof node !== 'object') return node;
+    if (node.children && Array.isArray(node.children)) {
+      return { ...node, children: walkChildren(node.children) };
+    }
+    return node;
+  }
+
+  function restoreLeftoverSentinels(node: any): any {
+    if (!node || typeof node !== 'object') return node;
+    if (node.type === 'text' && typeof node.value === 'string' && node.value.includes(EMBED_MARKER_SENTINEL)) {
+      return { ...node, value: node.value.split(EMBED_MARKER_SENTINEL).join('!') };
+    }
+    if (node.children && Array.isArray(node.children)) {
+      return { ...node, children: node.children.map(restoreLeftoverSentinels) };
+    }
+    return node;
+  }
+
+  return restoreLeftoverSentinels(walk(root));
 }
 
 /**
@@ -508,8 +737,13 @@ function addCheckboxesToOrderedLists(root: Root): Root {
 
 export function parseMarkdown(text: string, _options: ParseOptions = {}): ParseResult {
   // Pre-process to handle edge cases
+  // Step 0: Swap a `!` immediately before `[[` for a sentinel so the
+  // wiki-link tokenizer gets a chance to fire (#119; see EMBED_MARKER_SENTINEL).
+  // Same-length, so it needs no offset-replacement tracking of its own.
+  const embedMarked = substituteEmbedMarker(text);
+
   // Step 1: Escape pipes inside wiki-links to protect from GFM table parsing
-  const { text: pipesEscaped, replacements: pipeReplacements } = escapeWikiLinkPipes(text);
+  const { text: pipesEscaped, replacements: pipeReplacements } = escapeWikiLinkPipes(embedMarked);
 
   // Step 2: Normalize empty aliases (existing logic)
   const { text: normalizedText, replacements: aliasReplacements } = normalizeWikiLinks(pipesEscaped);
@@ -538,6 +772,10 @@ export function parseMarkdown(text: string, _options: ParseOptions = {}): ParseR
 
   // Post-process: mark wiki-links that had empty aliases in the source
   root = markEmptyAliasWikiLinks(root);
+
+  // Post-process: retype a sentinel-preceded wiki-link with a blockId to a
+  // transclusion/embed node, and restore the literal `!` everywhere else (#119)
+  root = resolveWikiEmbeds(root);
 
   // Post-process: annotate emphasis/strong marker characters from original source
   root = annotateEmphasisMarkers(root, text, replacements);

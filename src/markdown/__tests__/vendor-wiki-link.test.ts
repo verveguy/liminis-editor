@@ -26,6 +26,7 @@ interface WikiLinkNode {
     alias: string
     permalink: string
     exists: boolean
+    blockId?: string | null
     hName?: string
     hProperties?: { className: string; href: string }
     hChildren?: { type: string; value: string }[]
@@ -108,6 +109,39 @@ describe('vendored mdast-util-wiki-link — fromMarkdown', () => {
     const [link] = parse('[[page\\]]')
     expect(link.value).toBe('page\\')
   })
+
+  // --- Block-scoped links (#119) ---------------------------------------------
+
+  it('splits a trailing #^blockId fragment off the target', () => {
+    const [link] = parse('[[notes.md#^01ABC]]')
+    expect(link.value).toBe('notes.md')
+    expect(link.data.blockId).toBe('01ABC')
+  })
+
+  it('computes permalink and exists from the target with blockId stripped', () => {
+    const [link] = parse('[[notes.md#^01ABC]]', { permalinks: ['notes.md'] })
+    expect(link.data.permalink).toBe('notes.md')
+    expect(link.data.exists).toBe(true)
+    expect(link.data.blockId).toBe('01ABC')
+  })
+
+  it('leaves an ordinary heading anchor (no caret) untouched', () => {
+    const [link] = parse('[[notes.md#some-heading]]')
+    expect(link.value).toBe('notes.md#some-heading')
+    expect(link.data.blockId).toBe(null)
+  })
+
+  it('splits a blockId fragment off an aliased target', () => {
+    const [link] = parse('[[notes.md#^01ABC|Display]]')
+    expect(link.value).toBe('notes.md')
+    expect(link.data.blockId).toBe('01ABC')
+    expect(link.data.alias).toBe('Display')
+  })
+
+  it('has no blockId when the target carries no fragment', () => {
+    const [link] = parse('[[notes.md]]')
+    expect(link.data.blockId).toBe(null)
+  })
 })
 
 describe('vendored mdast-util-wiki-link — toMarkdown', () => {
@@ -163,5 +197,35 @@ describe('vendored mdast-util-wiki-link — toMarkdown', () => {
     const [link] = parse(source)
     expect(link.data.alias, `${source} should carry an alias`).toBeTruthy()
     expect(stringify({ type: 'paragraph', children: [link] })).toBe(expected)
+  })
+
+  // --- Block-scoped links (#119) ---------------------------------------------
+
+  it('re-appends a #^blockId fragment after the target', () => {
+    const tree = {
+      type: 'paragraph',
+      children: [{ type: 'wikiLink', value: 'notes.md', data: { alias: 'notes.md', blockId: '01ABC' } }],
+    }
+    expect(stringify(tree)).toBe('[[notes.md#^01ABC]]')
+  })
+
+  it('re-appends a #^blockId fragment before the alias divider', () => {
+    const tree = {
+      type: 'paragraph',
+      children: [{ type: 'wikiLink', value: 'notes.md', data: { alias: 'Display', blockId: '01ABC' } }],
+    }
+    expect(stringify(tree)).toBe('[[notes.md#^01ABC|Display]]')
+  })
+
+  it('round-trips a block-scoped link through parse and serialize', () => {
+    const [link] = parse('[[notes.md#^01ABC]]')
+    const tree = { type: 'paragraph', children: [link] }
+    expect(stringify(tree)).toBe('[[notes.md#^01ABC]]')
+  })
+
+  it('round-trips an aliased block-scoped link through parse and serialize', () => {
+    const [link] = parse('[[notes.md#^01ABC|Display]]')
+    const tree = { type: 'paragraph', children: [link] }
+    expect(stringify(tree)).toBe('[[notes.md#^01ABC|Display]]')
   })
 })

@@ -35,11 +35,13 @@ import {
   $isCustomListItemNode,
   $isHtmlNode,
   $isListItemParagraphBreakNode,
+  $isTransclusionNode,
   ImageNode,
   CalloutNode,
   ToggleContainerNode,
   EquationNode,
   MermaidNode,
+  TransclusionNode,
   C4Node,
   FrontmatterNode,
   DefinitionListNode,
@@ -331,16 +333,24 @@ function markPhrasingContext(mark: MarkNode): { flat: LexicalNode[]; first: numb
 
 /**
  * An inline node that emits markdown syntax of its own around (or instead of)
- * text — a link, wiki link, image, inline equation, footnote reference or
- * inline HTML. When one of these is a mark's own child it is *wholly* inside
- * that mark by construction, so the mark's boundary token belongs outside the
- * whole construct rather than inside its text.
+ * text — a link, wiki link, image, inline equation, footnote reference,
+ * inline HTML, or transclusion embed (#119). When one of these is a mark's
+ * own child it is *wholly* inside that mark by construction, so the mark's
+ * boundary token belongs outside the whole construct rather than inside its
+ * text.
  *
  * Line breaks are excluded deliberately: they carry no syntax a boundary can
  * fall inside, and today's leaf walk skips straight past them.
  */
 function isHoistableConstruct(node: LexicalNode): boolean {
-  return $isLinkNode(node) || $isImageNode(node) || $isEquationNode(node) || $isFootnoteNode(node) || $isHtmlNode(node);
+  return (
+    $isLinkNode(node) ||
+    $isImageNode(node) ||
+    $isEquationNode(node) ||
+    $isFootnoteNode(node) ||
+    $isHtmlNode(node) ||
+    $isTransclusionNode(node)
+  );
 }
 
 /**
@@ -923,6 +933,15 @@ function convertLexicalNode(node: LexicalNode): Content[] {
 
   if ($isHtmlNode(node)) {
     return [{ type: 'html', value: node.getHtml() }];
+  }
+
+  if ($isTransclusionNode(node)) {
+    // TransclusionNode is inline (#119) and is always constructed as a
+    // paragraph's child by mdastToLexical.ts; reached here only if it
+    // somehow ends up as a direct block-level child (e.g. a paste-driven
+    // DOM import) — wrap it in a paragraph rather than losing it, mirroring
+    // convertEquationNode's inline-equation branch above.
+    return [{ type: 'paragraph', children: [convertTransclusionNode(node) as unknown as PhrasingContent] }];
   }
 
   // Fallback: create paragraph
@@ -1541,8 +1560,46 @@ function convertSingleInlineChild(child: LexicalNode): PhrasingContentLike[] {
   } else if ($isHtmlNode(child)) {
     // Inline HTML preserved opaquely: convert back to a phrasing html mdast node
     return [{ type: 'html', value: child.getHtml() } as unknown as PhrasingContent];
+  } else if ($isTransclusionNode(child)) {
+    // Transclusion embed (#119): convert back to a wikiEmbed mdast node
+    return [convertTransclusionNode(child) as unknown as PhrasingContent];
   }
   return [];
+}
+
+// wikiEmbed mdast node type, mirroring WikiLinkMdast below (#119)
+interface WikiEmbedMdast {
+  type: 'wikiEmbed';
+  value: string;
+  data?: {
+    alias?: string;
+    blockId?: string;
+    _emptyAlias?: boolean;
+  };
+}
+
+/**
+ * Convert a `TransclusionNode` back to a `wikiEmbed` mdast node.
+ *
+ * `alias`/`_emptyAlias` are carried purely for byte-identical round-trip
+ * (FR-003) — read directly off the node's own explicit fields rather than
+ * inferred from any rendered text, since an embed never displays its alias
+ * (see `mdastToLexical.ts`'s `$createTransclusionNodeFromMdast` for the
+ * matching import-side reasoning).
+ */
+function convertTransclusionNode(node: TransclusionNode): WikiEmbedMdast {
+  const alias = node.getAlias();
+  const data: WikiEmbedMdast['data'] = { blockId: node.getBlockId() };
+  if (alias) {
+    data.alias = alias;
+  } else if (node.getEmptyAlias()) {
+    data._emptyAlias = true;
+  }
+  return {
+    type: 'wikiEmbed',
+    value: node.getFile(),
+    data,
+  };
 }
 
 // Flattens a list of leaf-level inline nodes into mdast content with no
@@ -1949,6 +2006,7 @@ interface WikiLinkMdast {
     alias?: string;
     _emptyAlias?: boolean;
     _noAlias?: boolean;
+    blockId?: string;
   };
 }
 
@@ -2017,6 +2075,7 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
     getURL: () => string;
     getTitle: () => string | null;
     getWikiLinkOrigin?: () => boolean;
+    getBlockId?: () => string | null;
   };
   const url = linkNode.getURL();
   const children: PhrasingContent[] = [];
@@ -2161,6 +2220,14 @@ function convertLinkNode(node: ElementNode): Link | WikiLinkMdast {
       data._emptyAlias = true;
     } else {
       data._noAlias = true;
+    }
+
+    // Block-scoped link (#119): carried as a field separate from `target`
+    // (never folded into the value/URL string) — see CustomLinkNode's own
+    // doc comment for why.
+    const blockId = linkNode.getBlockId?.();
+    if (blockId) {
+      data.blockId = blockId;
     }
 
     return {

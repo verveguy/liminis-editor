@@ -76,10 +76,26 @@ export interface EditorHostServices {
   notifyError?: (message: string, description?: string) => void
   /** Correction persistence + knowledge-graph services. */
   corrections?: CorrectionHostServices
+  /**
+   * Resolve a workspace-global block reference (`file#^blockId`, #119) to
+   * that block's current markdown content. Backs both transclusion
+   * (`![[file#^id]]`) and existence-checking for block-scoped links
+   * (`[[file#^id]]`) — see `TransclusionComponent`/`WikiLinkExistencePlugin`.
+   *
+   * Returns `null` when the file or block id does not resolve (FR-009); the
+   * two are not distinguished here — a host that cares to tell them apart
+   * can encode that in its own lookup, but the contract only needs
+   * resolved-vs-not. Absent entirely (the default), transclusion renders an
+   * "unresolved" placeholder rather than throwing (FR-008).
+   */
+  resolveTransclusion?: (file: string, blockId: string) => Promise<string | null>
 }
 
 /** `EditorHostServices` with every member resolved to a concrete implementation. */
 export type ResolvedEditorHostServices = Required<
   Pick<EditorHostServices, 'bridge' | 'logger' | 'notifyError'>
 > &
-  Pick<EditorHostServices, 'resolveWikiLinks' | 'onScrollToAnchor' | 'corrections'>
+  Pick<
+    EditorHostServices,
+    'resolveWikiLinks' | 'onScrollToAnchor' | 'corrections' | 'resolveTransclusion'
+  >

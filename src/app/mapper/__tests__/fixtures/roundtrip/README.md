@@ -113,6 +113,27 @@ result and the fixture starts enforcing it).
   corpus previously pinned that behavior down.
   These are not tracked by a specific issue yet; if one is filed, rename the fixture to
   match the `NNN-*` convention above.
+  `other-wikilink-blockid-md-extension-stripped`: discovered while adding block-scoped
+  wiki-link support ([#119](https://github.com/verveguy/liminis-editor/issues/119)), but
+  the defect itself predates and is unrelated to that feature. `[[notes.md#^01ABC]]`
+  round-trips through `parseMarkdown` -> `stringifyMarkdown` alone byte-identically (see
+  `src/markdown/__tests__/stringify.test.ts`) — the defect is specific to the *full*
+  editor pipeline, through Lexical and back. `mdastToLexical.ts` keeps a `.md` extension
+  in the Lexical `CustomLinkNode`'s URL when the source target already has one
+  (`getFileType(target) !== 'unknown' ? target : ...`), but that URL is the *only* channel
+  carrying the file target — nothing on the node distinguishes "the source wrote `notes.md`"
+  from "the source wrote `notes` and import added the extension". `lexicalToMdast.ts`'s
+  `convertLinkNode` picks one canonical export form (`url.endsWith('.md')` → strip it), so
+  a `.md`-suffixed target is silently normalized to its extension-less form on every full
+  round trip — and since the stripped text no longer matches the link's own rendered text
+  (which still reads `notes.md`), the stripped form is emitted as an explicit alias
+  (`[[notes#^01ABC|notes.md]]`) rather than disappearing quietly. #119's own design
+  (carrying `file`/`blockId` as separate Lexical fields rather than folding `blockId` into
+  the URL string) fixes the *narrower*, anchor-specific version of this bug Research
+  originally traced (`.md#anchor` → `#anchor`), but this wider `.md`-stripping behavior is
+  a pre-existing, general property of `convertLinkNode` that applies to *any* `.md`-suffixed
+  wikilink target, blockId or not — fixing it is out of scope for #119 and left for a
+  dedicated issue.
 - **`other-callout-first-line-inline-formatting-space-lost`**: discovered while adding
   feature coverage for `CalloutNode` ([#1](https://github.com/verveguy/liminis-editor/issues/1)).
   `convertBlockquote`'s callout detection in `mdastToLexical.ts` computed the callout's
