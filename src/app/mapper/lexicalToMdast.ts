@@ -1143,10 +1143,23 @@ function convertListItemNode(node: ListItemNode, _ordered: boolean, spread: bool
       // issue does not touch — see `hoistedTokenReachesOutput`'s docstring),
       // a dropped anchor here would break the checkbox-action-item pattern
       // the spec calls out as the primary usage.
+      //
+      // Unlike the $isLinkNode branch above, a link's format lives on its
+      // text children (applied on import via applyFormatToLinkChildren), but
+      // a BlockAnchorNode carries its own format bits directly (like
+      // FootnoteNode/EquationNode) — so they must be wrapped here explicitly,
+      // the same way the general inline path does via getMergeableFormat +
+      // buildFormattedContent, or a bold/italic badge would silently lose its
+      // markers on export.
       flushTextRun();
+      const anchorMdast = { type: 'blockAnchor', id: child.getId() } as unknown as PhrasingContent;
+      const format = getMergeableFormat(child) ?? 0;
+      const anchorContent = format
+        ? wrapWithFormat([anchorMdast], format, child.getStrongMarker(), child.getEmphasisMarker())
+        : anchorMdast;
       inlineChildren.push(
         ...hoistedTokenNodesFor(child, 'before'),
-        { type: 'blockAnchor', id: child.getId() } as unknown as PhrasingContent,
+        anchorContent,
         ...hoistedTokenNodesFor(child, 'after'),
       );
     } else {
