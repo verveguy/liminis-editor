@@ -888,6 +888,147 @@ $$`
       },
     )
   })
+
+  describe('block anchor badges - emphasis-wrapped (#127)', () => {
+    const ULID = '01M00VDX0S4JHMDNA7F776Y8R8'
+    const ULID2 = '01M00VDX0S4JHMDNA7F776Y8R9'
+
+    function paragraphChildren(markdown: string): any[] {
+      const result = parseMarkdown(markdown)
+      const paragraph = result.root.children[0] as any
+      return paragraph.children
+    }
+
+    it.each([
+      ['**', '**'],
+      ['__', '__'],
+      ['*', '*'],
+      ['_', '_'],
+    ])('badges a %s-wrapped non-ULID id at line end via Branch B, with no wrapper characters in the id (FR-1/SC-001)', (open, close) => {
+      const result = parseMarkdown(`A block. ${open}^a1b2c3${close}`)
+      const paragraph = result.root.children[0] as any
+      const wrapper = paragraph.children.find((c: any) => c.type === 'strong' || c.type === 'emphasis')
+      expect(wrapper).toBeDefined()
+      const anchor = wrapper.children.find((c: any) => c.type === 'blockAnchor')
+      expect(anchor).toBeDefined()
+      expect(anchor.id).toBe('a1b2c3')
+    })
+
+    it('still badges the unwrapped form unchanged (no regression from routing through the same branch)', () => {
+      const children = paragraphChildren('item ^a1b2c3')
+      expect(children.map((c) => c.type)).toEqual(['text', 'blockAnchor'])
+      expect(children[1].id).toBe('a1b2c3')
+    })
+
+    it('badges a bold-wrapped non-ULID id (spec User Story 1, scenario 1)', () => {
+      const result = parseMarkdown('**^a1b2c3**')
+      const paragraph = result.root.children[0] as any
+      expect(paragraph.children).toHaveLength(1)
+      expect(paragraph.children[0].type).toBe('strong')
+      expect(paragraph.children[0].children).toHaveLength(1)
+      expect(paragraph.children[0].children[0].type).toBe('blockAnchor')
+      expect(paragraph.children[0].children[0].id).toBe('a1b2c3')
+    })
+
+    it('badges an italic-underscore-wrapped non-ULID id (spec User Story 1, scenario 2)', () => {
+      const result = parseMarkdown('_^a1b2c3_')
+      const paragraph = result.root.children[0] as any
+      expect(paragraph.children).toHaveLength(1)
+      expect(paragraph.children[0].type).toBe('emphasis')
+      expect(paragraph.children[0].children).toHaveLength(1)
+      expect(paragraph.children[0].children[0].type).toBe('blockAnchor')
+      expect(paragraph.children[0].children[0].id).toBe('a1b2c3')
+    })
+
+    it('badges the deliberately-accepted false anchor `squared *^2*` (spec Edge Cases, ADR-122 amendment)', () => {
+      const result = parseMarkdown('squared *^2*')
+      const paragraph = result.root.children[0] as any
+      const emphasis = paragraph.children.find((c: any) => c.type === 'emphasis')
+      expect(emphasis).toBeDefined()
+      const anchor = emphasis.children.find((c: any) => c.type === 'blockAnchor')
+      expect(anchor).toBeDefined()
+      expect(anchor.id).toBe('2')
+    })
+
+    it('does not badge an empty wrapped id (`**^**`)', () => {
+      const result = parseMarkdown('a block **^**')
+      const paragraph = result.root.children[0] as any
+      expect(paragraph.children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
+    })
+
+    it('does not badge a non-ULID id via an asymmetric wrapper (`item **^a1b2c3_`) (SC-003)', () => {
+      // Unlike the ULID case below, no Branch A fallback exists for a
+      // non-ULID id, so Branch B's rejection of the mismatched closer is
+      // the only thing standing between this and a corrupted-id badge.
+      const result = parseMarkdown('item **^a1b2c3_')
+      const paragraph = result.root.children[0] as any
+      expect(paragraph.children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
+    })
+
+    it('badges only the clean ULID, never a corrupted id, through an asymmetric wrapper (`item **^<ULID>_`) (SC-003)', () => {
+      // `**^<ULID>_` never parses as real emphasis (no matching closer for
+      // the opening `**`), so this reaches Branch A unconstrained by any
+      // wrapper logic (FR-5, untouched by #127) and badges the bare ULID —
+      // not a Branch B wrapper match, and not a corrupted id like `${ULID}_`.
+      const result = parseMarkdown(`item **^${ULID}_`)
+      const paragraph = result.root.children[0] as any
+      const anchor = paragraph.children.find((c: any) => c.type === 'blockAnchor')
+      expect(anchor).toBeDefined()
+      expect(anchor.id).toBe(ULID)
+    })
+
+    it('does not badge a triple-emphasis-wrapped id (`***^a1b2c3***`) — out of scope', () => {
+      const result = parseMarkdown('a block ***^a1b2c3***')
+      const paragraph = result.root.children[0] as any
+      const hasAnchor = JSON.stringify(paragraph).includes('"blockAnchor"')
+      expect(hasAnchor).toBe(false)
+    })
+
+    it('does not badge a strikethrough-wrapped id (`~~^a1b2c3~~`) — out of scope', () => {
+      const result = parseMarkdown('a block ~~^a1b2c3~~')
+      const paragraph = result.root.children[0] as any
+      expect(paragraph.children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
+    })
+
+    it("does not badge a backtick-wrapped id (`` `^a1b2c3` ``) — out of scope, already literal via inline code", () => {
+      const children = paragraphChildren('a block `^a1b2c3`')
+      expect(children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
+    })
+
+    it('does not badge a paren-wrapped id (`(^a1b2c3)`) — out of scope', () => {
+      const children = paragraphChildren('a block (^a1b2c3)')
+      expect(children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
+    })
+
+    it("fixture checkbox-anchor-formatted.md's bold-wrapped ULID badges (User Story 2, scenario 1)", () => {
+      const result = parseMarkdown(`- [ ] @me Draft the boundary doc by 2026-09-15 **^${ULID}**\n`)
+      const listItem = (result.root.children[0] as any).children[0]
+      const paragraph = listItem.children.find((c: any) => c.type === 'paragraph')
+      const wrapper = paragraph.children.find((c: any) => c.type === 'strong')
+      expect(wrapper).toBeDefined()
+      expect(wrapper.children[0].type).toBe('blockAnchor')
+      expect(wrapper.children[0].id).toBe(ULID)
+    })
+
+    it("fixture checkbox-anchor-formatted.md's italic-wrapped ULID badges (User Story 2, scenario 2)", () => {
+      const result = parseMarkdown(`- [ ] @me A second item with an italic anchor _^${ULID2}_\n`)
+      const listItem = (result.root.children[0] as any).children[0]
+      const paragraph = listItem.children.find((c: any) => c.type === 'paragraph')
+      const wrapper = paragraph.children.find((c: any) => c.type === 'emphasis')
+      expect(wrapper).toBeDefined()
+      expect(wrapper.children[0].type).toBe('blockAnchor')
+      expect(wrapper.children[0].id).toBe(ULID2)
+    })
+
+    it('round-trips the checkbox-anchor-formatted.md fixture content byte-identical through parse -> stringify (FR-3/SC-002)', () => {
+      const markdown =
+        `- [ ] @me Draft the boundary doc by 2026-09-15 **^${ULID}**\n` +
+        `- [ ] @me A second item with an italic anchor _^${ULID2}_\n`
+      const result = parseMarkdown(markdown)
+      const output = stringifyMarkdown(result.root)
+      expect(output).toBe(markdown)
+    })
+  })
 })
 
 describe('type guards', () => {
