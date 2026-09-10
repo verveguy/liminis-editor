@@ -643,37 +643,140 @@ function splitTextNodeEscapes(node: any, normalizedText: string): any[] {
   return result;
 }
 
-// Detects a block anchor (`^ULID`) at its *definition* site: a bare caret
-// immediately followed by a 26-character, uppercase Crockford Base32 run
-// (ULIDs) — Douglas Crockford's Base32 alphabet, which excludes I, L, O and U
-// to avoid visual confusion with 1/1/0/V. The trailing negative lookahead
-// stops a longer or malformed run of the same charset from badging a
-// truncated 26-character prefix of itself (issue #122).
-//
-// Deliberately narrower than the wiki-link *reference* side's blockId
-// pattern (`[^\s\]#]+`, `vendor/mdast-util-wiki-link/from-markdown.ts`):
-// that pattern is safe at any width only because `[[...]]` brackets bound
-// it, whereas this matcher runs over bare prose with no such delimiter.
-// Widening it to match every id form the reference side accepts would
-// reintroduce exactly the false positives (`x^2`, `2^10`) SC-004 forbids —
-// see the Plan stage's "Key Decisions" for the full rationale. Extending
-// this to cover snowflake- or short-id anchors is a deliberately deferred,
-// isolated follow-up once that convention has first-party evidence.
-const BLOCK_ANCHOR_PATTERN = /\^[0-9A-HJKMNP-TV-Z]{26}(?![0-9A-HJKMNP-TV-Z])/g;
+// Branch A: detects a block anchor (`^ULID`) at its *definition* site — a
+// bare caret immediately followed by a 26-character, uppercase Crockford
+// Base32 run (ULIDs) — Douglas Crockford's Base32 alphabet, which excludes
+// I, L, O and U to avoid visual confusion with 1/1/0/V. The trailing
+// negative lookahead stops a longer or malformed run of the same charset
+// from badging a truncated 26-character prefix of itself (issue #122).
+// Frozen exactly as shipped for #122, with no position constraint, so every
+// existing fixture and unit test that depends on a ULID badging regardless
+// of what precedes or follows it on the line keeps matching byte-for-byte
+// (#124/FR-004). See ADR-122's amendment for why ULID keeps this permissive
+// rule while every other id form is handled by Branch B below.
+const ULID_AT_CARET = /^\^[0-9A-HJKMNP-TV-Z]{26}(?![0-9A-HJKMNP-TV-Z])/;
+
+// Branch B: any other id shape the resolver and the reference-side wiki-link
+// parser already accept (`[^\s\]#]+` — `vendor/mdast-util-wiki-link/from-markdown.ts`
+// and `liminis-app/src/main/fs.ts`'s resolver), gated by the resolver's own
+// position rule — `/(?:^|\s)\^([^\s\]#]+)\s*$/` — instead of any charset or
+// length test: the caret must start a token (line-start or preceded by
+// whitespace), and the captured id must run to end of line (trailing
+// spaces/tabs allowed). This is what makes badge and resolver agree by
+// construction (#124/FR-002) for every id form *other* than ULID, without
+// touching ULID's own permissive rule or the fixtures that depend on it
+// (see ADR-122's amendment and the Plan stage's "Key Decisions").
+const WIDE_ID_CHAR = /[^\s\]#]/;
+const isSpaceOrTab = (ch: string | undefined): boolean => ch === ' ' || ch === '\t';
+
+interface BlockAnchorMatch {
+  /** Start offset (the `^`) within `decoded`. */
+  index: number;
+  /** Full match length, including the leading `^`. */
+  length: number;
+}
+
+/**
+ * Find every block-anchor match in `decoded`, trying Branch A (ULID, no
+ * position constraint) before Branch B (any id shape, position-gated) at
+ * each unescaped `^`, left to right, so a caret already consumed by one
+ * branch's match is never re-considered by the other.
+ *
+ * Branch B's boundary checks peek one character outside this text node's
+ * own `decoded`/`source` span — into `normalizedText` at `start - 1` (left)
+ * or from `end` onward (right) — rather than inspecting sibling AST nodes:
+ * the raw source character is equivalent and needs no tree traversal (see
+ * Plan stage's "Key Decisions"). This is what lets Branch B correctly
+ * refuse a match immediately followed by more prose on the same line, even
+ * when that prose lives in a following sibling node (e.g. a wiki-link right
+ * after the id), and correctly accept one immediately after a preceding
+ * sibling ends with whitespace.
+ */
+function findBlockAnchorMatches(
+  decoded: string,
+  parts: DecodedPart[],
+  normalizedText: string,
+  start: number,
+  end: number,
+): BlockAnchorMatch[] {
+  const matches: BlockAnchorMatch[] = [];
+  let cursor = 0;
+
+  for (let i = 0; i < decoded.length; i++) {
+    if (i < cursor) continue;
+    if (decoded[i] !== '^' || parts[i].escaped) continue;
+
+    const branchA = ULID_AT_CARET.exec(decoded.slice(i));
+    if (branchA) {
+      matches.push({ index: i, length: branchA[0].length });
+      cursor = i + branchA[0].length;
+      continue;
+    }
+
+    // Left boundary: preceded by whitespace, or true document start.
+    const leftOk = i > 0 ? /\s/.test(decoded[i - 1]) : start === 0 || /\s/.test(normalizedText[start - 1]);
+    if (!leftOk) continue;
+
+    // Id capture: greedy run of non-whitespace, non-`]`, non-`#`, tested
+    // against `decoded` rather than raw source. A backslash-escaped `#` or
+    // `]` inside an id (`^abc\#def`) therefore truncates the capture one
+    // character earlier than a regex run over raw, undecoded file text
+    // would (the resolver's own matching model) — but this never produces a
+    // badge/resolver disagreement: whatever follows the truncation point is
+    // identical, non-whitespace content in both the decoded and raw views
+    // (backslash-escaping only ever turns `\X` into `X`, never anything
+    // into whitespace), so the right-boundary check below rejects the match
+    // in both models alike whenever this truncation is reachable. See the
+    // "does not badge an id containing a backslash-escaped delimiter"
+    // regression test.
+    let idEnd = i + 1;
+    while (idEnd < decoded.length && WIDE_ID_CHAR.test(decoded[idEnd])) idEnd++;
+    // Empty capture: the character right after `^` is already whitespace
+    // (or end of text), e.g. `a ^ b`, `a ^`, `x ^\t`. `a ^ b` would also be
+    // rejected by the right-boundary check below regardless (the trailing
+    // `b` isn't end-of-line), but a bare trailing caret like `a ^` or
+    // `x ^\t` reaches true end-of-line/end-of-document and would otherwise
+    // pass that check with an empty id — this guard is what actually stops
+    // that case. See "does not badge a bare trailing caret" regression test.
+    if (idEnd === i + 1) continue;
+
+    // Right boundary: only trailing spaces/tabs before end of line or end of
+    // document — peeking past this node's own end into `normalizedText` if
+    // the capture runs all the way to it.
+    let j = idEnd;
+    while (j < decoded.length && isSpaceOrTab(decoded[j])) j++;
+    let rightOk: boolean;
+    if (j < decoded.length) {
+      rightOk = decoded[j] === '\n';
+    } else {
+      let pos = end;
+      while (pos < normalizedText.length && isSpaceOrTab(normalizedText[pos])) pos++;
+      rightOk = pos === normalizedText.length || normalizedText[pos] === '\n';
+    }
+    if (!rightOk) continue;
+
+    matches.push({ index: i, length: idEnd - i });
+    cursor = idEnd;
+  }
+
+  return matches;
+}
 
 /**
  * Split a single `text` node into `[before, blockAnchor, after, ...]`
- * siblings wherever it contains a {@link BLOCK_ANCHOR_PATTERN} match,
+ * siblings wherever it contains a {@link findBlockAnchorMatches} match,
  * mirroring `splitTextNodeEscapes`'s decode-replay + position-mapping
  * machinery exactly (including its conservative bail-out when replayed
  * decoding doesn't exactly reproduce `node.value`, e.g. a character
  * reference in the span) rather than duplicating it (#122).
  *
- * Because this only ever inspects a `text` node's own `value`, it can never
- * see into `inlineCode`, `code`, `inlineMath`, `wikiLink` or `wikiEmbed`
- * node content — none of those are `text` nodes once mdast has typed them —
- * which satisfies the code-span/fenced-code/math edge case and FR-006 by
- * construction, with no "protected ranges" pre-parse machinery needed.
+ * Because this only ever inspects a `text` node's own `value` (plus, for
+ * Branch B's boundary checks, one character immediately outside it), it can
+ * never see into `inlineCode`, `code`, `inlineMath`, `wikiLink` or
+ * `wikiEmbed` node content — none of those are `text` nodes once mdast has
+ * typed them — which satisfies the code-span/fenced-code/math edge case and
+ * FR-006 by construction, with no "protected ranges" pre-parse machinery
+ * needed.
  */
 function splitTextNodeBlockAnchors(node: any, normalizedText: string): any[] {
   const start = node.position?.start?.offset;
@@ -688,16 +791,15 @@ function splitTextNodeBlockAnchors(node: any, normalizedText: string): any[] {
     return [node];
   }
 
-  // Reject a match whose leading `^` came from a backslash escape (`\^`) in
-  // the source. `decoded` has already resolved `\^` to a plain `^`, so the
-  // regex can't tell the two apart on its own — an author who deliberately
-  // escaped a caret immediately before what looks like a ULID meant literal
-  // text, not an anchor, and `stringify.ts`'s `blockAnchor` handler always
-  // emits a bare `^id` with no escaping, so badging it would silently drop
-  // the escape on the next save. `parts[match.index]` is the decoded part
-  // for that `^` (1:1 with `decoded`'s offsets by construction), so its
-  // `escaped` flag says exactly this.
-  const matches = [...decoded.matchAll(BLOCK_ANCHOR_PATTERN)].filter((match) => !parts[match.index].escaped);
+  // A caret whose leading `^` came from a backslash escape (`\^`) in the
+  // source is never a match candidate — `findBlockAnchorMatches` checks
+  // `parts[i].escaped` itself before trying either branch. `decoded` has
+  // already resolved `\^` to a plain `^`, so nothing downstream can tell the
+  // two apart on its own; an author who deliberately escaped a caret meant
+  // literal text, not an anchor, and `stringify.ts`'s `blockAnchor` handler
+  // always emits a bare `^id` with no escaping, so badging it would silently
+  // drop the escape on the next save.
+  const matches = findBlockAnchorMatches(decoded, parts, normalizedText, start, end);
   if (matches.length === 0) {
     return [node];
   }
@@ -733,16 +835,24 @@ function splitTextNodeBlockAnchors(node: any, normalizedText: string): any[] {
   let cursor = 0; // index into `parts`/`decoded`
   for (const match of matches) {
     const matchStart = match.index;
-    const matchEnd = matchStart + match[0].length;
+    const matchEnd = matchStart + match.length;
 
     if (matchStart > cursor) {
       const value = parts.slice(cursor, matchStart).map((p) => p.char).join('');
       result.push(makeTextNode(value, start + parts[cursor].srcStart, start + parts[matchStart - 1].srcEnd));
     }
 
+    // Captured from raw `source`, not `decoded`: stringify.ts's `blockAnchor`
+    // handler re-emits `^${node.id}` verbatim with no escaping, so the id
+    // must already carry any backslash the author wrote (e.g. `^ab\_cd`) or
+    // that escape is silently dropped on the next save — a round-trip
+    // corruption distinct from, and not covered by, the decoded-vs-raw
+    // truncation reasoning above (that reasoning only shows the *match
+    // boundary* never diverges; it says nothing about what ends up inside
+    // an id that does match).
     result.push({
       type: 'blockAnchor',
-      id: match[0].slice(1),
+      id: source.slice(parts[matchStart + 1].srcStart, parts[matchEnd - 1].srcEnd),
       position: makePosition(start + parts[matchStart].srcStart, start + parts[matchEnd - 1].srcEnd),
     });
 

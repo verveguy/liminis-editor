@@ -707,23 +707,32 @@ $$`
       expect(code.value).toBe(`^${ULID}`)
     })
 
-    it('does not badge a truncated/malformed id', () => {
+    it('badges a 25-character run via Branch B even though it is one character short of a ULID (#124)', () => {
       const children = paragraphChildren('^01M00VDX0S4JHMDNA7F776Y8R') // 25 chars
       expect(children).toHaveLength(1)
-      expect(children[0].type).toBe('text')
+      expect(children[0].type).toBe('blockAnchor')
+      expect(children[0].id).toBe('01M00VDX0S4JHMDNA7F776Y8R')
     })
 
-    it('does not badge a longer run of the same charset (no truncated-prefix match)', () => {
+    it('badges the full run when a ULID-shaped id is followed by more of the same charset (widened charset, no truncation) (#124)', () => {
       const children = paragraphChildren(`^${ULID}EXTRA`)
       expect(children).toHaveLength(1)
-      expect(children[0].type).toBe('text')
+      expect(children[0].type).toBe('blockAnchor')
+      expect(children[0].id).toBe(`${ULID}EXTRA`)
     })
 
     it.each([
       ['x^2'],
       ['2^10'],
       ['a ^ b'],
-    ])('does not badge the non-anchor caret in %s (SC-004)', (markdown) => {
+      ['mc^2'],
+      ['10^100'],
+      ['The value is 2^10'],
+      ['The value is 2^10 today'],
+      ['A googol is 10^100'],
+      ['Einstein wrote mc^2'],
+      ['Compare a ^ b here'],
+    ])('does not badge the non-anchor caret in %s (SC-004/FR-003)', (markdown) => {
       const children = paragraphChildren(markdown)
       expect(children.every((c) => c.type === 'text')).toBe(true)
     })
@@ -743,6 +752,141 @@ $$`
       const output = stringifyMarkdown(result.root)
       expect(output).toBe(markdown)
     })
+  })
+
+  describe('block anchor badges - widened id forms (#124)', () => {
+    function paragraphChildren(markdown: string): any[] {
+      const result = parseMarkdown(markdown)
+      const paragraph = result.root.children[0] as any
+      return paragraph.children
+    }
+
+    it.each([
+      ['raw-decimal snowflake', '1867432905318744064'],
+      ['NanoID-shaped (underscore/hyphen)', 'V1StGXR8_Z5jdHi6B-myT'],
+      ['mixed-case base62', '2Xq9vBc1aZk'],
+      ['UUID-shaped (hyphens)', '018f3a2c-1234-7abc-9def-0123456789ab'],
+      ['short alphanumeric', 'a1b2c3'],
+    ])('badges a %s id at end of line, preceded by whitespace (FR-001/SC-001)', (_label, id) => {
+      const children = paragraphChildren(`A block. ^${id}`)
+      expect(children.map((c) => c.type)).toEqual(['text', 'blockAnchor'])
+      expect(children[1].id).toBe(id)
+    })
+
+    it('badges a bare short numeric run at line end preceded by whitespace — an accepted, rare false positive, not a bug (spec Edge Cases)', () => {
+      const children = paragraphChildren('The answer is ^100')
+      expect(children.map((c) => c.type)).toEqual(['text', 'blockAnchor'])
+      expect(children[1].id).toBe('100')
+    })
+
+    it('agrees with the resolver position rule across every case discussed on the issue (SC-005)', () => {
+      const cases: [string, boolean][] = [
+        ['Ship the thing ^01KKE2V4H0B2DRJ6CEER5S4E6F', true],
+        ['Ship the thing ^1867432905318744064', true],
+        ['A block. ^V1StGXR8_Z5jdHi6B-myT', true],
+        ['A block. ^2Xq9vBc1aZk', true],
+        ['The value is 2^10 today', false],
+        ['The value is 2^10', false],
+        ['A googol is 10^100', false],
+        ['Einstein wrote mc^2', false],
+        ['Compare a ^ b here', false],
+      ]
+      for (const [markdown, shouldBadge] of cases) {
+        const children = paragraphChildren(markdown)
+        const hasAnchor = children.some((c) => c.type === 'blockAnchor')
+        expect(hasAnchor).toBe(shouldBadge)
+      }
+    })
+
+    it('leaves a wider-charset id inside an inline code span as literal text (FR-005)', () => {
+      const children = paragraphChildren('`^a1b2c3-snowflake_id`')
+      expect(children).toHaveLength(1)
+      expect(children[0].type).toBe('inlineCode')
+      expect(children[0].value).toBe('^a1b2c3-snowflake_id')
+    })
+
+    it('leaves a wider-charset id inside a fenced code block as literal text (FR-005)', () => {
+      const result = parseMarkdown('```\n^a1b2c3-snowflake_id\n```')
+      const code = result.root.children[0] as any
+      expect(code.type).toBe('code')
+      expect(code.value).toBe('^a1b2c3-snowflake_id')
+    })
+
+    it('leaves a wider-charset id inside inline math as literal text (FR-005)', () => {
+      const result = parseMarkdown('The value $x^{a1b2c3}$ stays literal.')
+      const paragraph = result.root.children[0] as any
+      const inlineMath = paragraph.children.find((c: any) => c.type === 'inlineMath')
+      expect(inlineMath).toBeDefined()
+      expect(inlineMath.value).toBe('x^{a1b2c3}')
+      expect(paragraph.children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
+    })
+
+    it.each([
+      ['A block ^abc\\#def', 'a delimiter mid-id, more text after'],
+      ['A block ^abc\\]   ', 'a delimiter mid-id, only trailing whitespace after'],
+      ['A block ^abc\\#', 'a delimiter as the final character of the line'],
+    ])(
+      'does not badge an id containing a backslash-escaped delimiter (%s: %s) — review finding: confirmed no badge/resolver disagreement',
+      (markdown) => {
+        // A `\#`/`\]` inside an id decodes to a literal `#`/`]`, which
+        // WIDE_ID_CHAR excludes, so the capture truncates before that point.
+        // Verified (not just asserted) that this never diverges from what a
+        // raw-text match would decide: whatever follows the truncation is
+        // identical, non-whitespace content either way, so the end-of-line
+        // right-boundary check rejects the match under both models alike —
+        // see the comment above `findBlockAnchorMatches`'s id-capture loop.
+        const children = paragraphChildren(markdown)
+        expect(children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
+      },
+    )
+
+    it('preserves a backslash-escaped delimiter inside an id that does badge, so it round-trips byte-identically (review finding)', () => {
+      // Unlike `\#`/`\]` (excluded from WIDE_ID_CHAR, so they truncate the
+      // capture — see the test above), an escaped backtick decodes to a
+      // plain backtick, which IS a valid id character, so the capture
+      // reaches end of line and the run badges. The `id` must therefore be
+      // captured from raw source (keeping the backslash), not from
+      // `decoded`, or the escape an author deliberately wrote is silently
+      // dropped when `stringify.ts` re-emits `^${node.id}` verbatim on the
+      // next save — and, unlike a bare backtick in ordinary prose, dropping
+      // it here is not even meaning-preserving: an unescaped backtick could
+      // pair with another one later on the line and open an unintended
+      // inline code span.
+      //
+      // (An escaped underscore is deliberately not used for this case: this
+      // codebase already unescapes intraword underscores globally in
+      // stringify.ts, since CommonMark's flanking rules mean an intraword
+      // `_` can never open emphasis — so that one backslash is dropped for
+      // an unrelated, pre-existing reason, not by this bug.)
+      const markdown = 'A block ^ab\\`cd'
+      const children = paragraphChildren(markdown)
+      const anchor = children.find((c: any) => c.type === 'blockAnchor')
+      expect(anchor).toBeDefined()
+      expect(anchor.id).toBe('ab\\`cd')
+
+      const result = parseMarkdown(markdown)
+      expect(stringifyMarkdown(result.root)).toBe(`${markdown}\n`)
+    })
+
+    it.each([
+      ['a ^', 'end of document'],
+      ['x ^\nmore text follows', 'end of a soft-wrapped line, more text after'],
+      ['x ^\t', 'trailing tab at end of document'],
+    ])(
+      'does not badge a bare trailing caret with an empty id (%s: %s) — review finding',
+      (markdown) => {
+        // The character right after `^` is already whitespace or end of
+        // text, so the id capture is empty. Without the empty-capture guard
+        // in `findBlockAnchorMatches`, these three all pass the right-
+        // boundary check anyway (trailing spaces/tabs, then end-of-line or
+        // end-of-document) and would badge with `id: ''` — an empty badge.
+        // Round-trip stays byte-identical either way (`^${node.id}` still
+        // reproduces the bare `^`), so no roundtrip/ fixture would catch a
+        // regression here; only this unit test does.
+        const children = paragraphChildren(markdown)
+        expect(children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
+      },
+    )
   })
 })
 
