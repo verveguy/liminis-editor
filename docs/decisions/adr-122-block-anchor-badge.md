@@ -366,6 +366,81 @@ rather than introducing a new popover/menu affordance.
 > pursued there — would turn the next such drift into a test failure in both
 > repositories rather than something caught by manual cross-checking.
 
+> **Amended 2026-09-10 (#126) — Branch A is deleted; the position rule now
+> applies to every id form, ULID included, with no carve-out.** The first
+> amendment above kept ULID's original, position-free rule "exactly as
+> shipped, unconstrained by position, as a first branch tried before the new
+> one," on the grounds that #122's own fixtures required a ULID to badge
+> mid-line — immediately after a wiki-link or emphasis run with no preceding
+> space, and followed by further prose on the same line. That inverted the
+> defect #124 closes: a ULID badged in a position the resolver
+> (`verveguy/liminis`'s `fs.ts`, `/(?:^|\s)\^([^\s\]#]+)\s*$/`) can never
+> address, since the resolver only ever matches an anchor definition running
+> to end of line. The badge was claiming resolvability the system could not
+> deliver — the same "UI says X" / "system does Y" disagreement #124 fixes,
+> just in the opposite direction.
+>
+> **Mid-line ULID *definitions* were never a supported shape.** Checking
+> every ULID-bearing fixture that existed in `122-block-anchor/` against the
+> resolver rule: of five, exactly one (`checkbox-anchor.md`, a checkbox item
+> ending in `^<ULID>`) encoded an anchor the resolver could actually address
+> — and it is the shape `liminis-framework`'s actions tooling emits. The
+> other four asserted mid-line placement, immediately-adjacent-to-a-sibling
+> placement, or both. Production's only mid-line ULID occurrences are
+> wiki-link *references* (`[[file#^id]]` / `![[file#^id]]`), which are
+> parsed position-independently by the existing wiki-link machinery and are
+> untouched by this decision — nothing about referencing an anchor from
+> mid-sentence changes. What #122's mid-line fixtures actually exercised was
+> parser robustness (sibling-boundary text-node splitting, multiple anchors
+> per paragraph), not a product requirement that anchor *definitions* be
+> badge-able mid-line.
+>
+> **This supersedes both the original ADR's "length is the disambiguating
+> signal" rationale (§"Decision" above) and the first amendment's carve-out
+> that kept ULID's rule position-free.** `ULID_AT_CARET` and the try-A-then-B
+> ordering in `findBlockAnchorMatches` are deleted outright — not
+> reparameterized — leaving the position-gated rule (originally introduced
+> for every *other* id form by the first amendment, and extended to accept a
+> symmetric emphasis wrapper by the second) as the only path. This is safe
+> as a pure deletion, not a rewrite: Crockford Base32 (ULID's charset) is
+> already a strict subset of that rule's charset (`WIDE_ID_CHAR`/
+> `WRAPPED_ID_CHAR`, `[^\s\]#*]`), so every ULID that already satisfied the
+> position rule — plain or emphasis-wrapped, at line end — keeps badging
+> unchanged. Only mid-line ULIDs, and ULIDs immediately adjacent to a
+> preceding sibling with zero intervening whitespace, stop badging. That is
+> the intended outcome, not a regression: those shapes could never be
+> resolved, and the UI claiming otherwise was the defect.
+>
+> **Result: badge and resolver now agree for every id form, with no
+> carve-out** — the outcome the first amendment (#124) set out to achieve
+> and reached for every shape except ULID. `checkbox-anchor.md` (ULID at
+> line end) and `checkbox-anchor-formatted.md` (an emphasis-wrapped ULID,
+> #127's territory) are both unaffected and continue to badge unchanged.
+>
+> **A new residual, not previously named**: a caret with zero preceding
+> whitespace, immediately following a wiki-link or emphasis/strong sibling
+> with no intervening space, can never badge under the universal rule — at
+> *any* position on the line, not just mid-line. `anchor-after-wikilink.md`
+> and `anchor-in-emphasis-strong.md` originally asserted this exact
+> zero-space shape; rewritten with one space inserted before the caret (see
+> `fixtures/roundtrip/README.md`'s `122-block-anchor/` section), which keeps
+> the sibling-boundary-splitting scenario under test while satisfying the
+> position rule. The true zero-space shape is preserved as an explicit
+> "does not badge" unit test in `parse.test.ts` rather than silently dropped,
+> so this residual is recorded rather than rediscovered later.
+>
+> **The shared cross-repo case table** the previous amendment flagged as an
+> unpursued candidate follow-up now exists:
+> `src/markdown/__tests__/blockAnchorCases.ts` exports
+> `BLOCK_ANCHOR_POSITION_CASES`, an id/position table asserted in full by a
+> single `it.each` in `parse.test.ts`, pinned against the resolver's actual,
+> merged `ANCHOR_LINE_PATTERN` (`liminis-app/src/main/fs.ts`, main @
+> `19330368`). Scope is id/position combinations only; the wrapper/charset
+> cases #127 added stay in their own `it.each` blocks. A future divergence
+> between this repository's position rule and the resolver's now fails a
+> test in this table rather than shipping as a live defect, the way both
+> #124's and this issue's own gaps originally did.
+
 ## References
 
 - Issue #122 (this decision)
