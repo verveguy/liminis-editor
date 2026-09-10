@@ -19,6 +19,7 @@ import {
   isDelete,
 } from '../parse'
 import { stringifyMarkdown } from '../stringify'
+import { BLOCK_ANCHOR_POSITION_CASES } from './blockAnchorCases'
 
 describe('parseMarkdown', () => {
   describe('basic parsing', () => {
@@ -670,27 +671,75 @@ $$`
       expect(children[0].value).toBe('Draft the boundary doc ')
     })
 
-    it('renders multiple independent anchors, each split out on its own', () => {
+    it('renders multiple independent anchors within one paragraph, one per line (#126: moved to line end, was mid-line)', () => {
+      // #122's original intent: multiple anchors within one *paragraph* —
+      // never multiple ids on one line. Each ULID now sits at its own
+      // line's end (mirrors the rewritten multiple-anchors.md fixture),
+      // since a mid-line ULID can never be resolved and stopped badging
+      // under #126's universal position rule.
       const ULID2 = '01M00VDX0S4JHMDNA7F776Y8R9'
-      const children = paragraphChildren(`first ^${ULID} and second ^${ULID2}`)
+      const children = paragraphChildren(`first line ^${ULID}\nsecond line ^${ULID2}`)
       const anchors = children.filter((c) => c.type === 'blockAnchor')
       expect(anchors).toHaveLength(2)
       expect(anchors.map((a) => a.id)).toEqual([ULID, ULID2])
     })
 
-    it('matches an anchor immediately after a link with no preceding space', () => {
-      const children = paragraphChildren(`[[notes]]^${ULID}`)
-      expect(children[0].type).toBe('wikiLink')
-      expect(children[1].type).toBe('blockAnchor')
-      expect(children[1].id).toBe(ULID)
+    it('does not badge two ULIDs mid-line in the same paragraph (#126: the original, now-rejected shape)', () => {
+      // The true #122 shape this rewrites: each id followed by more prose
+      // on the same line. Preserved here explicitly so the closed gap is
+      // documented rather than silently dropped from coverage.
+      const ULID2 = '01M00VDX0S4JHMDNA7F776Y8R9'
+      const children = paragraphChildren(`first ^${ULID} and second ^${ULID2}, with more after`)
+      expect(children.every((c) => c.type === 'text')).toBe(true)
     })
 
-    it('matches an anchor immediately after emphasis with no preceding space', () => {
-      const result = parseMarkdown(`*text*^${ULID}`)
+    it('matches an anchor after a link, one space before the caret, at line end (#126: was zero-space adjacency mid-shape)', () => {
+      // #122's original intent: an anchor immediately following a wikiLink
+      // sibling (sibling-boundary handling). Zero-space adjacency can never
+      // satisfy the universal position rule at any line position — a space
+      // before the caret is required, not just end-of-line placement — so
+      // this keeps the sibling-boundary text-node-splitting machinery under
+      // test via the one-space variant. See the fixture rewrite for the
+      // rationale in full.
+      const children = paragraphChildren(`[[notes]] ^${ULID}`)
+      expect(children[0].type).toBe('wikiLink')
+      const anchor = children.find((c) => c.type === 'blockAnchor')
+      expect(anchor).toBeDefined()
+      expect(anchor.id).toBe(ULID)
+    })
+
+    it('does not badge an anchor immediately after a link with zero preceding space (#126)', () => {
+      // The true zero-gap shape #122 originally tested. It correctly never
+      // resolves under the universal position rule, at any position on the
+      // line — recorded explicitly rather than silently absorbed into
+      // "well, it's just plain text now".
+      const children = paragraphChildren(`[[notes]]^${ULID}`)
+      expect(children.some((c) => c.type === 'blockAnchor')).toBe(false)
+    })
+
+    it('matches an anchor after emphasis, one space before the caret, at line end (#126: was zero-space adjacency mid-shape)', () => {
+      // #122's original intent: an anchor immediately following an
+      // emphasis/strong sibling (same sibling-boundary category as the
+      // wikiLink case above). See that test's comment for the rationale.
+      const result = parseMarkdown(`*text* ^${ULID}`)
       const paragraph = result.root.children[0] as any
       expect(paragraph.children[0].type).toBe('emphasis')
-      expect(paragraph.children[1].type).toBe('blockAnchor')
-      expect(paragraph.children[1].id).toBe(ULID)
+      const anchor = paragraph.children.find((c: any) => c.type === 'blockAnchor')
+      expect(anchor).toBeDefined()
+      expect(anchor.id).toBe(ULID)
+    })
+
+    it('does not badge an anchor immediately after emphasis with zero preceding space (#126)', () => {
+      const result = parseMarkdown(`*text*^${ULID}`)
+      const paragraph = result.root.children[0] as any
+      expect(paragraph.children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
+    })
+
+    it('does not badge a ULID mid-line, even alone with no other anchors (#126 Independent Test)', () => {
+      const children = paragraphChildren(
+        `The decision was recorded here ^${ULID} and continues.`,
+      )
+      expect(children.every((c) => c.type === 'text')).toBe(true)
     })
 
     it('leaves a caret inside an inline code span as literal text', () => {
@@ -707,7 +756,7 @@ $$`
       expect(code.value).toBe(`^${ULID}`)
     })
 
-    it('badges a 25-character run via Branch B even though it is one character short of a ULID (#124)', () => {
+    it('badges a 25-character run even though it is one character short of a ULID (#124)', () => {
       const children = paragraphChildren('^01M00VDX0S4JHMDNA7F776Y8R') // 25 chars
       expect(children).toHaveLength(1)
       expect(children[0].type).toBe('blockAnchor')
@@ -719,22 +768,6 @@ $$`
       expect(children).toHaveLength(1)
       expect(children[0].type).toBe('blockAnchor')
       expect(children[0].id).toBe(`${ULID}EXTRA`)
-    })
-
-    it.each([
-      ['x^2'],
-      ['2^10'],
-      ['a ^ b'],
-      ['mc^2'],
-      ['10^100'],
-      ['The value is 2^10'],
-      ['The value is 2^10 today'],
-      ['A googol is 10^100'],
-      ['Einstein wrote mc^2'],
-      ['Compare a ^ b here'],
-    ])('does not badge the non-anchor caret in %s (SC-004/FR-003)', (markdown) => {
-      const children = paragraphChildren(markdown)
-      expect(children.every((c) => c.type === 'text')).toBe(true)
     })
 
     it('does not badge a backslash-escaped caret immediately before a ULID-shaped run', () => {
@@ -779,24 +812,14 @@ $$`
       expect(children[1].id).toBe('100')
     })
 
-    it('agrees with the resolver position rule across every case discussed on the issue (SC-005)', () => {
-      const cases: [string, boolean][] = [
-        ['Ship the thing ^01KKE2V4H0B2DRJ6CEER5S4E6F', true],
-        ['Ship the thing ^1867432905318744064', true],
-        ['A block. ^V1StGXR8_Z5jdHi6B-myT', true],
-        ['A block. ^2Xq9vBc1aZk', true],
-        ['The value is 2^10 today', false],
-        ['The value is 2^10', false],
-        ['A googol is 10^100', false],
-        ['Einstein wrote mc^2', false],
-        ['Compare a ^ b here', false],
-      ]
-      for (const [markdown, shouldBadge] of cases) {
+    it.each(BLOCK_ANCHOR_POSITION_CASES)(
+      'agrees with the resolver position rule (shouldBadge=$shouldBadge): $note ($markdown) (SC-005/#126 FR-005)',
+      ({ markdown, shouldBadge }) => {
         const children = paragraphChildren(markdown)
         const hasAnchor = children.some((c) => c.type === 'blockAnchor')
         expect(hasAnchor).toBe(shouldBadge)
-      }
-    })
+      },
+    )
 
     it('leaves a wider-charset id inside an inline code span as literal text (FR-005)', () => {
       const children = paragraphChildren('`^a1b2c3-snowflake_id`')
@@ -904,7 +927,7 @@ $$`
       ['__', '__'],
       ['*', '*'],
       ['_', '_'],
-    ])('badges a %s-wrapped non-ULID id at line end via Branch B, with no wrapper characters in the id (FR-1/SC-001)', (open, close) => {
+    ])('badges a %s-wrapped non-ULID id at line end, with no wrapper characters in the id (FR-1/SC-001)', (open, close) => {
       const result = parseMarkdown(`A block. ${open}^a1b2c3${close}`)
       const paragraph = result.root.children[0] as any
       const wrapper = paragraph.children.find((c: any) => c.type === 'strong' || c.type === 'emphasis')
@@ -957,24 +980,25 @@ $$`
     })
 
     it('does not badge a non-ULID id via an asymmetric wrapper (`item **^a1b2c3_`) (SC-003)', () => {
-      // Unlike the ULID case below, no Branch A fallback exists for a
-      // non-ULID id, so Branch B's rejection of the mismatched closer is
+      // `**` never finds a matching closer, so CommonMark leaves it as
+      // literal text and the caret is not the first character of its text
+      // node — the position rule's rejection of the mismatched closer is
       // the only thing standing between this and a corrupted-id badge.
       const result = parseMarkdown('item **^a1b2c3_')
       const paragraph = result.root.children[0] as any
       expect(paragraph.children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
     })
 
-    it('badges only the clean ULID, never a corrupted id, through an asymmetric wrapper (`item **^<ULID>_`) (SC-003)', () => {
-      // `**^<ULID>_` never parses as real emphasis (no matching closer for
-      // the opening `**`), so this reaches Branch A unconstrained by any
-      // wrapper logic (FR-5, untouched by #127) and badges the bare ULID —
-      // not a Branch B wrapper match, and not a corrupted id like `${ULID}_`.
+    it('does not badge a ULID via an asymmetric wrapper either (`item **^<ULID>_`) (#126: no more Branch A carve-out)', () => {
+      // Before #126, `**^<ULID>_` badged the bare ULID via Branch A, which
+      // ignored position entirely and so never noticed the mismatched
+      // closer. Branch A is gone: a ULID gets no carve-out any more, so this
+      // is rejected the same way the non-ULID case above always was — `**`
+      // never parses as real emphasis here, the caret isn't its text node's
+      // first character, and the universal position rule refuses the match.
       const result = parseMarkdown(`item **^${ULID}_`)
       const paragraph = result.root.children[0] as any
-      const anchor = paragraph.children.find((c: any) => c.type === 'blockAnchor')
-      expect(anchor).toBeDefined()
-      expect(anchor.id).toBe(ULID)
+      expect(paragraph.children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
     })
 
     it('does not badge a triple-emphasis-wrapped id (`***^a1b2c3***`) — out of scope', () => {
