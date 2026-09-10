@@ -2,12 +2,12 @@
 
 **Feature Branch**: `fabrik/issue-126`
 **Created**: 2026-09-09
-**Status**: Draft
+**Status**: Specified
 **Input**: User description: "Branch A badges ULID anchor shapes the resolver can never address"
 
 ## Background
 
-Follow-up split out of #124 so it doesn't widen that PR's scope. Pre-existing from #122 — #124 neither introduces nor worsens it. #124 is still an open, unmerged PR (`fabrik/issue-124`) at the time this issue was filed; its design is what this issue reasons about.
+Follow-up split out of #124 so it doesn't widen that PR's scope. Pre-existing from #122 — #124 neither introduces nor worsens it. #124 has since merged to `main` (PR #125, `facc262f`).
 
 ### The disagreement
 
@@ -45,55 +45,27 @@ prose in between and after.
 
 "Multiple" means multiple per *paragraph*, not per line. The only fixture that genuinely puts two ids on one line is `anchor-in-emphasis-strong.md` (`*emphasized text*^ULID and **bold text**^ULID too.`), which reads as a synthetic parser-adjacency test rather than anything an author would write.
 
-### The actual question this issue exists to answer
+### Decision (2026-09-10): delete Branch A
 
-Not "is multiple-per-line supported" but: **do these fixtures encode product requirements, or parser-robustness tests?**
+The question this issue exists to answer was whether #122's mid-line fixtures encode product requirements or parser-robustness tests. Resolved: **mid-line anchor *definitions* are not a real shape.** What occurs mid-line in the production corpus is anchor *references* — `[[file#^id]]` / `![[file#^id]]` embedded in a sentence — which are wiki-links, parsed position-independently, and already work correctly; nothing about them is affected by this issue. Anchor *definitions* are written at end of line, as in `checkbox-anchor.md` — the one fixture, of five, whose ULID the resolver can actually address.
 
-The evidence points mostly to the latter. `anchor-after-wikilink.md` (`See [[notes]]^ULID for details.`) and `anchor-in-emphasis-strong.md` assert that badging survives awkward inline adjacency — useful parser tests, but they describe anchors that can never be referenced. Nothing user-facing promises those shapes work, and #122's ADR reasons about *charset*, never about mid-line placement being a feature.
+So #122's mid-line fixtures are parser-robustness tests, not product requirements, and Branch A exists only to keep badging shapes nothing can ever address.
 
-If that reading is right, Branch A exists solely to keep badging unaddressable shapes, and the position rule could be applied universally — collapsing Branch A and Branch B back into one rule, and making badge/resolver agreement total rather than near-total. `multiple-anchors.md`, `anchor-after-wikilink.md`, and `anchor-in-emphasis-strong.md` would need their ULIDs moved to line end, preserving what they actually test (adjacency, charset, emphasis-marker round-tripping) without asserting an unresolvable shape.
+**Branch A is deleted. The position rule applies universally — the two branches collapse into one.**
 
-**This is Open Question 1, and it is still unresolved.**
+- `ULID_AT_CARET` and the try-A-then-B ordering in `findBlockAnchorMatches` go away; the position-gated path becomes the only path.
+- Mid-line ULIDs stop badging. This is the intended outcome, not a regression — they could never be resolved, and the UI claiming otherwise is the defect this closes.
+- Result: badge and resolver agree for every id form with no carve-out — the outcome #124 set out to achieve.
 
-### The emphasis-wrapped case — resolved: widen the resolver, and this issue's scope grows
+### The emphasis-wrapped case: split out to #127
 
-`checkbox-anchor-formatted.md` was flagged separately from the other four:
+`checkbox-anchor-formatted.md` (a bold- or italic-wrapped anchor at line end, e.g. `**^01M00VDX0S4JHMDNA7F776Y8R8**`) badges today but does not resolve, because the resolver requires the caret to be preceded by whitespace, not `*`/`_`. The decision on that case — widen the resolver (filed and merged as `verveguy/liminis#1114`/`#1115`) and widen Branch B to match it case-for-case — has been split out entirely into #127 (`fabrik/issue-127`), which is further along (Validate stage) and already carries its own detailed spec, requirements, and ADR-122 amendment obligations for that shape. **This issue does not duplicate that work.** See Source References.
 
-```
-- [ ] @me Draft the boundary doc by 2026-09-15 **^01M00VDX0S4JHMDNA7F776Y8R8**
-- [ ] @me A second item with an italic anchor _^01M00VDX0S4JHMDNA7F776Y8R9_
-```
+### Not urgent, but now scheduled
 
-A bold- or italic-wrapped anchor at line end is a plausible thing a user would type. It badges today but does not resolve, because the resolver's regex requires the caret to be preceded by whitespace, not `*`/`_`.
-
-**Decision (2026-09-09): the resolver is the wrong side here, and it will be widened.** Filed as `verveguy/liminis#1114` (`liminis-app/src/main/fs.ts:817`, `ANCHOR_LINE_PATTERN`).
-
-That decision **cannot be a resolver-only change**, which pulls scope back into this issue. Badge behaviour on `fabrik/issue-124` (`859e8f40`), measured against both the current and a widened resolver rule:
-
-| case | badge | resolver now | resolver widened |
-|---|---|---|---|
-| `item **^<ULID>**` | badges | no — disagree | yes — agree |
-| `item _^<ULID>_` | badges | no — disagree | yes — agree |
-| `item **^a1b2c3**` | no badge | no — agree | yes — **new disagreement** |
-| `squared *^2*` | no badge | no — agree | yes — **new false anchor** |
-| `item ^<ULID>` | badges | yes — agree | yes — agree |
-| `item ^a1b2c3` | badges | yes — agree | yes — agree |
-
-Widening only the resolver is net-zero: it fixes two disagreements and creates two more. The reason: `**^<ULID>**` badges only via Branch A (ULID, position-free), while Branch B requires whitespace before the `^` — so a wrapped *non*-ULID id would resolve without ever badging once the resolver widens alone.
-
-**So Branch B needs the same symmetric-wrapper allowance, landing together with `verveguy/liminis#1114`.** Neither side should merge alone. This is now in scope for this issue — previously it was expected to belong entirely to the other repository.
-
-One consequence follows deliberately: once both sides accept wrappers, `squared *^2*` becomes a badged *and* resolved false anchor. That is the same class of residual as the `^100` false positive #124's spec already accepted (a length/charset floor would break legitimate short ids like `^a1b2c3`), so accepting it is consistent — but it must be recorded in the ADR-122 amendment rather than discovered later.
-
-A related idea, not decided and not required by this issue: a single shared fixture list that both this repository and `verveguy/liminis` assert against, so the two rules can't drift apart silently the way they did here. Left as a future consideration.
-
-### Not urgent
-
-Requires a ULID written mid-line, or an id wrapped in emphasis, rather than plainly at line end. No user-visible breakage is known — unlike #124's gap, which was live in `demo-notebook`. Filed so the reasoning isn't lost, not because anything is on fire.
+Requires a ULID written mid-line rather than plainly at line end. No user-visible breakage is known — unlike #124's gap, which was live in `demo-notebook`. Filed so the reasoning isn't lost, not because anything was on fire — but the design question is now settled and this issue proceeds to implementation.
 
 ## User Scenarios & Testing *(mandatory)*
-
-User Story 1 is written for **Direction 1** (collapse Branch A into Branch B) and depends on Open Question 1. User Story 2 is independent of that question — it follows from the emphasis-wrapper decision above and applies either way.
 
 ### User Story 1 - A badged ULID is always resolvable (Priority: P1)
 
@@ -111,42 +83,40 @@ As an editor user, when a ULID-shaped block anchor renders as a badge, I want th
 
 ---
 
-### User Story 2 - An emphasis-wrapped anchor that badges also resolves (Priority: P1)
+### User Story 2 - A shared cross-repo case table prevents future drift (Priority: P2)
 
-As an editor user, when I wrap a block anchor's caret and id in matching bold or italic markers (e.g. `**^01M00VDX0S4JHMDNA7F776Y8R8**`), I want it to both badge and resolve consistently, so the badge's promise holds regardless of whether the id happens to be a ULID.
+As a maintainer, I want the badge detector's accept/reject cases checked against a table that both this repository and `verveguy/liminis` assert against, so a future change to either rule that silently diverges from the other fails a test instead of being discovered as a live defect — as happened twice already: #124's original gap, and this issue's own ULID-position gap.
 
-**Why this priority**: Decided 2026-09-09 — the resolver will widen to accept a symmetric emphasis wrapper (`verveguy/liminis#1114`). Landing that change alone creates two *new* badge/resolver disagreements (a wrapped non-ULID id would resolve without ever badging). Branch B must widen in lockstep, matching liminis#1114's rule case-for-case, or the two sides drift apart again — the exact failure #124 exists to fix.
+**Why this priority**: Not itself a defect fix. Once Branch A is gone, the whole badge rule reduces to one position test plus one charset test, and pinning it against the resolver's rule in a table both repos assert against becomes straightforward. With the carve-out gone there is no remaining excuse for the two rules to differ, and a shared table turns the next drift into a test failure instead of a filed issue.
 
-**Independent Test**: With the widened resolver and widened Branch B both in place: (a) `item **^01M00VDX0S4JHMDNA7F776Y8R8**` badges and resolves; (b) `item _^01M00VDX0S4JHMDNA7F776Y8R9_` badges and resolves; (c) `item **^a1b2c3**` (non-ULID, wrapped) badges and resolves; (d) `squared *^2*` badges and resolves too — an accepted false positive, same class as the existing `^100` residual, not a defect to fix here.
+**Independent Test**: Add or change a case in the shared table and confirm this repository's badge-detection tests assert against every row (not a hand-copied subset).
 
 **Acceptance Scenarios**:
 
-1. **Given** a non-ULID id wrapped in matching bold or italic markers at line end, **When** the widened resolver (`verveguy/liminis#1114`) is available, **Then** Branch B badges it (previously it did not).
-2. **Given** an asymmetric or malformed wrapper (per the flaws `verveguy/liminis#1114` documents), **When** the editor evaluates it, **Then** Branch B's behavior matches the widened resolver's rule case-for-case, not a looser or stricter approximation.
-3. **Given** `checkbox-anchor-formatted.md`, **When** both sides of the wrapper widening have landed, **Then** the fixture's expectation changes from "badges but does not resolve" to "badges and resolves" — an intentional, ADR-documented change in what this fixture asserts.
+1. **Given** the shared case table lists an id/position combination and its expected accept/reject outcome, **When** this repository's badge-detection tests run, **Then** they assert against every row in the table.
+2. **Given** a future change to this repository's position rule, **When** it diverges from a row in the shared table, **Then** the test suite fails rather than silently badging or refusing to badge inconsistently with the resolver.
 
 ---
 
 ### Edge Cases
 
-- `multiple-anchors.md`, `anchor-after-wikilink.md`, and `anchor-in-emphasis-strong.md` currently place their ULID mid-line or immediately before further inline content. Under Direction 1, these fixtures stop badging as written; if Direction 1 is chosen, they need rewriting so the ULID sits at line end, preserving what they actually test (paragraph-level multiple-anchor handling, adjacency to a preceding wiki-link, emphasis-marker round-tripping) rather than asserting a shape the resolver can never address.
-- `checkbox-anchor-formatted.md` (bold/italic-wrapped anchor at line end): its expected outcome changes from "badges but does not resolve" to "badges and resolves" once the resolver widening (`verveguy/liminis#1114`) and Branch B's matching widening both land. This is a deliberate, decided change in what the fixture asserts, not a silent drift, and must be called out in the ADR-122 amendment per FR-005.
-- `squared *^2*`: once wrapper support lands on both sides, this becomes a badged *and* resolved false anchor (id `2`). Accepted on the same grounds as the existing `^100` residual — see FR-008.
-- `anchor-in-code-not-badged.md` and `anchor-in-math-not-badged.md` are unaffected either way: code and math exclusion is structural (separate mdast node types), independent of which position rule ULID uses.
-- `truncated-malformed-id.md` and `non-anchor-carets.md` are unaffected either way: they exercise charset/length boundaries, not position.
+- `anchor-after-wikilink.md` tests an anchor immediately following a `wikiLink` node (sibling-boundary handling). Rewrite: move its ULID to end of line, preserving the wikilink-adjacency scenario.
+- `anchor-in-emphasis-strong.md` tests an anchor immediately following `emphasis`/`strong` nodes (the same sibling-boundary category), plus two anchors within one paragraph. Rewrite: move both ULIDs to end of line (one per line), preserving both the emphasis-adjacency scenario and the two-anchors-in-one-paragraph case.
+- `multiple-anchors.md` tests multiple anchors within one *paragraph*, one per line — never multiple ids on a single line, despite the name. Rewrite: move each ULID to the end of its own line, preserving the paragraph-level multiplicity.
+- All three rewrites MUST keep round-tripping byte-identically, and each rewrite's diff must state the fixture's original intent (per the notes above) so nothing is silently dropped.
+- `checkbox-anchor-formatted.md` is untouched by this issue — its resolution (badging *and* resolving an emphasis-wrapped anchor) belongs entirely to #127.
+- `anchor-in-code-not-badged.md` and `anchor-in-math-not-badged.md` are unaffected: code and math exclusion is structural (separate mdast node types), independent of ULID position.
+- `truncated-malformed-id.md` and `non-anchor-carets.md` are unaffected: they exercise charset/length boundaries, not position.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: This issue MUST resolve Open Question 1 (below) before implementation: either (a) the badge detector's ULID branch adopts the same end-of-line position constraint as every other id form, or (b) Branch A is kept exactly as #124 designed it and this issue produces a documentation-only change recording that decision.
-- **FR-002** *(applies only if Direction 1 is chosen)*: A ULID-shaped block anchor MUST be badged if and only if it satisfies the same position rule already applied to every other id form (caret starts a token; captured id runs to end of line, trailing whitespace permitted).
-- **FR-003** *(applies only if Direction 1 is chosen)*: `roundtrip/122-block-anchor/multiple-anchors.md`, `anchor-after-wikilink.md`, and `anchor-in-emphasis-strong.md` MUST be rewritten so each ULID sits at line end, continuing to exercise the same parser behavior (multiple anchors per paragraph, adjacency to a wiki-link, emphasis-marker round-tripping) the original fixture targeted.
-- **FR-004**: ADR-122 MUST be amended (not rewritten, per this repository's ADR convention) to record this issue's Open Question 1 resolution and reasoning, whichever direction is chosen.
-- **FR-005**: Whichever direction is chosen for Open Question 1, the full `roundtrip/122-block-anchor/` fixture suite MUST pass, and no fixture's assertion may silently change meaning without an explicit rewrite justified in the ADR-122 amendment.
-- **FR-006** *(applies regardless of Open Question 1's outcome — decided 2026-09-09)*: Branch B (the non-ULID id detection #124 introduces) MUST be widened to accept a symmetric emphasis wrapper (`**...**` or `_..._`) around the caret and id, matching the rule `verveguy/liminis#1114` proposes for the resolver, so that the resolver's wrapper widening does not create a new badge/resolver disagreement (a wrapped non-ULID id resolving without ever badging).
-- **FR-007**: This issue's Branch B wrapper widening and `verveguy/liminis#1114`'s resolver widening MUST be treated as a matched pair — landing one without the other reintroduces disagreement (see the measured matrix in Background), so implementation must account for the two repositories' independent release cadences (e.g. feature-gating, or accepting a temporary window of disagreement, whichever Plan decides).
-- **FR-008**: ADR-122's amendment (FR-004) MUST additionally record the residual that wrapper support creates: a wrapped, non-ULID id that reads as ordinary formatting (e.g. `squared *^2*`) becomes both badged and resolved as a false anchor. This is accepted on the same grounds as the existing `^100` residual (a length/charset floor would break legitimate short ids).
+- **FR-001**: Branch A (`ULID_AT_CARET` and the try-A-then-B ordering in `findBlockAnchorMatches`) MUST be deleted. A ULID-shaped block anchor MUST be badged if and only if it satisfies the same position rule already applied to every other id form (caret starts a token; captured id runs to end of line, trailing whitespace permitted). No two-branch structure remains.
+- **FR-002**: `roundtrip/122-block-anchor/multiple-anchors.md`, `anchor-after-wikilink.md`, and `anchor-in-emphasis-strong.md` MUST be rewritten so each ULID sits at line end, continuing to exercise the same parser behavior each originally targeted (see Edge Cases for the per-fixture intent), and MUST continue to round-trip byte-identically.
+- **FR-003**: ADR-122 MUST be amended (not rewritten, per this repository's ADR convention) to record: (a) that mid-line ULID *definitions* were never a supported shape — the mid-line cases seen in production are wiki-link *references*, parsed position-independently, unaffected by this change; (b) that Branch A's carve-out and the ADR's original "length is the disambiguating signal" rationale are both superseded by this decision; (c) why — badge/resolver agreement is now total for every id form with no carve-out.
+- **FR-004**: The full `roundtrip/122-block-anchor/` fixture suite MUST pass after this change, and no fixture's assertion may silently change meaning without an explicit rewrite justified in the ADR-122 amendment.
+- **FR-005**: A shared case table listing id/position combinations and their expected accept/reject outcome MUST be built and consumed as this repository's badge-detection test source of truth, pinned against `verveguy/liminis`'s resolver rule (`verveguy/liminis#1109`, as widened by `verveguy/liminis#1114`), so a future divergence between the two repositories' rules fails a test rather than shipping silently.
 
 ### Key Entities
 
@@ -156,28 +126,30 @@ Not applicable — no new data entities.
 
 ### Measurable Outcomes
 
-- **SC-001**: Every badge/resolver disagreement this issue identifies for ULID position is either eliminated (Direction 1) or explicitly and permanently documented as an accepted gap (Direction 2), with no case left ambiguous.
-- **SC-002**: The `122-block-anchor` fixture corpus passes in full after this issue's changes.
-- **SC-003**: A reader of ADR-122 after this issue ships can determine, without consulting this issue's history, why the ULID branch has the position behavior it has, why Branch B accepts symmetric emphasis wrappers, and why `^100`-class and `squared *^2*`-class false positives are accepted residuals.
-- **SC-004**: Once both `verveguy/liminis#1114` and this issue's Branch B change have landed, the emphasis-wrapper matrix in Background shows agreement (not disagreement) for every row.
+- **SC-001**: Badge and resolver agree for every ULID-bearing fixture in `122-block-anchor` — full agreement, not the prior 12-of-14 — with no case left ambiguous.
+- **SC-002**: The `122-block-anchor` fixture corpus passes in full, including the three rewritten fixtures, byte-identical on round-trip.
+- **SC-003**: A reader of ADR-122 after this issue ships can determine, without consulting this issue's history, why Branch A was removed and why mid-line ULID definitions are not a supported shape.
+- **SC-004**: A shared cross-repo case table exists and is consumed by this repository's badge-detection tests as their source of truth (FR-005).
 
 ## Assumptions
 
-- The resolver (`verveguy/liminis`'s `fs.ts`, `verveguy/liminis#1109`, soon to be widened by `verveguy/liminis#1114`) is out of this issue's control in the sense that this repository cannot merge changes to it — but this issue's scope now includes making Branch B match `verveguy/liminis#1114`'s rule case-for-case (see FR-006–FR-008).
-- This issue's design vocabulary ("Branch A", "Branch B") describes #124's implementation as currently written on the unmerged `fabrik/issue-124` branch. If #124's implementation changes before this issue is implemented, this spec's references to specific branch behavior should be re-verified against #124's actual merged state.
-- A shared fixture list asserted against by both this repository and `verveguy/liminis` has been raised as a way to prevent future drift, but is not decided and not required by this issue.
+- This issue's implementation depends on #127 (`fabrik/issue-127`) merging first: #127 is concurrently rewriting Branch B's boundary/charset logic, and would conflict directly with deleting Branch A. Implementation MUST land after #127 merges to `main`, rebasing onto its changes.
+- The resolver (`verveguy/liminis`'s `fs.ts`) is out of this issue's control — it lives in a separate repository. This issue's shared case table (FR-005) coordinates with it without requiring a code change there.
+- This issue's design vocabulary ("Branch A", "Branch B") describes #124's implementation as merged to `main` (PR #125, `facc262f`) and as further modified by #127. Since #127 is still open (Validate stage) at spec time, verify against its actual merged state before implementing.
+- Production mid-line ULID occurrences are wiki-link references (`[[file#^id]]` / `![[file#^id]]`), not block-anchor definitions; those are parsed position-independently and are unaffected by this issue.
 
 ## Out of Scope
 
-- Implementing the resolver-side widening itself — that is `verveguy/liminis#1114`, in the separate `verveguy/liminis` repository. This issue only needs Branch B to match its rule.
-- The *position* gating Branch B already has from #124 (caret must start a token, id runs to end of line) — unchanged by this issue except for the wrapper allowance in FR-006.
+- Any change to the resolver's regex or behavior in `verveguy/liminis` (already merged as `verveguy/liminis#1114`/`#1115`).
+- Emphasis-wrapped block anchors and Branch B's charset/wrapper matching — entirely #127's territory; this issue makes no changes there beyond whatever #127 has already landed by the time this issue is implemented.
 - Migrating or changing how `liminis-framework`'s actions tooling writes anchors.
-- Building a shared fixture list between this repository and `verveguy/liminis` (see Assumptions) — a future idea, not required here.
+- Full cross-repo test wiring (e.g., a CI job in `verveguy/liminis` consuming this repository's table) beyond making the table exist and be this repository's source of truth — deeper integration is a candidate follow-up, not required here.
 
 ## Source References
 
 - Issue #122 (original ULID-only badge decision), `docs/decisions/adr-122-block-anchor-badge.md`
-- Issue #124 (widens non-ULID detection; introduces the Branch A/Branch B split this issue reasons about), `fabrik/issue-124` / PR #125 (open, unmerged)
-- `verveguy/liminis#1109` (resolver, merged, separate repository) — `/(?:^|\s)\^([^\s\]#]+)\s*$/`
-- `verveguy/liminis#1114` (resolver widening to accept a symmetric emphasis wrapper, separate repository, not yet merged)
+- Issue #124 (widened non-ULID detection; introduced the Branch A/Branch B split this issue removes), `fabrik/issue-124` / PR #125 — merged, `facc262f`
+- Issue #127 (`fabrik/issue-127`) — widens Branch B to accept a symmetric emphasis wrapper, paired with `verveguy/liminis#1114`; this issue's implementation must land after #127 merges
+- `verveguy/liminis#1109` (original resolver rule, merged, separate repository) — `/(?:^|\s)\^([^\s\]#]+)\s*$/`
+- `verveguy/liminis#1114` / PR `verveguy/liminis#1115` (resolver widened to accept a symmetric emphasis wrapper, merged, commit `19330368`, separate repository)
 - `src/app/mapper/__tests__/fixtures/roundtrip/122-block-anchor/` (the fixture corpus this issue reasons about)
