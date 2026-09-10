@@ -657,17 +657,61 @@ function splitTextNodeEscapes(node: any, normalizedText: string): any[] {
 const ULID_AT_CARET = /^\^[0-9A-HJKMNP-TV-Z]{26}(?![0-9A-HJKMNP-TV-Z])/;
 
 // Branch B: any other id shape the resolver and the reference-side wiki-link
-// parser already accept (`[^\s\]#]+` — `vendor/mdast-util-wiki-link/from-markdown.ts`
-// and `liminis-app/src/main/fs.ts`'s resolver), gated by the resolver's own
-// position rule — `/(?:^|\s)\^([^\s\]#]+)\s*$/` — instead of any charset or
-// length test: the caret must start a token (line-start or preceded by
+// parser already accept, gated by the resolver's own position rule — instead
+// of any length test: the caret must start a token (line-start or preceded by
 // whitespace), and the captured id must run to end of line (trailing
 // spaces/tabs allowed). This is what makes badge and resolver agree by
 // construction (#124/FR-002) for every id form *other* than ULID, without
 // touching ULID's own permissive rule or the fixtures that depend on it
 // (see ADR-122's amendment and the Plan stage's "Key Decisions").
-const WIDE_ID_CHAR = /[^\s\]#]/;
+//
+// The charset excludes `*` (in addition to `#`/`]`/whitespace) to match
+// `liminis-app/src/main/fs.ts`'s `ANCHOR_LINE_PATTERN`
+// (`[^\s\]#*]`) as actually implemented for `liminis#1114` — that resolver
+// pattern narrowed *both* its wrapped and unwrapped branches to exclude `*`,
+// unlike the stale, pre-implementation regex the #127 issue body quoted.
+// `_` stays allowed: excluding it would break the NanoID-with-underscore
+// case (#124/FR-004), and the resolver's own pattern allows it too.
+const WIDE_ID_CHAR = /[^\s\]#*]/;
+
+// Branch B, wrapper extension (#127): a symmetric emphasis wrapper (`**`,
+// `__`, `*`, `_`) around `^<id>` at line end badges too, so Branch B agrees
+// with the widened resolver (`liminis#1114`) for non-ULID ids the same way
+// Branch A already agrees for ULIDs. The wrapped id charset matches the
+// resolver's actual wrapped-branch charset (`[^\s\]#*]+?` in
+// `ANCHOR_LINE_PATTERN`) — same as `WIDE_ID_CHAR` above; kept as a distinct,
+// separately-named constant since the wrapped and unwrapped charsets are
+// independent knobs in the resolver's pattern and could diverge again.
+// Longest markers first so a `**`/`__` candidate is tried before its `*`/`_`
+// prefix.
+const WRAPPED_ID_CHAR = /[^\s\]#*]/;
+const WRAPPER_MARKERS = ['**', '__', '*', '_'];
 const isSpaceOrTab = (ch: string | undefined): boolean => ch === ' ' || ch === '\t';
+
+/**
+ * Look for one of `WRAPPER_MARKERS` immediately before `offset` in the raw,
+ * pre-parse `normalizedText`, itself preceded by whitespace or document
+ * start — the same left-boundary rule Branch B already applies to a bare
+ * caret, just one token further out. Returns the matched marker string, or
+ * `null` if none of them fit.
+ *
+ * This only needs to look *outside* the current text node (at `offset`, the
+ * node's own start) because a caret can only be adjacent to a *structural*
+ * wrapper marker when it is the first character of its own text node: if a
+ * literal `**`/`_` sat before the caret inside the same text node, that run
+ * of emphasis markers never found a matching closer and CommonMark left it
+ * as ordinary text, which the plain (non-wrapped) left-boundary check
+ * already handles correctly with no wrapper logic involved.
+ */
+function matchWrapperMarkerBefore(normalizedText: string, offset: number): string | null {
+  for (const marker of WRAPPER_MARKERS) {
+    const markerStart = offset - marker.length;
+    if (markerStart < 0) continue;
+    if (normalizedText.slice(markerStart, offset) !== marker) continue;
+    if (markerStart === 0 || /\s/.test(normalizedText[markerStart - 1])) return marker;
+  }
+  return null;
+}
 
 interface BlockAnchorMatch {
   /** Start offset (the `^`) within `decoded`. */
@@ -691,6 +735,19 @@ interface BlockAnchorMatch {
  * when that prose lives in a following sibling node (e.g. a wiki-link right
  * after the id), and correctly accept one immediately after a preceding
  * sibling ends with whitespace.
+ *
+ * Branch B also accepts a symmetric emphasis wrapper (`**`, `__`, `*`, `_`)
+ * around the id at line end (#127), using the same outside-the-node peek:
+ * when the caret is the first character of this text node (`i === 0`) and
+ * the plain whitespace/start rule doesn't hold, it peeks backward for a
+ * wrapper marker; when one is found, the id must then run to this text
+ * node's own end (`idEnd === decoded.length`) and be followed immediately
+ * by the *same* marker string before the usual trailing-whitespace/EOL
+ * check. Both `i === 0` and `idEnd === decoded.length` are load-bearing
+ * invariants, not incidental: they are exactly the positions at which a
+ * *structural* wrapper marker (one CommonMark parsed as real emphasis,
+ * rather than literal text left over from an unmatched delimiter run) can
+ * be adjacent to the caret/id at all — see `matchWrapperMarkerBefore`.
  */
 function findBlockAnchorMatches(
   decoded: string,
@@ -713,12 +770,21 @@ function findBlockAnchorMatches(
       continue;
     }
 
-    // Left boundary: preceded by whitespace, or true document start.
+    // Left boundary: preceded by whitespace, or true document start — or,
+    // when the caret is the first character of this text node, a symmetric
+    // emphasis wrapper immediately before it (#127). That `i === 0` gate is
+    // load-bearing: it's the only position at which a *structural* wrapper
+    // marker (one CommonMark actually parsed as emphasis, not literal text)
+    // can sit immediately before the caret — see `matchWrapperMarkerBefore`.
     const leftOk = i > 0 ? /\s/.test(decoded[i - 1]) : start === 0 || /\s/.test(normalizedText[start - 1]);
-    if (!leftOk) continue;
+    let wrapMarker: string | null = null;
+    if (!leftOk) {
+      if (i === 0) wrapMarker = matchWrapperMarkerBefore(normalizedText, start);
+      if (!wrapMarker) continue;
+    }
 
-    // Id capture: greedy run of non-whitespace, non-`]`, non-`#`, tested
-    // against `decoded` rather than raw source. A backslash-escaped `#` or
+    // Id capture: greedy run of non-whitespace, non-`]`, non-`#`, non-`*`,
+    // tested against `decoded` rather than raw source. A backslash-escaped `#` or
     // `]` inside an id (`^abc\#def`) therefore truncates the capture one
     // character earlier than a regex run over raw, undecoded file text
     // would (the resolver's own matching model) — but this never produces a
@@ -729,8 +795,14 @@ function findBlockAnchorMatches(
     // in both models alike whenever this truncation is reachable. See the
     // "does not badge an id containing a backslash-escaped delimiter"
     // regression test.
+    //
+    // When wrapped, `WRAPPED_ID_CHAR` applies instead of `WIDE_ID_CHAR` (see
+    // their definitions) — currently identical charsets, kept as separate
+    // named constants since the resolver's wrapped/unwrapped branches are
+    // independent knobs that could diverge again.
+    const idCharTest = wrapMarker ? WRAPPED_ID_CHAR : WIDE_ID_CHAR;
     let idEnd = i + 1;
-    while (idEnd < decoded.length && WIDE_ID_CHAR.test(decoded[idEnd])) idEnd++;
+    while (idEnd < decoded.length && idCharTest.test(decoded[idEnd])) idEnd++;
     // Empty capture: the character right after `^` is already whitespace
     // (or end of text), e.g. `a ^ b`, `a ^`, `x ^\t`. `a ^ b` would also be
     // rejected by the right-boundary check below regardless (the trailing
@@ -743,15 +815,33 @@ function findBlockAnchorMatches(
     // Right boundary: only trailing spaces/tabs before end of line or end of
     // document — peeking past this node's own end into `normalizedText` if
     // the capture runs all the way to it.
-    let j = idEnd;
-    while (j < decoded.length && isSpaceOrTab(decoded[j])) j++;
+    //
+    // When wrapped, the closer is required instead: the id capture must run
+    // all the way to this text node's own end (the mirror image of the
+    // `i === 0` left-boundary gate — a structural closer can only be
+    // adjacent to the id there), the exact same marker string that opened
+    // it must appear immediately after, and only trailing spaces/tabs and
+    // end-of-line/end-of-document may follow that. No fallback to the
+    // unwrapped rule on mismatch — an asymmetric wrapper (e.g. `**^id_`)
+    // must never badge with a corrupted id (#127/SC-003).
     let rightOk: boolean;
-    if (j < decoded.length) {
-      rightOk = decoded[j] === '\n';
-    } else {
-      let pos = end;
+    if (wrapMarker) {
+      if (idEnd !== decoded.length) continue;
+      const closerEnd = end + wrapMarker.length;
+      if (normalizedText.slice(end, closerEnd) !== wrapMarker) continue;
+      let pos = closerEnd;
       while (pos < normalizedText.length && isSpaceOrTab(normalizedText[pos])) pos++;
       rightOk = pos === normalizedText.length || normalizedText[pos] === '\n';
+    } else {
+      let j = idEnd;
+      while (j < decoded.length && isSpaceOrTab(decoded[j])) j++;
+      if (j < decoded.length) {
+        rightOk = decoded[j] === '\n';
+      } else {
+        let pos = end;
+        while (pos < normalizedText.length && isSpaceOrTab(normalizedText[pos])) pos++;
+        rightOk = pos === normalizedText.length || normalizedText[pos] === '\n';
+      }
     }
     if (!rightOk) continue;
 

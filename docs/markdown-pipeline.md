@@ -314,7 +314,7 @@ is called at each level. Removing either turns an authoring mistake into an
 infinite loop or unbounded recursion instead of a contained "circular
 transclusion"/"nested too deeply" indicator.
 
-## Block anchor badges (#122, widened by #124)
+## Block anchor badges (#122, widened by #124 and #127)
 
 A block anchor — a bare `^ULID` at its *definition* site, most commonly
 trailing an action-item checkbox (`- [ ] ... ^01M00VDX0S4JHMDNA7F776Y8R8`) —
@@ -397,11 +397,13 @@ line.
 accept — raw-decimal snowflake ids, NanoID-style ids with `_`/`-`, mixed-case
 base62, UUID-shaped hyphenated ids, short alphanumeric ids — badges if and
 only if the caret starts a token (line-start or preceded by whitespace) and
-the captured id (`[^\s\]#]+`, the same charset the wiki-link reference side
-and the resolver use) runs to end of line, i.e. `/(?:^|\s)\^([^\s\]#]+)\s*$/`
-applied against the text run. This is the resolver's own regex
-(`liminis-app/src/main/fs.ts`, verveguy/liminis#1109) adopted verbatim, so
-badge and resolver agree by construction rather than by coincidence.
+the captured id (`WIDE_ID_CHAR`, the same charset the wiki-link reference
+side and the resolver use) runs to end of line. This is the resolver's own
+regex (`liminis-app/src/main/fs.ts`, verveguy/liminis#1109) adopted verbatim,
+so badge and resolver agree by construction rather than by coincidence. (At
+the time #124 shipped, `WIDE_ID_CHAR` was `[^\s\]#]+`; #127 later narrowed it
+to also exclude `*`, matching a further narrowing the resolver itself picked
+up for `liminis#1114` — see below.)
 
 **Why two branches instead of one universal rule.** Applying Branch B's
 position rule to ULID as well was considered and rejected: #122's own
@@ -425,6 +427,60 @@ onward — since a preceding/following sibling (e.g. a wiki-link) has no
 character of its own for the matcher to inspect directly. This is
 equivalent to inspecting the sibling node and needs no AST traversal to do
 it.
+
+**Branch B, wrapper extension (added by #127): a symmetric emphasis wrapper
+at line end.** `**^a1b2c3**`, `__^a1b2c3__`, `*^a1b2c3*` and `_^a1b2c3_` all
+badge `a1b2c3` — matching `verveguy/liminis#1114`'s widened resolver, which
+accepts the same wrapped shape. Without this, widening the resolver alone
+would reopen #124's defect in the opposite direction: `**^<ULID>**` already
+badges today via Branch A (unconstrained by position), but a wrapped
+*non*-ULID id would resolve under the widened resolver without ever
+badging.
+
+When CommonMark parses `**^a1b2c3**` as real emphasis, the wrapper
+characters are consumed into the *parent* `strong`/`emphasis` node's
+position span — they never appear in the inner `text` node's own
+`decoded`/`value`. That has a useful structural consequence: a caret can
+only be adjacent to a *structural* wrapper marker when it is the first
+character of its own text node (`i === 0`), and a closer only when the id
+capture runs all the way to that same node's own end
+(`idEnd === decoded.length`) — outside those two positions, whatever
+wrapper-like characters are present are literal text left over from an
+unmatched delimiter run, already correctly rejected by the plain rule with
+no wrapper logic involved. Gating wrapper detection on both invariants
+means the extension is just two more raw-character peeks into the
+surrounding normalized text (`matchWrapperMarkerBefore` on the open side,
+an exact-string check on the close side), the same style Branch B's plain
+whitespace boundary already uses — no need to pass the enclosing
+`strong`/`emphasis` node's type, marker, or position down through the tree
+walk.
+
+The wrapped id charset (`WRAPPED_ID_CHAR`, `[^\s\]#*]`) matches the
+resolver's actual wrapped-branch charset as implemented for `liminis#1114`
+(`ANCHOR_LINE_PATTERN`'s `[^\s\]#*]+?` wrapped-id group) — it excludes `*`
+but allows `_`, since `_` is a legitimate character in ids like
+`V1StGXR8_Z5jdHi6B-myT` (NanoID) and `snake_case_id`. `WIDE_ID_CHAR` (the
+unwrapped path) uses the same charset: the resolver's implemented pattern
+narrowed *both* its wrapped and unwrapped branches to exclude `*`, not just
+the wrapped one, so the two constants are currently identical — kept as
+separate names since they're independent knobs in the resolver's pattern
+that could diverge again. Neither excludes `_`: doing so would regress the
+NanoID-with-underscore case (`^V1StGXR8_Z5jdHi6B-myT`, #124/FR-004), and the
+resolver doesn't exclude it either.
+
+The closer must be the *exact same marker string* that opened it — not an
+independently optional match — so an asymmetric wrapper (`item **^<ULID>_`)
+is rejected outright rather than captured with a corrupted id. (That
+specific example still badges the clean ULID via Branch A, which ignores
+wrapper symmetry entirely — Branch A is untouched by #127 — but never via a
+Branch B wrapper match.) Wrapper forms other than `**`/`__`/`*`/`_` — triple
+emphasis (`***…***`), strikethrough (`~~…~~`), backtick-wrapped, and
+paren-wrapped — stay unhandled by design: `WRAPPER_MARKERS` only lists the
+four forms `liminis#1114`'s resolver pattern accepts. `squared *^2*`
+becomes a badged-and-resolved false anchor as a result of this widening —
+accepted deliberately, for the same reason a minimum-length floor was
+already rejected for `^100` in #124 (excluding it would also exclude
+legitimate short ids like `^a1b2c3`). See ADR-122's 2026-09-10 amendment.
 
 ### The Lexical side: `BlockAnchorNode`, mirroring `FootnoteNode`
 

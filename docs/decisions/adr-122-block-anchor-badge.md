@@ -253,13 +253,128 @@ rather than introducing a new popover/menu affordance.
 > "protected ranges" machinery. See `specs/124-widen-block-anchor-badge/spec.md`
 > for the full analysis, including the rejected `^=`-sigil alternative.
 
+> **Amended 2026-09-10 (#127) — Branch B now accepts a symmetric emphasis
+> wrapper at line end, for resolver parity.** `verveguy/liminis#1114` widens
+> the resolver's `ANCHOR_LINE_PATTERN` to accept `**^id**`/`__^id__`/
+> `*^id*`/`_^id_` at line end, matching an id it previously rejected. Left
+> unmirrored, this would reopen #124's defect in the opposite direction:
+> `**^<ULID>**` already badges today, but only via Branch A (unconstrained
+> by position, §"Decision" above and the first amendment's "kept exactly as
+> shipped"); Branch B still demanded whitespace immediately before the
+> caret, so a wrapped *non*-ULID id (e.g. `**^a1b2c3**`) would resolve under
+> the widened resolver without ever badging — a new badge/resolver
+> disagreement, in the same failure mode #124 fixed the first time.
+>
+> Branch B's left/right boundary checks were extended, not replaced: when
+> the plain whitespace/start rule fails but the caret is the first character
+> of its own text node, a backward peek into the surrounding raw text looks
+> for one of `**`/`__`/`*`/`_` immediately before the node, itself preceded
+> by whitespace or document start; when found, the id must then run to that
+> same text node's own end and be followed immediately by the *exact same*
+> marker string, before the usual trailing-whitespace/end-of-line check.
+> Both position invariants (caret at the node's start, id at the node's end)
+> are load-bearing: they are exactly the positions at which a *structural*
+> wrapper marker — one CommonMark actually parsed as emphasis, as opposed to
+> literal text left over from an unmatched delimiter run — can be adjacent
+> to the caret/id at all. This is what lets the extension stay a same-style
+> raw-text peek, the technique §2's post-parse pass and the first
+> amendment's position rule both already use, rather than requiring parent-
+> node type/marker/position to be threaded down through the tree walk.
+>
+> Three consequences of this widening are accepted deliberately, not left as
+> undocumented surprises:
+>
+> 1. **`squared *^2*` becomes a badged-and-resolved false anchor.** This is
+>    the same class of residual the first amendment already accepted for
+>    `^100` at line end, for the same reason: any length floor that would
+>    exclude `^2` also excludes legitimate short ids like `^a1b2c3`, which
+>    #124 exists to badge. Wrapping the id in emphasis does not change that
+>    tension, so the same residual is accepted here rather than re-litigated.
+> 2. **An asymmetric wrapper is rejected, not partially matched.**
+>    `item **^<ULID>_` (opening `**`, closing `_`) does not badge via Branch
+>    B's wrapper rule with a corrupted id such as `<ULID>_` — the exact-
+>    string closer check fails closed on any mismatch, including uneven
+>    delimiter-run lengths (`**^id*`). (That specific ULID example still
+>    badges — the clean, uncorrupted id — but via Branch A, which has always
+>    ignored wrapper symmetry entirely and is untouched by this amendment.)
+> 3. **Wrapper forms other than `**`/`__`/`*`/`_` remain unhandled, by
+>    design.** Triple emphasis (`***…***`), strikethrough (`~~…~~`),
+>    backtick-wrapped (`` `^id` ``), and paren-wrapped (`(^id)`) forms stay
+>    unresolved and unbadged — not a general "any wrapper" rule, because
+>    `liminis#1114`'s resolver pattern only accepts these four marker forms;
+>    matching a wrapper the resolver doesn't would reopen the same
+>    disagreement this amendment exists to close, just in the other
+>    direction.
+>
+> The wrapped path's id charset (`[^\s\]#*_]`) additionally excludes `*` and
+> `_`, matching the resolver's own corrected wrapped-branch charset. The
+> *unwrapped* path's charset (§"#124 amendment" above) is deliberately left
+> untouched — narrowing it to match would regress #124's own NanoID-with-
+> underscore regression test (`^V1StGXR8_Z5jdHi6B-myT`, FR-004), which
+> `liminis#1114`'s corrected pattern would otherwise also exclude. This is a
+> known, narrow point of divergence from resolver charset parity, confined
+> to ids that legitimately contain `*`/`_` *and* are wrapped in emphasis —
+> flagged for whoever coordinates `liminis#1114`'s own Implement stage, not
+> something this issue's code works around.
+>
+> Branch A and its try-first ordering are untouched by this amendment; the
+> existing `checkbox-anchor-formatted.md` fixture (a bold-wrapped and an
+> italic-wrapped ULID, each at end of line) already badged both anchors
+> before this change, via Branch A, and continues to do so unchanged. See
+> `specs/127-widen-branch-b-to/spec.md` for the full analysis, including why
+> the regex FR-2 originally quoted from the issue body was itself found to
+> have a corrupted-id bug and was not ported literally.
+
+> **Amended 2026-09-10 (#127, correction) — `WRAPPED_ID_CHAR` wrongly
+> excluded `_`; `WIDE_ID_CHAR` now matches the resolver's actual narrowed
+> charset too.** The amendment above, written before `liminis#1114`'s
+> Implement stage landed, assumed its corrected wrapped-branch charset
+> excluded both `*` and `_`. Checked against `liminis-app/src/main/fs.ts` as
+> actually implemented on `verveguy/liminis`'s `fabrik/issue-1114` branch,
+> `ANCHOR_LINE_PATTERN` is:
+> ```
+> /(?:^|\s)(?:(\*\*|__|\*|_)\^(?<wrappedId>[^\s\]#*]+?)\1|\^(?<unwrappedId>[^\s\]#*]+))\s*$/
+> ```
+> Both the wrapped and unwrapped id groups are `[^\s\]#*]` — excluding `*`
+> only. Two things followed from the earlier, incorrect assumption:
+>
+> 1. `WRAPPED_ID_CHAR` (`[^\s\]#*_]`) wrongly excluded `_` as well, so a
+>    wrapped id containing an underscore — a bold-wrapped NanoID
+>    (`**^V1StGXR8_Z5jdHi6B-myT**`) or an ordinary `snake_case` id — resolved
+>    under the widened resolver but never badged: the exact disagreement this
+>    issue exists to close, reintroduced in the wrapped case specifically.
+> 2. `WIDE_ID_CHAR` (`[^\s\]#]`, the *unwrapped* path, inherited from #124)
+>    still admitted `*`, while the resolver's implemented pattern narrowed
+>    its unwrapped branch too — so an unwrapped id containing `*` (e.g.
+>    `^ab*cd`) badged but never resolved. No known id format (ULID, NanoID,
+>    base62, snowflake, UUID) contains `*`, so this was lower practical risk
+>    than [1], but the same drift in the other direction.
+>
+> Fixed by narrowing `WIDE_ID_CHAR` to `[^\s\]#*]` (dropping `*`, keeping
+> `_`) and correcting `WRAPPED_ID_CHAR` to the same `[^\s\]#*]` (dropping the
+> wrongful `_` exclusion, keeping the `*` exclusion). The two constants are
+> now identical in value; they stay separate, named constants because the
+> resolver's wrapped and unwrapped charsets are independent knobs in
+> `ANCHOR_LINE_PATTERN` that happen to currently agree, not because they are
+> structurally required to.
+>
+> This is the second time these two independently-maintained rules have
+> drifted while both issues were still open — the first was #124's original
+> defect (the reason this ADR exists), the second is this correction. A
+> shared, cross-repo fixture/case-list — noted as a candidate follow-up in
+> `specs/127-widen-branch-b-to/spec.md`'s Out of Scope section and not
+> pursued there — would turn the next such drift into a test failure in both
+> repositories rather than something caught by manual cross-checking.
+
 ## References
 
 - Issue #122 (this decision)
 - Issue #124 (2026-09-09 amendment above — widened detection beyond ULID)
-- `docs/markdown-pipeline.md` ("Block anchor badges (#122)" section — the
-  detection regex, the post-parse text-split technique, and the round-trip
-  contract)
+- Issue #127 (2026-09-10 amendment above — widened Branch B to badge
+  emphasis-wrapped ids, for parity with `verveguy/liminis#1114`)
+- `docs/markdown-pipeline.md` ("Block anchor badges (#122, widened by #124
+  and #127)" section — the detection regex, the wrapper extension, the
+  post-parse text-split technique, and the round-trip contract)
 - `docs/decisions/adr-119-block-transclusion.md` (the `#^blockId` reference-
   side pattern this issue's regex is deliberately narrower than, and the
   embed-marker sentinel technique this issue's post-parse approach is
@@ -267,4 +382,6 @@ rather than introducing a new popover/menu affordance.
 - `src/markdown/vendor/mdast-util-wiki-link/from-markdown.ts` (`BLOCK_ID_PATTERN`,
   the reference-side pattern cited above)
 - `src/app/mapper/__tests__/fixtures/roundtrip/122-block-anchor/` (the
-  round-trip fixture corpus backing FR-002/SC-002/SC-004/SC-005)
+  round-trip fixture corpus backing FR-002/SC-002/SC-004/SC-005, including
+  `checkbox-anchor-formatted.md`'s wrapped-ULID case FR-3/SC-002 (#127)
+  keeps passing)
