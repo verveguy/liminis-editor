@@ -1034,6 +1034,17 @@ $$`
     // rather than `ANCHOR_LINE_PATTERN` as actually shipped for
     // `liminis#1114` ([^\s\]#*]` — excludes `*` only, on both its wrapped
     // and unwrapped branches). See ADR-122's 2026-09-10 correction amendment.
+    //
+    // This case list is asserted against the resolver's actual, merged
+    // `ANCHOR_LINE_PATTERN` (`verveguy/liminis`, `liminis-app/src/main/fs.ts`,
+    // main @ 19330368) and is intended to stay in lockstep with the mirror
+    // case list in that repo's `liminis-app/src/main/__tests__/
+    // fs-transclusion.test.ts`, describe blocks `'emphasis-wrapped anchors
+    // (FR-001 / FR-003 / FR-008 / issue #1114)'` and `'unwrapped anchors are
+    // unaffected by the wrapped-anchor widening (FR-004)'` — which already
+    // caught this exact underscore regression independently on that side
+    // ("review finding: regression"). These two rules have now drifted twice
+    // while both were open; if either suite's cases change, check the other.
     it.each([
       ['**', '**'],
       ['__', '__'],
