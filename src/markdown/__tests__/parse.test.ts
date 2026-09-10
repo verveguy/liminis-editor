@@ -1028,6 +1028,54 @@ $$`
       const output = stringifyMarkdown(result.root)
       expect(output).toBe(markdown)
     })
+
+    // Validate-stage correction: WRAPPED_ID_CHAR originally excluded `_`,
+    // matching a stale, pre-implementation reading of the resolver's regex
+    // rather than `ANCHOR_LINE_PATTERN` as actually shipped for
+    // `liminis#1114` ([^\s\]#*]` — excludes `*` only, on both its wrapped
+    // and unwrapped branches). See ADR-122's 2026-09-10 correction amendment.
+    it.each([
+      ['**', '**'],
+      ['__', '__'],
+      ['*', '*'],
+      ['_', '_'],
+    ])(
+      'badges a %s-wrapped NanoID-shaped id containing an underscore, matching the resolver (ADR-122 correction)',
+      (open, close) => {
+        const id = 'V1StGXR8_Z5jdHi6B-myT'
+        const result = parseMarkdown(`item ${open}^${id}${close}`)
+        const paragraph = result.root.children[0] as any
+        const wrapper = paragraph.children.find((c: any) => c.type === 'strong' || c.type === 'emphasis')
+        expect(wrapper).toBeDefined()
+        const anchor = wrapper.children.find((c: any) => c.type === 'blockAnchor')
+        expect(anchor).toBeDefined()
+        expect(anchor.id).toBe(id)
+      },
+    )
+
+    it.each([
+      ['**', '**'],
+      ['*', '*'],
+    ])('badges a %s-wrapped snake_case id, matching the resolver (ADR-122 correction)', (open, close) => {
+      const result = parseMarkdown(`item ${open}^snake_case_id${close}`)
+      const paragraph = result.root.children[0] as any
+      const wrapper = paragraph.children.find((c: any) => c.type === 'strong' || c.type === 'emphasis')
+      expect(wrapper).toBeDefined()
+      const anchor = wrapper.children.find((c: any) => c.type === 'blockAnchor')
+      expect(anchor).toBeDefined()
+      expect(anchor.id).toBe('snake_case_id')
+    })
+
+    it.each([
+      ['item ^ab*cd', 'a * in the middle of an unwrapped id'],
+      ['item ^abc*', 'a trailing * in an unwrapped id'],
+    ])(
+      'does not badge an unwrapped id containing `*` (%s: %s), matching the resolver (ADR-122 correction)',
+      (markdown) => {
+        const children = paragraphChildren(markdown)
+        expect(children.some((c: any) => c.type === 'blockAnchor')).toBe(false)
+      },
+    )
   })
 })
 

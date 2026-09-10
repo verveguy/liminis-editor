@@ -397,11 +397,13 @@ line.
 accept — raw-decimal snowflake ids, NanoID-style ids with `_`/`-`, mixed-case
 base62, UUID-shaped hyphenated ids, short alphanumeric ids — badges if and
 only if the caret starts a token (line-start or preceded by whitespace) and
-the captured id (`[^\s\]#]+`, the same charset the wiki-link reference side
-and the resolver use) runs to end of line, i.e. `/(?:^|\s)\^([^\s\]#]+)\s*$/`
-applied against the text run. This is the resolver's own regex
-(`liminis-app/src/main/fs.ts`, verveguy/liminis#1109) adopted verbatim, so
-badge and resolver agree by construction rather than by coincidence.
+the captured id (`WIDE_ID_CHAR`, the same charset the wiki-link reference
+side and the resolver use) runs to end of line. This is the resolver's own
+regex (`liminis-app/src/main/fs.ts`, verveguy/liminis#1109) adopted verbatim,
+so badge and resolver agree by construction rather than by coincidence. (At
+the time #124 shipped, `WIDE_ID_CHAR` was `[^\s\]#]+`; #127 later narrowed it
+to also exclude `*`, matching a further narrowing the resolver itself picked
+up for `liminis#1114` — see below.)
 
 **Why two branches instead of one universal rule.** Applying Branch B's
 position rule to ULID as well was considered and rejected: #122's own
@@ -453,12 +455,18 @@ whitespace boundary already uses — no need to pass the enclosing
 `strong`/`emphasis` node's type, marker, or position down through the tree
 walk.
 
-The wrapped id charset (`WRAPPED_ID_CHAR`, `[^\s\]#*_]`) is stricter than
-the unwrapped path's `WIDE_ID_CHAR` — it additionally excludes `*` and
-`_` — matching the resolver's own corrected wrapped-branch charset. The
-*unwrapped* path's `WIDE_ID_CHAR` is deliberately untouched: narrowing it
-too would regress the NanoID-with-underscore case (`^V1StGXR8_Z5jdHi6B-myT`,
-#124/FR-004).
+The wrapped id charset (`WRAPPED_ID_CHAR`, `[^\s\]#*]`) matches the
+resolver's actual wrapped-branch charset as implemented for `liminis#1114`
+(`ANCHOR_LINE_PATTERN`'s `[^\s\]#*]+?` wrapped-id group) — it excludes `*`
+but allows `_`, since `_` is a legitimate character in ids like
+`V1StGXR8_Z5jdHi6B-myT` (NanoID) and `snake_case_id`. `WIDE_ID_CHAR` (the
+unwrapped path) uses the same charset: the resolver's implemented pattern
+narrowed *both* its wrapped and unwrapped branches to exclude `*`, not just
+the wrapped one, so the two constants are currently identical — kept as
+separate names since they're independent knobs in the resolver's pattern
+that could diverge again. Neither excludes `_`: doing so would regress the
+NanoID-with-underscore case (`^V1StGXR8_Z5jdHi6B-myT`, #124/FR-004), and the
+resolver doesn't exclude it either.
 
 The closer must be the *exact same marker string* that opened it — not an
 independently optional match — so an asymmetric wrapper (`item **^<ULID>_`)

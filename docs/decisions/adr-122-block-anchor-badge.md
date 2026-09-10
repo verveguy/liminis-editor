@@ -325,6 +325,47 @@ rather than introducing a new popover/menu affordance.
 > the regex FR-2 originally quoted from the issue body was itself found to
 > have a corrupted-id bug and was not ported literally.
 
+> **Amended 2026-09-10 (#127, correction) — `WRAPPED_ID_CHAR` wrongly
+> excluded `_`; `WIDE_ID_CHAR` now matches the resolver's actual narrowed
+> charset too.** The amendment above, written before `liminis#1114`'s
+> Implement stage landed, assumed its corrected wrapped-branch charset
+> excluded both `*` and `_`. Checked against `liminis-app/src/main/fs.ts` as
+> actually implemented on `verveguy/liminis`'s `fabrik/issue-1114` branch,
+> `ANCHOR_LINE_PATTERN` is:
+> ```
+> /(?:^|\s)(?:(\*\*|__|\*|_)\^(?<wrappedId>[^\s\]#*]+?)\1|\^(?<unwrappedId>[^\s\]#*]+))\s*$/
+> ```
+> Both the wrapped and unwrapped id groups are `[^\s\]#*]` — excluding `*`
+> only. Two things followed from the earlier, incorrect assumption:
+>
+> 1. `WRAPPED_ID_CHAR` (`[^\s\]#*_]`) wrongly excluded `_` as well, so a
+>    wrapped id containing an underscore — a bold-wrapped NanoID
+>    (`**^V1StGXR8_Z5jdHi6B-myT**`) or an ordinary `snake_case` id — resolved
+>    under the widened resolver but never badged: the exact disagreement this
+>    issue exists to close, reintroduced in the wrapped case specifically.
+> 2. `WIDE_ID_CHAR` (`[^\s\]#]`, the *unwrapped* path, inherited from #124)
+>    still admitted `*`, while the resolver's implemented pattern narrowed
+>    its unwrapped branch too — so an unwrapped id containing `*` (e.g.
+>    `^ab*cd`) badged but never resolved. No known id format (ULID, NanoID,
+>    base62, snowflake, UUID) contains `*`, so this was lower practical risk
+>    than [1], but the same drift in the other direction.
+>
+> Fixed by narrowing `WIDE_ID_CHAR` to `[^\s\]#*]` (dropping `*`, keeping
+> `_`) and correcting `WRAPPED_ID_CHAR` to the same `[^\s\]#*]` (dropping the
+> wrongful `_` exclusion, keeping the `*` exclusion). The two constants are
+> now identical in value; they stay separate, named constants because the
+> resolver's wrapped and unwrapped charsets are independent knobs in
+> `ANCHOR_LINE_PATTERN` that happen to currently agree, not because they are
+> structurally required to.
+>
+> This is the second time these two independently-maintained rules have
+> drifted while both issues were still open — the first was #124's original
+> defect (the reason this ADR exists), the second is this correction. A
+> shared, cross-repo fixture/case-list — noted as a candidate follow-up in
+> `specs/127-widen-branch-b-to/spec.md`'s Out of Scope section and not
+> pursued there — would turn the next such drift into a test failure in both
+> repositories rather than something caught by manual cross-checking.
+
 ## References
 
 - Issue #122 (this decision)

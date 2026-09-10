@@ -657,27 +657,34 @@ function splitTextNodeEscapes(node: any, normalizedText: string): any[] {
 const ULID_AT_CARET = /^\^[0-9A-HJKMNP-TV-Z]{26}(?![0-9A-HJKMNP-TV-Z])/;
 
 // Branch B: any other id shape the resolver and the reference-side wiki-link
-// parser already accept (`[^\s\]#]+` — `vendor/mdast-util-wiki-link/from-markdown.ts`
-// and `liminis-app/src/main/fs.ts`'s resolver), gated by the resolver's own
-// position rule — `/(?:^|\s)\^([^\s\]#]+)\s*$/` — instead of any charset or
-// length test: the caret must start a token (line-start or preceded by
+// parser already accept, gated by the resolver's own position rule — instead
+// of any length test: the caret must start a token (line-start or preceded by
 // whitespace), and the captured id must run to end of line (trailing
 // spaces/tabs allowed). This is what makes badge and resolver agree by
 // construction (#124/FR-002) for every id form *other* than ULID, without
 // touching ULID's own permissive rule or the fixtures that depend on it
 // (see ADR-122's amendment and the Plan stage's "Key Decisions").
-const WIDE_ID_CHAR = /[^\s\]#]/;
+//
+// The charset excludes `*` (in addition to `#`/`]`/whitespace) to match
+// `liminis-app/src/main/fs.ts`'s `ANCHOR_LINE_PATTERN`
+// (`[^\s\]#*]`) as actually implemented for `liminis#1114` — that resolver
+// pattern narrowed *both* its wrapped and unwrapped branches to exclude `*`,
+// unlike the stale, pre-implementation regex the #127 issue body quoted.
+// `_` stays allowed: excluding it would break the NanoID-with-underscore
+// case (#124/FR-004), and the resolver's own pattern allows it too.
+const WIDE_ID_CHAR = /[^\s\]#*]/;
 
 // Branch B, wrapper extension (#127): a symmetric emphasis wrapper (`**`,
 // `__`, `*`, `_`) around `^<id>` at line end badges too, so Branch B agrees
 // with the widened resolver (`liminis#1114`) for non-ULID ids the same way
-// Branch A already agrees for ULIDs. The wrapped id charset is stricter than
-// `WIDE_ID_CHAR` — it excludes `*`/`_` — matching the resolver's corrected
-// wrapped-branch charset; the *unwrapped* path keeps `WIDE_ID_CHAR` exactly
-// as-is; narrowing it too would regress the NanoID-with-underscore case
-// (#124/FR-004). Longest markers first so a `**`/`__` candidate is tried
-// before its `*`/`_` prefix.
-const WRAPPED_ID_CHAR = /[^\s\]#*_]/;
+// Branch A already agrees for ULIDs. The wrapped id charset matches the
+// resolver's actual wrapped-branch charset (`[^\s\]#*]+?` in
+// `ANCHOR_LINE_PATTERN`) — same as `WIDE_ID_CHAR` above; kept as a distinct,
+// separately-named constant since the wrapped and unwrapped charsets are
+// independent knobs in the resolver's pattern and could diverge again.
+// Longest markers first so a `**`/`__` candidate is tried before its `*`/`_`
+// prefix.
+const WRAPPED_ID_CHAR = /[^\s\]#*]/;
 const WRAPPER_MARKERS = ['**', '__', '*', '_'];
 const isSpaceOrTab = (ch: string | undefined): boolean => ch === ' ' || ch === '\t';
 
@@ -776,8 +783,8 @@ function findBlockAnchorMatches(
       if (!wrapMarker) continue;
     }
 
-    // Id capture: greedy run of non-whitespace, non-`]`, non-`#`, tested
-    // against `decoded` rather than raw source. A backslash-escaped `#` or
+    // Id capture: greedy run of non-whitespace, non-`]`, non-`#`, non-`*`,
+    // tested against `decoded` rather than raw source. A backslash-escaped `#` or
     // `]` inside an id (`^abc\#def`) therefore truncates the capture one
     // character earlier than a regex run over raw, undecoded file text
     // would (the resolver's own matching model) — but this never produces a
@@ -789,8 +796,10 @@ function findBlockAnchorMatches(
     // "does not badge an id containing a backslash-escaped delimiter"
     // regression test.
     //
-    // When wrapped, the stricter `WRAPPED_ID_CHAR` charset applies instead
-    // (see its definition) — the unwrapped charset is untouched.
+    // When wrapped, `WRAPPED_ID_CHAR` applies instead of `WIDE_ID_CHAR` (see
+    // their definitions) — currently identical charsets, kept as separate
+    // named constants since the resolver's wrapped/unwrapped branches are
+    // independent knobs that could diverge again.
     const idCharTest = wrapMarker ? WRAPPED_ID_CHAR : WIDE_ID_CHAR;
     let idEnd = i + 1;
     while (idEnd < decoded.length && idCharTest.test(decoded[idEnd])) idEnd++;
