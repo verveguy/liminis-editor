@@ -174,11 +174,6 @@ Not applicable — no new data entities.
 - Migrating or changing how `liminis-framework`'s actions tooling writes anchors.
 - Building a shared fixture list between this repository and `verveguy/liminis` (see Assumptions) — a future idea, not required here.
 
-## Open Questions
-
-- [ ] **Q1 — Direction**: Should the badge detector's ULID branch be widened to require the same end-of-line position as every other id form, collapsing #124's two-branch design into one universal rule (Direction 1 — requires rewriting `multiple-anchors.md`, `anchor-after-wikilink.md`, and `anchor-in-emphasis-strong.md` to move their ULIDs to line end)? Or should Branch A remain deliberately permissive exactly as #124 designed it, with this issue producing only a documentation update (Direction 2 — no code or fixture change)?
-- [ ] **Q3 — Sequencing**: This issue's target state is expressed in terms of the Branch A/Branch B split #124 introduces, but #124 (`fabrik/issue-124`, PR #125) has not yet merged to `main`. Should Research/Plan for this issue proceed now against #124's branch state (accepting that a rebase may be needed once #124 merges), or should this issue wait until #124 has merged to `main` before continuing past Specify? This also affects sequencing against `verveguy/liminis#1114`, which lives in a different repository with its own release cadence — should this issue's Branch B change be implemented and merged ahead of the resolver widening (accepting a temporary window where Branch B accepts wrappers the resolver doesn't yet resolve), or held until `verveguy/liminis#1114` ships?
-
 ## Source References
 
 - Issue #122 (original ULID-only badge decision), `docs/decisions/adr-122-block-anchor-badge.md`
