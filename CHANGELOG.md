@@ -3,22 +3,55 @@
 All notable changes to `@liminis/editor` are documented here. This project
 follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.6.0 — 2026-09-11
 
-### Fixed
+### Added
 
-- **A mid-line ULID block anchor no longer renders as a badge** (#126). A
-  block anchor (`^01ARZ3NDEKTSV4RRFFQ69G5FAV`) badges only when it sits at
-  the end of a line, preceded by whitespace — the one shape
-  `[[file#^id]]` can actually resolve, and the shape
-  `liminis-framework`'s action-item tooling writes (trailing a checkbox
-  line). Previously, a ULID badged anywhere on a line, including mid-
-  sentence, even though the reference resolver could never address it
-  there; every other id form already followed the end-of-line rule. This
-  brings ULID in line with them, so a badge is always a promise
-  `[[file#^id]]` can keep. A ULID referenced mid-sentence via
-  `[[file#^id]]`/`![[file#^id]]` is unaffected — those are wiki-links,
-  resolved independently of position.
+- **Block anchors render as badges** (#122, #124, #126, #127). Writing `^id`
+  at the end of a line marks that block with an anchor, and the editor now
+  renders it as a badge rather than raw text. This is the definition site for
+  the block-scoped links and transclusion added in 0.5.0 — `[[file#^id]]`
+  and `![[file#^id]]` address exactly these anchors.
+
+  **The id is an opaque token.** ULIDs, raw-decimal snowflakes, NanoIDs
+  (including `_` and `-`), UUID-shaped ids, base62 and short alphanumeric
+  ids (`^a1b2c3`) all badge. There is no length or charset rule to satisfy.
+
+  **Position is what disambiguates**, not the id's shape: the caret must
+  start a token (line start, or preceded by whitespace) and the id must run
+  to the end of the line. Ordinary prose is therefore left alone — `2^10`,
+  `10^100`, `mc^2` and `a ^ b` are never badged, whether mid-line or at a
+  line's end. A caret inside inline code, a fenced block or MathJax is
+  likewise untouched, by construction rather than by special-casing.
+
+  **An anchor may be wrapped in emphasis** — `**^id**`, `__^id__`, `*^id*`
+  and `_^id_` all badge the id without the wrapper characters, matching what
+  the reference resolver accepts. The wrapper must be symmetric.
+
+  Anchors are recognised at a definition site only. A reference written
+  mid-sentence (`![[file#^id]]`) is a wiki-link and has always resolved
+  independently of position — unchanged here.
+
+### Requires
+
+- **A host resolver that matches.** For `![[file#^id]]` to resolve an anchor
+  this editor badges, the embedding application must supply a
+  `resolveTransclusion()` whose anchor rule agrees with the editor's. The
+  Liminis app's resolver was widened in step (verveguy/liminis#1114); other
+  hosts should match `/(?:^|\s)(?:(\*\*|__|\*|_)\^([^\s\]#*]+?)\1|\^([^\s\]#*]+))\s*$/`.
+  The two rules are pinned against a shared case table
+  (`src/markdown/__tests__/blockAnchorCases.ts`) so they cannot drift
+  silently. A host on an older resolver will show badges it cannot resolve.
+
+### Known limitations
+
+- A bare number alone at the end of a line preceded by whitespace (`^100`),
+  or wrapped in emphasis (`*^2*`), is badged. This is accepted rather than
+  filtered: any minimum-length rule that excluded it would also exclude
+  legitimate short ids such as `^a1b2c3`. Real mathematics is written in
+  MathJax (`$x^2$`) and is excluded structurally.
+- Asymmetric wrappers (`**^id_`) and non-emphasis wrappers (`~~…~~`,
+  backticks, parentheses) are not recognised as anchors.
 
 ## 0.5.0 — 2026-09-09
 
