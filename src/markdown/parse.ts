@@ -643,27 +643,15 @@ function splitTextNodeEscapes(node: any, normalizedText: string): any[] {
   return result;
 }
 
-// Branch A: detects a block anchor (`^ULID`) at its *definition* site — a
-// bare caret immediately followed by a 26-character, uppercase Crockford
-// Base32 run (ULIDs) — Douglas Crockford's Base32 alphabet, which excludes
-// I, L, O and U to avoid visual confusion with 1/1/0/V. The trailing
-// negative lookahead stops a longer or malformed run of the same charset
-// from badging a truncated 26-character prefix of itself (issue #122).
-// Frozen exactly as shipped for #122, with no position constraint, so every
-// existing fixture and unit test that depends on a ULID badging regardless
-// of what precedes or follows it on the line keeps matching byte-for-byte
-// (#124/FR-004). See ADR-122's amendment for why ULID keeps this permissive
-// rule while every other id form is handled by Branch B below.
-const ULID_AT_CARET = /^\^[0-9A-HJKMNP-TV-Z]{26}(?![0-9A-HJKMNP-TV-Z])/;
-
-// Branch B: any other id shape the resolver and the reference-side wiki-link
-// parser already accept, gated by the resolver's own position rule — instead
-// of any length test: the caret must start a token (line-start or preceded by
-// whitespace), and the captured id must run to end of line (trailing
-// spaces/tabs allowed). This is what makes badge and resolver agree by
-// construction (#124/FR-002) for every id form *other* than ULID, without
-// touching ULID's own permissive rule or the fixtures that depend on it
-// (see ADR-122's amendment and the Plan stage's "Key Decisions").
+// Any id shape the resolver and the reference-side wiki-link parser already
+// accept — ULID included — gated by the resolver's own position rule: the
+// caret must start a token (line-start or preceded by whitespace), and the
+// captured id must run to end of line (trailing spaces/tabs allowed). This is
+// what makes badge and resolver agree by construction for every id form with
+// no carve-out (#124/FR-002, #126/FR-001) — ULID no longer gets a permissive,
+// position-free rule of its own; Crockford Base32 (ULID's charset) is already
+// a strict subset of this charset, so every ULID that satisfies this position
+// rule keeps badging unchanged (see ADR-122's amendments).
 //
 // The charset excludes `*` (in addition to `#`/`]`/whitespace) to match
 // `liminis-app/src/main/fs.ts`'s `ANCHOR_LINE_PATTERN`
@@ -674,11 +662,11 @@ const ULID_AT_CARET = /^\^[0-9A-HJKMNP-TV-Z]{26}(?![0-9A-HJKMNP-TV-Z])/;
 // case (#124/FR-004), and the resolver's own pattern allows it too.
 const WIDE_ID_CHAR = /[^\s\]#*]/;
 
-// Branch B, wrapper extension (#127): a symmetric emphasis wrapper (`**`,
-// `__`, `*`, `_`) around `^<id>` at line end badges too, so Branch B agrees
-// with the widened resolver (`liminis#1114`) for non-ULID ids the same way
-// Branch A already agrees for ULIDs. The wrapped id charset matches the
-// resolver's actual wrapped-branch charset (`[^\s\]#*]+?` in
+// A symmetric emphasis wrapper (`**`, `__`, `*`, `_`) around `^<id>` at line
+// end badges too (#127), so this rule agrees with the widened resolver
+// (`liminis#1114`) for wrapped ids the same way it already agrees for plain
+// ones. The wrapped id charset matches the resolver's actual wrapped-branch
+// charset (`[^\s\]#*]+?` in
 // `ANCHOR_LINE_PATTERN`) — same as `WIDE_ID_CHAR` above; kept as a distinct,
 // separately-named constant since the wrapped and unwrapped charsets are
 // independent knobs in the resolver's pattern and could diverge again.
@@ -691,8 +679,8 @@ const isSpaceOrTab = (ch: string | undefined): boolean => ch === ' ' || ch === '
 /**
  * Look for one of `WRAPPER_MARKERS` immediately before `offset` in the raw,
  * pre-parse `normalizedText`, itself preceded by whitespace or document
- * start — the same left-boundary rule Branch B already applies to a bare
- * caret, just one token further out. Returns the matched marker string, or
+ * start — the same left-boundary rule already applied to a bare caret, just
+ * one token further out. Returns the matched marker string, or
  * `null` if none of them fit.
  *
  * This only needs to look *outside* the current text node (at `offset`, the
@@ -721,23 +709,22 @@ interface BlockAnchorMatch {
 }
 
 /**
- * Find every block-anchor match in `decoded`, trying Branch A (ULID, no
- * position constraint) before Branch B (any id shape, position-gated) at
- * each unescaped `^`, left to right, so a caret already consumed by one
- * branch's match is never re-considered by the other.
+ * Find every block-anchor match in `decoded` — any id shape, position-gated
+ * by the resolver's own rule, with no separate ULID carve-out (#126) — at
+ * each unescaped `^`, left to right.
  *
- * Branch B's boundary checks peek one character outside this text node's
- * own `decoded`/`source` span — into `normalizedText` at `start - 1` (left)
- * or from `end` onward (right) — rather than inspecting sibling AST nodes:
- * the raw source character is equivalent and needs no tree traversal (see
- * Plan stage's "Key Decisions"). This is what lets Branch B correctly
- * refuse a match immediately followed by more prose on the same line, even
- * when that prose lives in a following sibling node (e.g. a wiki-link right
- * after the id), and correctly accept one immediately after a preceding
- * sibling ends with whitespace.
+ * The boundary checks peek one character outside this text node's own
+ * `decoded`/`source` span — into `normalizedText` at `start - 1` (left) or
+ * from `end` onward (right) — rather than inspecting sibling AST nodes: the
+ * raw source character is equivalent and needs no tree traversal (see Plan
+ * stage's "Key Decisions"). This is what lets the rule correctly refuse a
+ * match immediately followed by more prose on the same line, even when that
+ * prose lives in a following sibling node (e.g. a wiki-link right after the
+ * id), and correctly accept one immediately after a preceding sibling ends
+ * with whitespace.
  *
- * Branch B also accepts a symmetric emphasis wrapper (`**`, `__`, `*`, `_`)
- * around the id at line end (#127), using the same outside-the-node peek:
+ * A symmetric emphasis wrapper (`**`, `__`, `*`, `_`) around the id at line
+ * end also badges (#127), using the same outside-the-node peek:
  * when the caret is the first character of this text node (`i === 0`) and
  * the plain whitespace/start rule doesn't hold, it peeks backward for a
  * wrapper marker; when one is found, the id must then run to this text
@@ -762,13 +749,6 @@ function findBlockAnchorMatches(
   for (let i = 0; i < decoded.length; i++) {
     if (i < cursor) continue;
     if (decoded[i] !== '^' || parts[i].escaped) continue;
-
-    const branchA = ULID_AT_CARET.exec(decoded.slice(i));
-    if (branchA) {
-      matches.push({ index: i, length: branchA[0].length });
-      cursor = i + branchA[0].length;
-      continue;
-    }
 
     // Left boundary: preceded by whitespace, or true document start — or,
     // when the caret is the first character of this text node, a symmetric
@@ -861,7 +841,7 @@ function findBlockAnchorMatches(
  * reference in the span) rather than duplicating it (#122).
  *
  * Because this only ever inspects a `text` node's own `value` (plus, for
- * Branch B's boundary checks, one character immediately outside it), it can
+ * the boundary checks, one character immediately outside it), it can
  * never see into `inlineCode`, `code`, `inlineMath`, `wikiLink` or
  * `wikiEmbed` node content — none of those are `text` nodes once mdast has
  * typed them — which satisfies the code-span/fenced-code/math edge case and

@@ -253,6 +253,49 @@ result and the fixture starts enforcing it).
   above, fixed by [#20](https://github.com/verveguy/liminis-editor/issues/20)), and
   `strong-inline-math-only-underscore.md`.
 
+## The `122-block-anchor/` fixture group
+
+[#122](https://github.com/verveguy/liminis-editor/issues/122) introduced block-anchor
+badges (`^id` splitting out into a `blockAnchor` mdast node); [#124](https://github.com/verveguy/liminis-editor/issues/124)
+widened the id shapes it accepts; [#127](https://github.com/verveguy/liminis-editor/issues/127)
+widened it again to accept a symmetric emphasis wrapper. [#126](https://github.com/verveguy/liminis-editor/issues/126)
+deleted the ULID-only carve-out (`Branch A`) that let a ULID badge anywhere on a line
+regardless of position — the resolver (`verveguy/liminis`'s `fs.ts`) can only ever address
+an anchor definition at end of line, so a mid-line ULID badge was a promise the system
+could never keep. Three fixtures pre-dated that decision and asserted the mid-line shape;
+this issue rewrote them rather than deleting them, since each also exercises adjacency/
+multiplicity machinery unrelated to the ULID-position question:
+
+- **`multiple-anchors.md`**: originally two ULIDs, each mid-line, one per line, in a
+  single three-line paragraph — despite the filename, it never tested multiple ids on
+  *one* line (that's `anchor-in-emphasis-strong.md`, below). "Multiple" means multiple
+  per *paragraph*. Rewritten so each ULID sits at the end of its own line, still one per
+  line, still within one paragraph, still with ordinary prose before/after/between —
+  preserving the paragraph-level-multiplicity case while asserting a shape the resolver
+  can actually address.
+- **`anchor-after-wikilink.md`**: originally a ULID immediately after `[[notes]]` with
+  zero preceding whitespace, testing the sibling-boundary text-node-splitting machinery
+  when a block anchor follows a `wikiLink` node. Zero-whitespace adjacency can never
+  satisfy the resolver's left-boundary rule at *any* line position — moving the ULID to
+  line end alone would not have made it badge again. Rewritten with one space before the
+  caret (`[[notes]] ^id`, now at line end), which keeps the wikiLink-adjacency scenario
+  under test while satisfying the position rule. The true zero-space shape is not
+  discarded: it is now an explicit "does not badge" unit test in `parse.test.ts`
+  (`describe('block anchor badges (#122)')`), so the closed gap is documented rather than
+  silently absorbed.
+- **`anchor-in-emphasis-strong.md`**: originally two ULIDs on one line, each immediately
+  after an `emphasis`/`strong` run with zero preceding whitespace — the one fixture in
+  this group that genuinely tested two ids on a single line. Rewritten to two lines, one
+  ULID per line, each preceded by one space after its `emphasis`/`strong` sibling and at
+  line end, for the same reason as `anchor-after-wikilink.md` above. This still exercises
+  both the emphasis-adjacency scenario and the two-anchors-in-one-paragraph case, just no
+  longer on a single line (which was never load-bearing for either thing being tested).
+  The zero-space variant is likewise preserved as an explicit non-badging unit test.
+
+`checkbox-anchor.md` (the one fixture whose ULID was already at line end, matching real
+authoring) and `checkbox-anchor-formatted.md` (an emphasis-wrapped anchor, #127's
+territory) are unaffected by #126 and were not touched.
+
 ## The `19-*` fixture set
 
 Fixed [#19](https://github.com/verveguy/liminis-editor/issues/19), the callout

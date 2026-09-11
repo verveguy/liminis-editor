@@ -370,72 +370,71 @@ punctuation left in the anchor split's "before"/"after" text siblings.
 with no escaping — lossless by construction, the same way `wikiLink`/
 `wikiEmbed` are.
 
-### The detection rule: two branches, ULID permissive and everything else position-gated (#124)
+### The detection rule: one universal position rule, every id form alike (#124, #127, #126)
 
-`findBlockAnchorMatches` in `parse.ts` tries two branches at each unescaped
-`^`, left to right, Branch A first:
+`findBlockAnchorMatches` in `parse.ts` applies a single rule at each
+unescaped `^`, left to right: any id the resolver and the wiki-link
+reference side already accept — ULID, raw-decimal snowflake ids, NanoID-style
+ids with `_`/`-`, mixed-case base62, UUID-shaped hyphenated ids, short
+alphanumeric ids — badges if and only if the caret starts a token (line-start
+or preceded by whitespace) and the captured id (`WIDE_ID_CHAR`, the same
+charset the wiki-link reference side and the resolver use) runs to end of
+line. This is the resolver's own regex (`liminis-app/src/main/fs.ts`,
+verveguy/liminis#1109) adopted verbatim, so badge and resolver agree by
+construction rather than by coincidence, for every id form with no
+carve-out. (At the time #124 shipped, `WIDE_ID_CHAR` was `[^\s\]#]+`; #127
+later narrowed it to also exclude `*`, matching a further narrowing the
+resolver itself picked up for `liminis#1114` — see below.)
 
-**Branch A — ULID, unconstrained by position** (unchanged since #122):
+**This was not always one rule.** #124 originally split detection into two
+branches: ULID kept #122's original rule, unconstrained by position, while
+every other id form was gated by the position rule above. That carve-out
+existed because #122's own fixtures required a ULID to badge immediately
+after a wiki-link/emphasis run with no preceding space, and required a ULID
+followed by more prose on the same line to badge — shapes the resolver can
+never address, since it only ever matches an anchor definition running to
+end of line. #126 deleted the carve-out: those mid-line fixtures turned out
+to encode parser-robustness tests, not a product requirement, because
+production's actual mid-line ULID occurrences are wiki-link *references*
+(`[[file#^id]]`), parsed position-independently and unaffected by this
+change — not anchor *definitions*. A badged mid-line ULID was a promise
+`[[file#^id]]` could never keep, the same "UI says X, system does Y"
+disagreement #124 fixes, in the opposite direction. Deleting the carve-out
+was a pure removal, not a rewrite: Crockford Base32 (ULID's charset) is
+already a strict subset of the position rule's charset, so every ULID that
+already satisfied the position rule — plain or emphasis-wrapped, at line
+end — keeps badging unchanged; only mid-line ULIDs, and ULIDs immediately
+adjacent to a preceding sibling with zero intervening whitespace, stopped
+badging. See ADR-122's 2026-09-10 (#126) amendment for the full history,
+including the rejected minimum-length threshold and the residual this left
+(a caret with zero preceding whitespace, immediately after a wiki-link or
+emphasis/strong sibling, can never badge at any line position — not just
+mid-line).
 
-```ts
-/^\^[0-9A-HJKMNP-TV-Z]{26}(?![0-9A-HJKMNP-TV-Z])/
-```
+Widening the charset without position-gating was, and remains, rejected:
+`x^2`/`2^10`/`a ^ b` would badge as false positives, since nothing else
+bounds an undelimited charset match the way `[[...]]` brackets bound the
+wiki-link reference side's use of the same charset.
 
-26-character, uppercase Crockford Base32, with a trailing negative lookahead
-so a longer or malformed run of the same charset never badges a truncated
-26-character prefix of itself. No word-boundary or preceding-whitespace
-requirement: an anchor is expected immediately after other inline syntax
-with no preceding space (e.g. right after a wiki-link or an emphasis run),
-and a boundary rule would exclude that case structurally — see
-`anchor-after-wikilink.md`/`anchor-in-emphasis-strong.md` in the fixture
-corpus. It is also not required to run to end of line —
-`multiple-anchors.md` badges an anchor followed by further prose on the same
-line.
+A shared, cross-repo case table
+(`src/markdown/__tests__/blockAnchorCases.ts`, `BLOCK_ANCHOR_POSITION_CASES`)
+pins this rule's id/position behavior against the resolver's actual, merged
+`ANCHOR_LINE_PATTERN`, asserted in full by a single `it.each` in
+`parse.test.ts` — so a future divergence between the two repositories' rules
+fails a test instead of shipping as a live defect, the way both #124's and
+#126's own gaps originally did.
 
-**Branch B — any other id shape, gated by the resolver's own position rule**
-(added by #124): any id the resolver and the wiki-link reference side already
-accept — raw-decimal snowflake ids, NanoID-style ids with `_`/`-`, mixed-case
-base62, UUID-shaped hyphenated ids, short alphanumeric ids — badges if and
-only if the caret starts a token (line-start or preceded by whitespace) and
-the captured id (`WIDE_ID_CHAR`, the same charset the wiki-link reference
-side and the resolver use) runs to end of line. This is the resolver's own
-regex (`liminis-app/src/main/fs.ts`, verveguy/liminis#1109) adopted verbatim,
-so badge and resolver agree by construction rather than by coincidence. (At
-the time #124 shipped, `WIDE_ID_CHAR` was `[^\s\]#]+`; #127 later narrowed it
-to also exclude `*`, matching a further narrowing the resolver itself picked
-up for `liminis#1114` — see below.)
+The boundary checks may need to peek one character outside the current text
+node's own source span — into the surrounding normalized document text, one
+character before the node's start or from the node's end onward — since a
+preceding/following sibling (e.g. a wiki-link) has no character of its own
+for the matcher to inspect directly. This is equivalent to inspecting the
+sibling node and needs no AST traversal to do it.
 
-**Why two branches instead of one universal rule.** Applying Branch B's
-position rule to ULID as well was considered and rejected: #122's own
-fixtures and unit tests require a ULID to badge immediately after a
-wiki-link/emphasis run with no preceding space, and require a ULID followed
-by more prose on the same line to badge — both of which a universal position
-rule breaks. Widening Branch A's charset without adding position-gating was
-also rejected: `x^2`/`2^10`/`a ^ b` would badge as false positives, since
-nothing else bounds an undelimited charset match the way `[[...]]` brackets
-bound the wiki-link reference side's use of the same charset. The two-branch
-split is what lets ULID keep its original permissive rule (no regression)
-while every other id form gets exactly the disambiguation it needs (no
-charset or length reasoning, just position) — see ADR-122's 2026-09-09
-amendment for the full history, including the rejected minimum-length
-threshold.
-
-Branch B's boundary checks may need to peek one character outside the
-current text node's own source span — into the surrounding normalized
-document text, one character before the node's start or from the node's end
-onward — since a preceding/following sibling (e.g. a wiki-link) has no
-character of its own for the matcher to inspect directly. This is
-equivalent to inspecting the sibling node and needs no AST traversal to do
-it.
-
-**Branch B, wrapper extension (added by #127): a symmetric emphasis wrapper
-at line end.** `**^a1b2c3**`, `__^a1b2c3__`, `*^a1b2c3*` and `_^a1b2c3_` all
-badge `a1b2c3` — matching `verveguy/liminis#1114`'s widened resolver, which
-accepts the same wrapped shape. Without this, widening the resolver alone
-would reopen #124's defect in the opposite direction: `**^<ULID>**` already
-badges today via Branch A (unconstrained by position), but a wrapped
-*non*-ULID id would resolve under the widened resolver without ever
-badging.
+**A symmetric emphasis wrapper at line end (added by #127).**
+`**^a1b2c3**`, `__^a1b2c3__`, `*^a1b2c3*` and `_^a1b2c3_` all badge
+`a1b2c3` — matching `verveguy/liminis#1114`'s widened resolver, which
+accepts the same wrapped shape.
 
 When CommonMark parses `**^a1b2c3**` as real emphasis, the wrapper
 characters are consumed into the *parent* `strong`/`emphasis` node's
@@ -450,8 +449,8 @@ unmatched delimiter run, already correctly rejected by the plain rule with
 no wrapper logic involved. Gating wrapper detection on both invariants
 means the extension is just two more raw-character peeks into the
 surrounding normalized text (`matchWrapperMarkerBefore` on the open side,
-an exact-string check on the close side), the same style Branch B's plain
-whitespace boundary already uses — no need to pass the enclosing
+an exact-string check on the close side), the same style the plain
+whitespace boundary above already uses — no need to pass the enclosing
 `strong`/`emphasis` node's type, marker, or position down through the tree
 walk.
 
@@ -470,17 +469,17 @@ resolver doesn't exclude it either.
 
 The closer must be the *exact same marker string* that opened it — not an
 independently optional match — so an asymmetric wrapper (`item **^<ULID>_`)
-is rejected outright rather than captured with a corrupted id. (That
-specific example still badges the clean ULID via Branch A, which ignores
-wrapper symmetry entirely — Branch A is untouched by #127 — but never via a
-Branch B wrapper match.) Wrapper forms other than `**`/`__`/`*`/`_` — triple
-emphasis (`***…***`), strikethrough (`~~…~~`), backtick-wrapped, and
-paren-wrapped — stay unhandled by design: `WRAPPER_MARKERS` only lists the
-four forms `liminis#1114`'s resolver pattern accepts. `squared *^2*`
-becomes a badged-and-resolved false anchor as a result of this widening —
-accepted deliberately, for the same reason a minimum-length floor was
-already rejected for `^100` in #124 (excluding it would also exclude
-legitimate short ids like `^a1b2c3`). See ADR-122's 2026-09-10 amendment.
+is rejected outright rather than captured with a corrupted id, ULID or not
+(#126: there is no longer a position-free carve-out for it to fall back to).
+Wrapper forms other than `**`/`__`/`*`/`_` — triple emphasis (`***…***`),
+strikethrough (`~~…~~`), backtick-wrapped, and paren-wrapped — stay
+unhandled by design: `WRAPPER_MARKERS` only lists the four forms
+`liminis#1114`'s resolver pattern accepts. `squared *^2*` becomes a
+badged-and-resolved false anchor as a result of this widening — accepted
+deliberately, for the same reason a minimum-length floor was already
+rejected for `^100` in #124 (excluding it would also exclude legitimate
+short ids like `^a1b2c3`). See ADR-122's 2026-09-10 (#127) and 2026-09-10
+(#126) amendments.
 
 ### The Lexical side: `BlockAnchorNode`, mirroring `FootnoteNode`
 
@@ -517,10 +516,14 @@ branch back into the generic block-dispatch fallback.
 
 `parseMarkdown` → `stringifyMarkdown` reproduces a document containing block
 anchors byte-identically (FR-002/SC-002), including inside a checkbox action
-item, adjacent to a wiki-link or emphasis run with no preceding whitespace,
-and inside bold/italic text. A caret inside inline code, a fenced code
-block, or inline math is never touched — it round-trips as plain literal
-text, since the post-parse pass never sees inside those node types. See
+item, one space after a wiki-link or emphasis run, and inside bold/italic
+text. A caret inside inline code, a fenced code block, or inline math is
+never touched — it round-trips as plain literal text, since the post-parse
+pass never sees inside those node types. A caret with *zero* preceding
+whitespace immediately after a wiki-link or emphasis run also round-trips
+byte-identically, but as plain text, not a `blockAnchor` node (#126: that
+position can never satisfy the position rule, so it never badges — see the
+detection-rule section above). See
 `src/app/mapper/__tests__/fixtures/roundtrip/122-block-anchor/` for the
 fixture corpus.
 

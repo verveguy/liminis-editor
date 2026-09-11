@@ -3,6 +3,23 @@
 All notable changes to `@liminis/editor` are documented here. This project
 follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- **A mid-line ULID block anchor no longer renders as a badge** (#126). A
+  block anchor (`^01ARZ3NDEKTSV4RRFFQ69G5FAV`) badges only when it sits at
+  the end of a line, preceded by whitespace — the one shape
+  `[[file#^id]]` can actually resolve, and the shape
+  `liminis-framework`'s action-item tooling writes (trailing a checkbox
+  line). Previously, a ULID badged anywhere on a line, including mid-
+  sentence, even though the reference resolver could never address it
+  there; every other id form already followed the end-of-line rule. This
+  brings ULID in line with them, so a badge is always a promise
+  `[[file#^id]]` can keep. A ULID referenced mid-sentence via
+  `[[file#^id]]`/`![[file#^id]]` is unaffected — those are wiki-links,
+  resolved independently of position.
+
 ## 0.5.0 — 2026-09-09
 
 ### Added
